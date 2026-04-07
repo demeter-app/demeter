@@ -6,10 +6,11 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0d0f0d">
-<title>TREC Compétition</title>
+<title>Déméter</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&family=DM+Mono:wght@300;400;500&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
   --bg:#0d0f0d;--bg2:#141614;--bg3:#1c1f1c;--bg4:#242724;
@@ -34,12 +35,8 @@ input,select,textarea{font-family:inherit;background:var(--bg3);border:1px solid
 input:focus,select:focus,textarea:focus{border-color:var(--accent)}
 select option{background:var(--bg3)}
 a{color:var(--accent);text-decoration:none}
-
-/* SCREENS */
 .screen{display:none;min-height:100dvh;flex-direction:column}
 .screen.active{display:flex}
-
-/* PWA GATE */
 #pwa-gate{position:fixed;inset:0;z-index:9999;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;text-align:center;gap:24px}
 #pwa-gate.hidden{display:none}
 .pwa-icon{width:80px;height:80px;background:var(--accent-bg2);border:2px solid var(--accent);border-radius:20px;display:flex;align-items:center;justify-content:center;font-size:36px}
@@ -50,8 +47,6 @@ a{color:var(--accent);text-decoration:none}
 .pwa-step:last-child{border-bottom:none}
 .pwa-step-num{min-width:22px;height:22px;background:var(--accent);color:var(--bg);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
 .pwa-bypass{font-size:12px;color:var(--text3);border:1px solid var(--border);border-radius:var(--radius);padding:8px 16px;cursor:pointer}
-
-/* CONN — bottom left, always visible */
 #conn-indicator{position:fixed;bottom:12px;left:12px;z-index:500;display:flex;align-items:center;gap:6px;font-family:'DM Mono',monospace;font-size:10px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;padding:4px 8px;border-radius:20px;transition:all .3s}
 #conn-indicator.online{background:rgba(122,173,90,.12);color:var(--accent);border:1px solid rgba(122,173,90,.3)}
 #conn-indicator.offline{background:rgba(212,90,90,.12);color:var(--red);border:1px solid rgba(212,90,90,.3)}
@@ -60,35 +55,25 @@ a{color:var(--accent);text-decoration:none}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 #sync-badge{position:fixed;bottom:12px;left:100px;z-index:500;background:var(--orange-bg);color:var(--orange);border:1px solid rgba(212,149,90,.3);border-radius:20px;padding:4px 8px;font-family:'DM Mono',monospace;font-size:10px;font-weight:500;display:none}
 #sync-badge.show{display:flex;align-items:center;gap:4px}
-
-/* on desktop, shift conn to right of sidebar */
 @media(min-width:900px){
   #conn-indicator{left:calc(var(--sidebar-w) + 12px)}
   #sync-badge{left:calc(var(--sidebar-w) + 104px)}
 }
-
-/* AUTH */
 #screen-auth{background:var(--bg);justify-content:center;align-items:center;padding:32px 24px;gap:0}
 .auth-form{width:100%;max-width:360px;display:flex;flex-direction:column;gap:16px;margin:0 auto;padding:0 24px}
 .auth-label{font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--text3);display:block;margin-bottom:6px}
 .auth-error{background:var(--red-bg);border:1px solid rgba(212,90,90,.3);color:var(--red);border-radius:var(--radius);padding:10px 14px;font-size:13px;display:none}
 .auth-error.show{display:block}
-
-/* BUTTONS */
 .btn-primary{background:var(--accent);color:var(--bg);font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:14px 24px;border-radius:var(--radius);transition:background var(--transition),transform var(--transition);width:100%}
 .btn-primary:active{transform:scale(.98);background:var(--accent2)}
 .btn-secondary{background:var(--bg3);color:var(--text);border:1px solid var(--border2);font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:12px 20px;border-radius:var(--radius);transition:all var(--transition);width:100%}
-.btn-danger{background:var(--red-bg);color:var(--red);border:1px solid rgba(212,90,90,.3);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:10px 16px;border-radius:var(--radius);transition:all var(--transition)}
+.btn-danger{background:var(--red-bg);color:var(--red);border:1px solid rgba(212,90,90,.3);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:10px 16px;border-radius:var(--radius)}
 .btn-small{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:8px 14px;border-radius:var(--radius)}
 .btn-outline{background:transparent;color:var(--accent);border:1px solid var(--accent);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:10px 18px;border-radius:var(--radius);transition:all var(--transition)}
 .btn-outline:active{background:var(--accent-bg)}
 .btn-icon{width:32px;height:32px;display:flex;align-items:center;justify-content:center;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text2);font-size:14px;transition:all var(--transition);cursor:pointer;flex-shrink:0}
 .btn-icon:hover{background:var(--bg4);color:var(--text)}
-
-/* APP SHELL */
 #screen-app{flex-direction:column;background:var(--bg)}
-
-/* MOBILE HEADER */
 .app-header{height:var(--header-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 16px;position:sticky;top:0;z-index:100;flex-shrink:0}
 .app-header-title{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
 .app-header-role{font-family:'DM Mono',monospace;font-size:10px;font-weight:500;letter-spacing:.15em;text-transform:uppercase;padding:3px 8px;border-radius:20px;display:inline-flex;align-items:center}
@@ -97,8 +82,6 @@ a{color:var(--accent);text-decoration:none}
 .role-juge .app-header-role{color:var(--orange);background:var(--orange-bg);border:1px solid rgba(212,149,90,.25)}
 .logout-btn{width:32px;height:32px;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:16px;border-radius:var(--radius);transition:color var(--transition)}
 .logout-btn:hover{color:var(--red)}
-
-/* MOBILE BOTTOM NAV */
 .bottom-nav{height:var(--nav-h);background:var(--bg2);border-top:1px solid var(--border);display:flex;position:fixed;bottom:0;left:0;right:0;z-index:100;padding-bottom:env(safe-area-inset-bottom)}
 .nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:8px 4px;color:var(--text3);transition:color var(--transition);position:relative;cursor:pointer}
 .nav-item.active{color:var(--accent)}
@@ -107,8 +90,6 @@ a{color:var(--accent);text-decoration:none}
 .nav-item.active::before{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);width:32px;height:2px;background:currentColor;border-radius:0 0 2px 2px}
 .nav-icon{font-size:20px;line-height:1}
 .nav-label{font-family:'Barlow Condensed',sans-serif;font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase}
-
-/* DESKTOP LAYOUT */
 @media(min-width:900px){
   #screen-app{flex-direction:row}
   .app-header{display:none}
@@ -121,8 +102,6 @@ a{color:var(--accent);text-decoration:none}
   .app-content{padding-bottom:calc(var(--nav-h) + 16px)}
 }
 .app-content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
-
-/* DESKTOP SIDEBAR */
 .desktop-sidebar{position:fixed;top:0;left:0;width:var(--sidebar-w);height:100dvh;background:var(--bg2);border-right:1px solid var(--border);flex-direction:column;z-index:100;padding:24px 0;display:none}
 .sidebar-logo{padding:0 20px 24px;border-bottom:1px solid var(--border);margin-bottom:16px}
 .sidebar-logo-title{font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:800;letter-spacing:-.01em;text-transform:uppercase;line-height:1}
@@ -141,27 +120,19 @@ a{color:var(--accent);text-decoration:none}
 .sidebar-item-label{font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
 .sidebar-footer{padding:16px 20px;border-top:1px solid var(--border)}
 .sidebar-user{font-size:13px;color:var(--text2);margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-
-/* PAGES */
 .page{display:none;padding:16px}
 .page.active{display:block}
 @media(min-width:900px){.page{padding:28px 32px;max-width:1100px}}
 .page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
 .page-title{font-family:'Barlow Condensed',sans-serif;font-size:26px;font-weight:800;letter-spacing:.02em;text-transform:uppercase}
 .page-subtitle{font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;margin-top:2px}
-
-/* CARDS */
 .card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius2);overflow:hidden;margin-bottom:12px}
 .card-header{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
 .card-title{font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text2)}
 .card-body{padding:16px}
-
-/* SECTION LABEL */
 .section-label{font-family:'DM Mono',monospace;font-size:10px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:var(--text3);padding:0 0 8px;display:flex;align-items:center;gap:8px;margin-top:20px;margin-bottom:8px}
 .section-label::after{content:'';flex:1;height:1px;background:var(--border)}
 .section-label:first-child{margin-top:0}
-
-/* STATS */
 .stats-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px}
 @media(min-width:900px){.stats-grid{grid-template-columns:repeat(4,1fr)}}
 .stat-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius2);padding:14px}
@@ -170,14 +141,10 @@ a{color:var(--accent);text-decoration:none}
 .stat-card.accent{border-color:rgba(122,173,90,.3)}.stat-card.accent .stat-val{color:var(--accent)}
 .stat-card.warn{border-color:rgba(212,149,90,.3)}.stat-card.warn .stat-val{color:var(--orange)}
 .stat-card.alert{border-color:rgba(212,90,90,.3)}.stat-card.alert .stat-val{color:var(--red)}
-
-/* ALERTS */
 .alert-banner{border-radius:var(--radius);padding:12px 14px;margin-bottom:10px;display:flex;align-items:flex-start;gap:10px;font-size:13px;line-height:1.5}
 .alert-banner.warn{background:var(--orange-bg);border:1px solid rgba(212,149,90,.3);color:var(--orange)}
 .alert-banner.ok{background:var(--accent-bg);border:1px solid rgba(122,173,90,.3);color:var(--accent)}
 .alert-banner.info{background:var(--blue-bg);border:1px solid rgba(90,143,212,.3);color:var(--blue)}
-
-/* LIST ITEMS */
 .list-item{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius2);padding:14px 16px;margin-bottom:8px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:border-color var(--transition),background var(--transition);position:relative;overflow:hidden}
 .list-item:hover{background:var(--bg3)}
 .list-item::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px}
@@ -190,8 +157,6 @@ a{color:var(--accent);text-decoration:none}
 .list-item-right{text-align:right;flex-shrink:0}
 .list-item-score{font-family:'DM Mono',monospace;font-size:18px;font-weight:500}
 .list-item-rank{font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);margin-top:2px}
-
-/* BADGES */
 .cat-badge{font-family:'DM Mono',monospace;font-size:10px;font-weight:500;letter-spacing:.08em;padding:3px 7px;border-radius:3px;display:inline-flex;align-items:center}
 .cat-badge.official{background:rgba(122,173,90,.12);color:var(--official);border:1px solid rgba(122,173,90,.25)}
 .cat-badge.unofficial{background:rgba(212,149,90,.12);color:var(--unofficial);border:1px solid rgba(212,149,90,.25)}
@@ -202,16 +167,12 @@ a{color:var(--accent);text-decoration:none}
 .status-badge.pending{background:var(--orange-bg);color:var(--orange)}
 .status-badge.open{background:var(--accent-bg);color:var(--accent)}
 .status-badge.closed{background:var(--bg4);color:var(--text3)}
-
-/* FORMS */
 .form-group{margin-bottom:16px}
 .form-label{display:block;font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--text3);margin-bottom:6px}
 .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .input-group{display:flex}
 .input-group input{border-radius:var(--radius) 0 0 var(--radius);border-right:none}
 .input-group-append{background:var(--bg4);border:1px solid var(--border2);border-radius:0 var(--radius) var(--radius) 0;padding:0 12px;display:flex;align-items:center;font-family:'DM Mono',monospace;font-size:12px;color:var(--text3);white-space:nowrap}
-
-/* TOGGLE */
 .toggle-wrap{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border)}
 .toggle-wrap:last-child{border-bottom:none}
 .toggle-info{flex:1}
@@ -223,16 +184,12 @@ a{color:var(--accent);text-decoration:none}
 .toggle-slider::before{content:'';position:absolute;width:18px;height:18px;left:2px;top:2px;background:var(--text3);border-radius:50%;transition:transform .2s,background .2s}
 .toggle input:checked+.toggle-slider{background:var(--accent-bg2);border-color:var(--accent2)}
 .toggle input:checked+.toggle-slider::before{transform:translateX(20px);background:var(--accent)}
-
-/* TABS */
 .tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:20px;overflow-x:auto;scrollbar-width:none}
 .tabs::-webkit-scrollbar{display:none}
 .tab-btn{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);padding:10px 16px;border-bottom:2px solid transparent;white-space:nowrap;transition:all var(--transition);cursor:pointer;margin-bottom:-1px}
 .tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
 .role-admin .tab-btn.active{color:var(--blue);border-bottom-color:var(--blue)}
 .role-juge .tab-btn.active{color:var(--orange);border-bottom-color:var(--orange)}
-
-/* MODAL */
 .modal-overlay{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.7);display:flex;align-items:flex-end;opacity:0;pointer-events:none;transition:opacity .2s}
 .modal-overlay.open{opacity:1;pointer-events:all}
 @media(min-width:900px){.modal-overlay{align-items:center;justify-content:center}}
@@ -245,34 +202,24 @@ a{color:var(--accent);text-decoration:none}
 .modal-title{font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:0 20px 16px;border-bottom:1px solid var(--border)}
 .modal-body{padding:20px}
 .modal-actions{display:flex;gap:10px;padding:16px 20px 0}
-
-/* DRAG DROP */
 .dossard-zone{border:1px dashed var(--border2);border-radius:var(--radius2);padding:8px;min-height:80px}
 .drag-item{background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);padding:12px 14px;margin-bottom:6px;display:flex;align-items:center;gap:12px;cursor:grab;user-select:none;transition:background var(--transition)}
 .drag-item:active{cursor:grabbing}
 .drag-item.over{border-color:var(--accent);background:var(--accent-bg)}
 .drag-handle{color:var(--text3);font-size:16px}
 .drag-dossard{font-family:'DM Mono',monospace;font-size:18px;font-weight:500;min-width:36px;text-align:center;color:var(--accent)}
-
-/* RESULTS TABLE */
 .results-table{width:100%;border-collapse:collapse;font-size:13px}
 .results-table th{font-family:'DM Mono',monospace;font-size:10px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--text3);padding:8px 10px;text-align:left;border-bottom:1px solid var(--border2)}
 .results-table td{padding:10px;border-bottom:1px solid var(--border);vertical-align:middle}
 .results-table tr:last-child td{border-bottom:none}
 .rank-cell{font-family:'DM Mono',monospace;font-weight:500;color:var(--text2);min-width:28px}
 .score-cell{font-family:'DM Mono',monospace;font-size:15px;font-weight:500;text-align:right}
-.rank-1 .rank-cell{color:#f0c040}
-.rank-2 .rank-cell{color:#b0b8c0}
-.rank-3 .rank-cell{color:#c88040}
-
-/* CAT SECTION HEADER in results */
+.rank-1 .rank-cell{color:#f0c040}.rank-2 .rank-cell{color:#b0b8c0}.rank-3 .rank-cell{color:#c88040}
 .cat-section{margin-bottom:28px}
 .cat-section-header{display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius2) var(--radius2) 0 0;border-bottom:none}
 .cat-section-title{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
 .cat-section-body{border:1px solid var(--border2);border-radius:0 0 var(--radius2) var(--radius2);overflow:hidden}
 .cat-sub-label{font-family:'DM Mono',monospace;font-size:10px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--text3);padding:8px 14px;background:var(--bg4);border-bottom:1px solid var(--border)}
-
-/* OBSTACLE GRID */
 .obstacle-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
 @media(min-width:600px){.obstacle-grid{grid-template-columns:repeat(3,1fr)}}
 @media(min-width:900px){.obstacle-grid{grid-template-columns:repeat(5,1fr)}}
@@ -285,8 +232,6 @@ a{color:var(--accent);text-decoration:none}
 .obstacle-score{font-family:'DM Mono',monospace;font-size:24px;text-align:right;color:var(--text)}
 .obstacle-card.scored .obstacle-score{color:var(--accent)}
 .obstacle-card.scored-zero .obstacle-score{color:var(--red)}
-
-/* SCORE MODAL */
 .score-big{font-family:'DM Mono',monospace;font-size:64px;font-weight:300;text-align:center;color:var(--text);line-height:1;padding:16px 0}
 .score-controls{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}
 .score-btn{background:var(--bg3);border:1px solid var(--border2);color:var(--text);font-family:'DM Mono',monospace;font-size:20px;padding:16px 8px;border-radius:var(--radius);text-align:center;transition:all var(--transition);cursor:pointer}
@@ -295,8 +240,6 @@ a{color:var(--accent);text-decoration:none}
 .score-btn.minus{color:var(--red);border-color:rgba(212,90,90,.3)}
 .score-btn.max{background:var(--accent-bg);color:var(--accent)}
 .score-btn.zero{background:var(--red-bg);color:var(--red)}
-
-/* POR */
 .por-control{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius2);padding:14px;margin-bottom:10px}
 .por-control-label{font-family:'DM Mono',monospace;font-size:11px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--text3);margin-bottom:12px}
 .time-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -307,30 +250,22 @@ a{color:var(--accent);text-decoration:none}
 .penalty-val{font-family:'DM Mono',monospace;font-size:24px;flex:1;text-align:center}
 .penalty-btn{width:36px;height:36px;background:var(--bg4);border:1px solid var(--border2);border-radius:var(--radius);font-size:20px;color:var(--text2);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all var(--transition)}
 .penalty-btn:active{transform:scale(.92)}
-
-/* MA BALISE */
 .balise-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:12px 0}
 @media(min-width:900px){.balise-grid{grid-template-columns:repeat(10,1fr)}}
 .balise-btn{aspect-ratio:1;background:var(--bg3);border:2px solid var(--border2);border-radius:var(--radius);font-family:'DM Mono',monospace;font-size:14px;font-weight:500;color:var(--text2);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s}
 .balise-btn.hit{background:var(--accent-bg2);border-color:var(--accent);color:var(--accent)}
 .balise-btn.miss{background:var(--red-bg);border-color:var(--red);color:var(--red)}
-
-/* SCHEDULE */
 .schedule-item{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border)}
 .schedule-item:last-child{border-bottom:none}
 .schedule-time{font-family:'DM Mono',monospace;font-size:15px;font-weight:500;min-width:52px;color:var(--accent)}
 .schedule-time.modified{color:var(--orange)}
 .schedule-name{flex:1;font-size:14px}
 .schedule-dossard{font-family:'DM Mono',monospace;font-size:12px;color:var(--text3)}
-
-/* JUDGE TABLE */
 .judge-table{width:100%;border-collapse:collapse;font-size:13px}
 .judge-table th{font-family:'DM Mono',monospace;font-size:10px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--text3);padding:8px 12px;text-align:left;border-bottom:1px solid var(--border2);background:var(--bg3)}
 .judge-table td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
 .judge-table tr:last-child td{border-bottom:none}
 .judge-table tr:hover td{background:var(--bg3)}
-
-/* PARTICIPANT */
 #screen-participant{background:var(--bg);min-height:100dvh}
 .participant-header{background:var(--bg2);border-bottom:1px solid var(--border);padding:16px;display:flex;align-items:center;justify-content:space-between}
 .participant-logo{font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
@@ -363,20 +298,21 @@ a{color:var(--accent);text-decoration:none}
 .judge-status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}
 .judge-status-dot.online{background:var(--accent)}
 .judge-status-dot.offline{background:var(--text3)}
-
-/* UTILS */
+/* LOADING SPINNER */
+.loading{display:flex;align-items:center;justify-content:center;padding:48px 16px;flex-direction:column;gap:12px}
+.spinner{width:32px;height:32px;border:3px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);letter-spacing:.1em;text-transform:uppercase}
 .flex-between{display:flex;align-items:center;justify-content:space-between}
 .flex-gap{display:flex;align-items:center;gap:8px}
 .mt8{margin-top:8px}.mt16{margin-top:16px}.mb8{margin-bottom:8px}.mb16{margin-bottom:16px}
 .text-muted{color:var(--text3);font-size:12px}
-.text-accent{color:var(--accent)}.text-red{color:var(--red)}.text-orange{color:var(--orange)}
+.text-accent{color:var(--accent)}.text-red{color:var(--red)}
 .mono{font-family:'DM Mono',monospace}
 .hidden{display:none!important}
 .full-width{width:100%}
-.separator{border:none;border-top:1px solid var(--border);margin:16px 0}
 .scrollable-x{overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .scrollable-x::-webkit-scrollbar{display:none}
-
 .toast{position:fixed;bottom:56px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--bg4);border:1px solid var(--border2);color:var(--text);padding:10px 18px;border-radius:20px;font-size:13px;font-weight:500;z-index:400;opacity:0;transition:all .3s;white-space:nowrap;pointer-events:none}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .toast.success{background:var(--accent-bg2);color:var(--accent);border-color:var(--accent2)}
@@ -386,7 +322,6 @@ a{color:var(--accent);text-decoration:none}
 </head>
 <body>
 
-<!-- PWA GATE -->
 <div id="pwa-gate">
   <div class="pwa-icon">🏇</div>
   <div class="pwa-gate-title">Installation requise</div>
@@ -414,8 +349,8 @@ a{color:var(--accent);text-decoration:none}
   <div class="auth-form">
     <div><label class="auth-label">E-mail</label><input type="email" id="auth-email" placeholder="juge@exemple.fr" autocomplete="email"></div>
     <div><label class="auth-label">Mot de passe</label><input type="password" id="auth-password" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
-    <div id="auth-error" class="auth-error">Email ou mot de passe incorrect.</div>
-    <button class="btn-primary" onclick="doLogin()">Connexion</button>
+    <div id="auth-error" class="auth-error"></div>
+    <button class="btn-primary" id="btn-login" onclick="doLogin()">Connexion</button>
     <button class="btn-secondary" onclick="openModal('modal-juge-code')">Activer un code juge</button>
   </div>
   <div style="margin-top:32px;font-size:13px;color:var(--text3);text-align:center;padding-bottom:32px;"><a href="#" onclick="showParticipant()">Accès participants →</a></div>
@@ -427,7 +362,7 @@ a{color:var(--accent);text-decoration:none}
     <div class="sidebar-logo">
       <div class="sidebar-logo-title">TREC</div>
       <div class="sidebar-logo-sub">Compétition</div>
-      <div class="sidebar-role" id="sidebar-role">ADMIN</div>
+      <div class="sidebar-role" id="sidebar-role">—</div>
     </div>
     <div class="sidebar-nav" id="sidebar-nav"></div>
     <div class="sidebar-footer">
@@ -441,7 +376,7 @@ a{color:var(--accent);text-decoration:none}
       <div id="app-header-sub" style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;letter-spacing:.06em;"></div>
     </div>
     <div style="display:flex;align-items:center;gap:8px;">
-      <div class="app-header-role" id="app-header-role">ADMIN</div>
+      <div class="app-header-role" id="app-header-role">—</div>
       <button class="logout-btn" onclick="doLogout()">⏻</button>
     </div>
   </div>
@@ -480,7 +415,7 @@ a{color:var(--accent);text-decoration:none}
     <div id="juge-reg-form" style="display:none;">
       <div class="form-row"><div class="form-group"><label class="form-label">Prénom</label><input type="text" id="juge-prenom"></div><div class="form-group"><label class="form-label">Nom</label><input type="text" id="juge-nom"></div></div>
       <div class="form-group"><label class="form-label">E-mail</label><input type="email" id="juge-email"></div>
-      <div class="form-group"><label class="form-label">Mot de passe</label><input type="password" id="juge-mdp"></div>
+      <div class="form-group"><label class="form-label">Mot de passe</label><input type="password" id="juge-mdp" placeholder="8 caractères minimum"></div>
     </div>
   </div>
   <div class="modal-actions"><button class="btn-primary" onclick="validateJugeCode()">Valider</button><button class="btn-secondary" onclick="closeModal('modal-juge-code')">Annuler</button></div></div>
@@ -499,7 +434,7 @@ a{color:var(--accent);text-decoration:none}
       <div class="form-group"><label class="form-label">N° SIRE</label><input type="text" id="eng-sire" style="font-family:'DM Mono',monospace;" oninput="this.value=this.value.toUpperCase()"></div>
       <div class="form-group"><label class="form-label">Nom du cheval</label><input type="text" id="eng-cheval"></div>
       <div class="section-label">Catégorie</div>
-      <div class="form-group"><label class="form-label">Catégorie</label><select id="eng-categorie"><option value="">Sélectionner...</option></select></div>
+      <div class="form-group"><label class="form-label">Catégorie</label><select id="eng-categorie"><option value="">Chargement...</option></select></div>
       <div class="form-group"><label class="form-label">Type</label><select id="eng-type" onchange="toggleEquipeField()"><option value="ind">Individuel</option><option value="equ">Équipe</option></select></div>
       <div class="form-group hidden" id="eng-equipe-wrap"><label class="form-label">Nom de l'équipe</label><input type="text" id="eng-equipe"></div>
     </div>
@@ -569,11 +504,9 @@ a{color:var(--accent);text-decoration:none}
     <div class="form-group"><label class="form-label">Mot de passe engagement</label>
       <div style="display:flex;gap:8px;"><input type="text" id="edit-concours-mdp" style="font-family:'DM Mono',monospace;text-transform:uppercase;" oninput="this.value=this.value.toUpperCase()"><button class="btn-icon" onclick="genMdp()">🎲</button></div>
     </div>
-    <div class="card-body" style="padding:0 0 0 0;">
-      <div class="toggle-wrap" style="padding:12px 0 0;">
-        <div class="toggle-info"><div class="toggle-label">Engagements ouverts</div></div>
-        <label class="toggle"><input type="checkbox" id="edit-concours-open"><span class="toggle-slider"></span></label>
-      </div>
+    <div class="toggle-wrap" style="padding:12px 0 0;">
+      <div class="toggle-info"><div class="toggle-label">Engagements ouverts</div></div>
+      <label class="toggle"><input type="checkbox" id="edit-concours-open"><span class="toggle-slider"></span></label>
     </div>
   </div>
   <div class="modal-actions"><button class="btn-primary" onclick="saveConcours()">Enregistrer</button><button class="btn-secondary" onclick="closeModal('modal-edit-concours')">Annuler</button></div></div>
@@ -582,8 +515,8 @@ a{color:var(--accent);text-decoration:none}
 <div class="modal-overlay" id="modal-edit-challenge">
   <div class="modal"><div class="modal-handle"></div><div class="modal-title" id="modal-challenge-title">Challenge</div>
   <div class="modal-body">
-    <div class="form-group"><label class="form-label">Nom du challenge</label><input type="text" id="challenge-nom" placeholder="Challenge Régional 2025"></div>
-    <div class="section-label">4 Concours (dans l'ordre)</div>
+    <div class="form-group"><label class="form-label">Nom du challenge</label><input type="text" id="challenge-nom"></div>
+    <div class="section-label">4 Concours</div>
     <div id="challenge-concours-selects"></div>
     <div class="form-group mt16"><label class="form-label">Concours finale</label><select id="challenge-finale"><option value="">—</option></select></div>
   </div>
@@ -596,7 +529,7 @@ a{color:var(--accent);text-decoration:none}
     <div class="form-group"><label class="form-label">N° Licence</label><input type="text" id="edit-cav-licence" style="font-family:'DM Mono',monospace;" oninput="this.value=this.value.toUpperCase()"></div>
     <div class="form-row"><div class="form-group"><label class="form-label">Prénom</label><input type="text" id="edit-cav-prenom"></div><div class="form-group"><label class="form-label">Nom</label><input type="text" id="edit-cav-nom"></div></div>
     <div class="form-group"><label class="form-label">Écurie / Club</label><input type="text" id="edit-cav-ecurie"></div>
-    <div class="form-group"><label class="form-label">Observation</label><textarea id="edit-cav-obs" style="height:72px;resize:none;" placeholder="Optionnel..."></textarea></div>
+    <div class="form-group"><label class="form-label">Observation</label><textarea id="edit-cav-obs" style="height:72px;resize:none;"></textarea></div>
   </div>
   <div class="modal-actions"><button class="btn-primary" onclick="saveCavalier()">Enregistrer</button><button class="btn-secondary" onclick="closeModal('modal-edit-cavalier')">Annuler</button></div></div>
 </div>
@@ -616,7 +549,7 @@ a{color:var(--accent);text-decoration:none}
   <div class="modal-body">
     <div id="edit-schedule-info" style="font-size:14px;color:var(--text2);margin-bottom:16px;"></div>
     <div class="form-group"><label class="form-label">Nouvelle heure</label><input type="time" id="edit-schedule-time" style="font-family:'DM Mono',monospace;font-size:22px;"></div>
-    <div class="form-group"><label class="form-label">Délai supplémentaire après ce passage (décale les suivants)</label>
+    <div class="form-group"><label class="form-label">Délai supplémentaire (décale les suivants)</label>
       <div class="input-group"><input type="number" id="edit-schedule-delay" value="0" min="0"><div class="input-group-append">min</div></div>
     </div>
   </div>
@@ -634,185 +567,345 @@ a{color:var(--accent);text-decoration:none}
 </div>
 
 <script>
-/* ================================================================ STATE ================================================================ */
-const APP={
-  role:null,user:null,currentPage:null,isOnline:navigator.onLine,
-  pendingSync:[],currentConcours:null,editTarget:null,scheduleEditCtx:null,
-  data:{
-    categories:[
-      {id:'CHPOUSS',label:'Club Poussin',official:false,pts_por:100},
-      {id:'CHJUNDEB',label:'Club Junior Débutant',official:false,pts_por:120},
-      {id:'CHJUN',label:'Club Junior',official:false,pts_por:140},
-      {id:'CHSEN',label:'Club Senior',official:false,pts_por:160},
-      {id:'CHELITE',label:'Club Élite',official:false,pts_por:180},
-      {id:'C1IND',label:'Catégorie 1 Individuel',official:true,pts_por:200},
-      {id:'C1EQU',label:'Catégorie 1 Équipe',official:true,pts_por:200},
-      {id:'C2IND',label:'Catégorie 2 Individuel',official:true,pts_por:180},
-      {id:'C2EQU',label:'Catégorie 2 Équipe',official:true,pts_por:180},
-      {id:'CEIND',label:'Élite Individuel',official:true,pts_por:220},
-      {id:'CEEQU',label:'Élite Équipe',official:true,pts_por:220},
-      {id:'A3IND',label:'Amateur 3 Individuel',official:false,pts_por:140},
-      {id:'SPEPOR',label:'Spéciale POR',official:false,pts_por:200,special:'POR'},
-      {id:'SPEPTV',label:'Spéciale PTV',official:false,pts_por:0,special:'PTV'},
-    ],
-    concours:[
-      {id:'C2025-01',nom:'Concours de Printemps',date:'2025-04-12',lieu:'Haras de Montvert',engagements_ouverts:true,mot_de_passe:'GALOP'},
-      {id:'C2025-02',nom:'Championnat Régional',date:'2025-06-07',lieu:'Centre Équestre du Parc',engagements_ouverts:false,mot_de_passe:'TREC25'},
-    ],
-    juges:[
-      {id:'j1',nom:'Martin',prenom:'Sophie',email:'sophie@m.fr',assignation:{type:'POR',poste:'depart'},derniere_saisie:'10:42',en_ligne:true},
-      {id:'j2',nom:'Dupont',prenom:'Marc',email:'marc@d.fr',assignation:{type:'PTV',poste:'O3'},derniere_saisie:'10:18',en_ligne:false},
-      {id:'j3',nom:'Laurent',prenom:'Camille',email:'camille@l.fr',assignation:{type:'MA',poste:'CEEQU'},derniere_saisie:'11:05',en_ligne:true},
-      {id:'j4',nom:'Moreau',prenom:'Pierre',email:'pierre@m.fr',assignation:{type:'POR',poste:'controle1'},derniere_saisie:'10:55',en_ligne:true},
-      {id:'j5',nom:'Girard',prenom:'Anne',email:'anne@g.fr',assignation:{type:'PTV',poste:'O5'},derniere_saisie:'09:30',en_ligne:false},
-    ],
-    participants:[
-      {id:'p1',dossard:1,nom:'Leroy',prenom:'Emma',licence:'123456',ecurie:'Haras du Nord',cheval_nom:'Tornado',cheval_sire:'123ABC',categorie:'CEEQU',equipe:'Équipe A',statut:'partant',scores:{por:178,ma:85,ptv:62}},
-      {id:'p2',dossard:2,nom:'Bernard',prenom:'Luc',licence:'789012',ecurie:'Les Écuries du Val',cheval_nom:'Étoile',cheval_sire:'456DEF',categorie:'C1IND',equipe:null,statut:'partant',scores:{por:195,ma:72,ptv:70}},
-      {id:'p3',dossard:3,nom:'Petit',prenom:'Julie',licence:'345678',ecurie:'Haras du Nord',cheval_nom:'Mistral',cheval_sire:'789GHI',categorie:'CHSEN',equipe:null,statut:'np',scores:{por:null,ma:null,ptv:null}},
-      {id:'p4',dossard:4,nom:'Rousseau',prenom:'Thomas',licence:'901234',ecurie:'Centre Équestre du Val',cheval_nom:'Éclair',cheval_sire:'012JKL',categorie:'CEEQU',equipe:'Équipe A',statut:'partant',scores:{por:165,ma:90,ptv:55}},
-      {id:'p5',dossard:5,nom:'Simon',prenom:'Claire',licence:'567890',ecurie:'Haras du Nord',cheval_nom:'Tempête',cheval_sire:'345MNO',categorie:'C1IND',equipe:null,statut:'partant',scores:{por:188,ma:68,ptv:74}},
-    ],
-    obstacles:[
-      {id:'O1',code:'DOS',label:"Dos d'âne",pts_max:10},
-      {id:'O2',code:'LOG',label:'Log',pts_max:10},
-      {id:'O3',code:'FOS',label:'Fossé',pts_max:10},
-      {id:'O4',code:'BAR',label:'Barrage',pts_max:10},
-      {id:'O5',code:'STA',label:'Stationner',pts_max:10},
-      {id:'O6',code:'INC',label:'Inclinaison latérale',pts_max:10},
-      {id:'O7',code:'REC',label:'Reculer',pts_max:10},
-      {id:'O8',code:'IMM',label:'Immobilité',pts_max:10},
-      {id:'O9',code:'DES',label:'Désensibilisation',pts_max:10},
-      {id:'O10',code:'MON',label:'Montoir',pts_max:10},
-    ],
-    ptv_scores:{},
-    challenges:[
-      {id:'ch1',nom:'Challenge Île-de-France 2025',concours_ids:['C2025-01','C2025-02'],finale_id:'C2025-02'}
-    ],
-    results_visibility:{por:false,ma:false,ptv:false},
-    schedules:{por:[],ma:[],ptv:[]},
-    // POR configs
-    por_configs:[
-      {id:'por1',vitesse:8,distance:12.5,nb_controles:3,categories:['CEEQU','CEIND','C1IND','C1EQU']}
-    ],
-    pending_dossard:[],
+/* ================================================================
+   SUPABASE CONFIG
+   ================================================================ */
+const SUPABASE_URL = 'https://thmmmkpshkqxhvphjypk.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRobW1ra3BzaGtxeGh2cGhqeXBrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1NjE1NzUsImV4cCI6MjA5MTEzNzU3NX0.lVOOWE_HBmqBmK0FtR8htawz6c4IvI_tPVaSVVfg37I';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+/* ================================================================
+   STATE
+   ================================================================ */
+const APP = {
+  role: null,        // 'admin' | 'orga' | 'juge'
+  user: null,        // Supabase auth user
+  jugeProfile: null, // row from juges table
+  jugeAssignation: null,
+  currentPage: null,
+  isOnline: navigator.onLine,
+  pendingSync: [],
+  currentConcoursId: null,
+  editTarget: null,
+  scheduleEditCtx: null,
+  // local cache (refreshed on each page load)
+  cache: {
+    categories: [],
+    concours: [],
+    participants: [],  // engagements enrichis
+    juges: [],
+    obstacles: [],
+    challenges: [],
+    schedules: { por:[], ma:[], ptv:[] },
+    results_visibility: { por:false, ma:false, ptv:false },
+    por_configs: [],
   },
-  jugeCtx:{participantId:null},
-  obsEdit:{id:null,score:0,max:10},
+  jugeCtx: { participantId: null },
+  obsEdit: { id:null, score:0, max:10 },
 };
 
-const MOCK_USERS={
-  'admin@trec.fr':{password:'admin123',role:'admin',name:'Administrateur'},
-  'orga@trec.fr':{password:'orga123',role:'orga',name:'Organisateur',concours:'C2025-01'},
-  'juge@trec.fr':{password:'juge123',role:'juge',name:'Sophie Martin',assignation:{type:'PTV',poste:null}},
-};
-
-/* ================================================================ PWA ================================================================ */
-function checkPWA(){
-  const ok=window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone||document.referrer.includes('android-app://');
-  document.getElementById('pwa-gate').classList.toggle('hidden',ok);
+/* ================================================================
+   PWA
+   ================================================================ */
+function checkPWA() {
+  const ok = window.matchMedia('(display-mode: standalone)').matches
+    || window.navigator.standalone
+    || document.referrer.includes('android-app://');
+  document.getElementById('pwa-gate').classList.toggle('hidden', ok);
 }
-function bypassPWAGate(){document.getElementById('pwa-gate').classList.add('hidden')}
+function bypassPWAGate() { document.getElementById('pwa-gate').classList.add('hidden'); }
 
-/* ================================================================ CONN ================================================================ */
-function initConn(){
+/* ================================================================
+   CONNECTIVITY
+   ================================================================ */
+function initConn() {
   updateConn();
-  window.addEventListener('online',()=>{APP.isOnline=true;updateConn();syncPending()});
-  window.addEventListener('offline',()=>{APP.isOnline=false;updateConn()});
+  window.addEventListener('online', () => { APP.isOnline = true; updateConn(); syncPending(); });
+  window.addEventListener('offline', () => { APP.isOnline = false; updateConn(); });
 }
-function updateConn(){
-  const el=document.getElementById('conn-indicator'),t=document.getElementById('conn-text');
-  el.className=APP.isOnline?'online':'offline';
-  t.textContent=APP.isOnline?'EN LIGNE':'HORS LIGNE';
+function updateConn() {
+  const el = document.getElementById('conn-indicator'), t = document.getElementById('conn-text');
+  el.className = APP.isOnline ? 'online' : 'offline';
+  t.textContent = APP.isOnline ? 'EN LIGNE' : 'HORS LIGNE';
 }
-function addPendingSync(a){
-  APP.pendingSync.push({...a,ts:Date.now()});
+function addPendingSync(a) {
+  APP.pendingSync.push({ ...a, ts: Date.now() });
   document.getElementById('sync-badge').classList.add('show');
-  document.getElementById('sync-count').textContent=APP.pendingSync.length;
-  try{localStorage.setItem('trec_pending',JSON.stringify(APP.pendingSync))}catch(e){}
+  document.getElementById('sync-count').textContent = APP.pendingSync.length;
+  try { localStorage.setItem('trec_pending', JSON.stringify(APP.pendingSync)); } catch(e) {}
 }
-function syncPending(){
-  if(!APP.pendingSync.length)return;
-  setTimeout(()=>{APP.pendingSync=[];document.getElementById('sync-badge').classList.remove('show');showToast('Synchronisation effectuée','success')},1200);
+async function syncPending() {
+  if (!APP.pendingSync.length) return;
+  const queue = [...APP.pendingSync];
+  for (const action of queue) {
+    try {
+      await processSyncAction(action);
+    } catch(e) { console.error('Sync failed:', e); return; }
+  }
+  APP.pendingSync = [];
+  document.getElementById('sync-badge').classList.remove('show');
+  try { localStorage.setItem('trec_pending', '[]'); } catch(e) {}
+  showToast('Synchronisation effectuée', 'success');
+}
+async function processSyncAction(a) {
+  if (a.type === 'ptv') {
+    await sb.from('scores_ptv').upsert({
+      engagement_id: a.engagement_id,
+      obstacle_id: a.obstacle_id,
+      points: a.score,
+      juge_id: APP.jugeProfile?.id
+    }, { onConflict: 'engagement_id,obstacle_id' });
+  } else if (a.type === 'por') {
+    await sb.from('scores_por').upsert({
+      engagement_id: a.engagement_id,
+      controle: a.controle,
+      heure_theorique: a.heure_theorique,
+      heure_reelle: a.heure_reelle,
+      penalites_hors_piste: a.hp,
+      penalites_autres: a.au,
+      juge_id: APP.jugeProfile?.id
+    }, { onConflict: 'engagement_id,controle' });
+  } else if (a.type === 'ma') {
+    await sb.from('scores_ma').upsert({
+      engagement_id: a.engagement_id,
+      mode: a.mode,
+      balises_data: a.balises_data,
+      chrono_data: a.chrono_data,
+      juge_id: APP.jugeProfile?.id
+    }, { onConflict: 'engagement_id' });
+  } else if (a.type === 'statut') {
+    await sb.from('engagements').update({ statut: a.statut }).eq('id', a.engagement_id);
+  } else if (a.type === 'dossards') {
+    for (const { id, dossard } of a.updates) {
+      await sb.from('engagements').update({ dossard }).eq('id', id);
+    }
+  }
 }
 
-/* ================================================================ AUTH ================================================================ */
-function doLogin(){
-  const email=document.getElementById('auth-email').value.trim().toLowerCase();
-  const pass=document.getElementById('auth-password').value;
-  const user=MOCK_USERS[email];
-  const err=document.getElementById('auth-error');
-  if(!user||user.password!==pass){err.classList.add('show');return}
+/* ================================================================
+   AUTH
+   ================================================================ */
+async function doLogin() {
+  const email = document.getElementById('auth-email').value.trim().toLowerCase();
+  const pass = document.getElementById('auth-password').value;
+  const btn = document.getElementById('btn-login');
+  const err = document.getElementById('auth-error');
   err.classList.remove('show');
-  APP.role=user.role;APP.user=user;
-  if(user.concours)APP.currentConcours=user.concours;
-  initApp();
-}
-function doLogout(){APP.role=null;APP.user=null;switchScreen('screen-auth')}
-function showAuth(){switchScreen('screen-auth')}
-function showParticipant(){document.getElementById('pwa-gate').classList.add('hidden');switchScreen('screen-participant');initParticipantView()}
-function switchScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active')}
-function validateJugeCode(){
-  const code=document.getElementById('invite-code-input').value;
-  const form=document.getElementById('juge-reg-form');
-  if(!code.startsWith('TREC-')){showToast('Code invalide','error');return}
-  if(!form.style.display||form.style.display==='none'){form.style.display='block';return}
-  showToast('Compte créé !','success');closeModal('modal-juge-code');
+  btn.textContent = '...'; btn.disabled = true;
+
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+  btn.textContent = 'Connexion'; btn.disabled = false;
+
+  if (error) {
+    err.textContent = 'Email ou mot de passe incorrect.';
+    err.classList.add('show');
+    return;
+  }
+
+  APP.user = data.user;
+  await resolveRole();
 }
 
-/* ================================================================ APP INIT ================================================================ */
-function initApp(){
+async function resolveRole() {
+  // Check user metadata for role
+  const meta = APP.user.user_metadata || {};
+
+  // Check if admin (metadata role = 'admin')
+  if (meta.role === 'admin') {
+    APP.role = 'admin';
+    await initApp();
+    return;
+  }
+  // Check if orga
+  if (meta.role === 'orga') {
+    APP.role = 'orga';
+    APP.currentConcoursId = meta.concours_id || null;
+    await initApp();
+    return;
+  }
+  // Check juges table
+  const { data: jugeData } = await sb.from('juges').select('*, juge_assignations(*)').eq('user_id', APP.user.id).single();
+  if (jugeData) {
+    APP.role = 'juge';
+    APP.jugeProfile = jugeData;
+    APP.jugeAssignation = jugeData.juge_assignations?.[0] || null;
+    APP.currentConcoursId = APP.jugeAssignation?.concours_id || null;
+    await initApp();
+    return;
+  }
+  // Unknown role
+  const err = document.getElementById('auth-error');
+  err.textContent = 'Compte non assigné. Contactez l\'organisateur.';
+  err.classList.add('show');
+  await sb.auth.signOut();
+}
+
+async function doLogout() {
+  await sb.auth.signOut();
+  APP.role = null; APP.user = null; APP.jugeProfile = null;
+  switchScreen('screen-auth');
+}
+
+async function validateJugeCode() {
+  const code = document.getElementById('invite-code-input').value.trim().toUpperCase();
+  const form = document.getElementById('juge-reg-form');
+
+  if (!code.startsWith('TREC-')) { showToast('Code invalide', 'error'); return; }
+
+  if (!form.style.display || form.style.display === 'none') {
+    // Check code exists and unused
+    const { data } = await sb.from('juges').select('id,code_used').eq('code_invitation', code).single();
+    if (!data) { showToast('Code introuvable', 'error'); return; }
+    if (data.code_used) { showToast('Code déjà utilisé', 'error'); return; }
+    form.style.display = 'block';
+    return;
+  }
+
+  // Create account
+  const email = document.getElementById('juge-email').value.trim();
+  const mdp = document.getElementById('juge-mdp').value;
+  const prenom = document.getElementById('juge-prenom').value.trim();
+  const nom = document.getElementById('juge-nom').value.trim();
+  if (!email || !mdp || !prenom || !nom) { showToast('Tous les champs sont requis', 'error'); return; }
+  if (mdp.length < 8) { showToast('Mot de passe trop court (8 car. min)', 'error'); return; }
+
+  const { data: authData, error } = await sb.auth.signUp({ email, password: mdp, options: { data: { prenom, nom } } });
+  if (error) { showToast(error.message, 'error'); return; }
+
+  // Link to juge row
+  await sb.from('juges').update({ user_id: authData.user.id, email, prenom, nom, code_used: true }).eq('code_invitation', code);
+  showToast('Compte créé ! Connectez-vous.', 'success');
+  closeModal('modal-juge-code');
+}
+
+function showAuth() { switchScreen('screen-auth'); }
+function showParticipant() {
+  document.getElementById('pwa-gate').classList.add('hidden');
+  switchScreen('screen-participant');
+  initParticipantView();
+}
+function switchScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+/* ================================================================
+   APP INIT
+   ================================================================ */
+async function initApp() {
   switchScreen('screen-app');
-  const rc='role-'+APP.role;
-  document.getElementById('screen-app').className='screen active '+rc;
-  document.getElementById('bottom-nav').className='bottom-nav '+rc;
-  document.getElementById('desktop-sidebar').className='desktop-sidebar '+rc;
-  document.getElementById('app-header-role').textContent=APP.role.toUpperCase();
-  document.getElementById('app-header-title').textContent=APP.role==='juge'?(APP.user.name||'JUGE'):'TREC';
-  document.getElementById('sidebar-role').textContent=APP.role.toUpperCase();
-  document.getElementById('sidebar-user').textContent=APP.user.name||'';
-  if(APP.currentConcours){const c=APP.data.concours.find(x=>x.id===APP.currentConcours);if(c)document.getElementById('app-header-sub').textContent=c.nom}
+  const rc = 'role-' + APP.role;
+  document.getElementById('screen-app').className = 'screen active ' + rc;
+  document.getElementById('bottom-nav').className = 'bottom-nav ' + rc;
+  document.getElementById('desktop-sidebar').className = 'desktop-sidebar ' + rc;
+
+  const roleLabel = APP.role.toUpperCase();
+  document.getElementById('app-header-role').textContent = roleLabel;
+  document.getElementById('sidebar-role').textContent = roleLabel;
+
+  const userName = APP.user.user_metadata?.prenom
+    ? `${APP.user.user_metadata.prenom} ${APP.user.user_metadata.nom || ''}`.trim()
+    : APP.user.email;
+  document.getElementById('app-header-title').textContent = APP.role === 'juge' ? userName : 'TREC';
+  document.getElementById('sidebar-user').textContent = userName;
+
+  // Load concours name if orga/juge
+  if (APP.currentConcoursId) {
+    const { data } = await sb.from('concours').select('nom').eq('id', APP.currentConcoursId).single();
+    if (data) document.getElementById('app-header-sub').textContent = data.nom;
+  }
+
+  // Load base cache
+  await loadBaseCache();
+
   renderNav();
-  navigateTo({admin:'admin-param',orga:'orga-dashboard',juge:'juge-entry'}[APP.role]);
+  navigateTo({ admin: 'admin-param', orga: 'orga-dashboard', juge: 'juge-entry' }[APP.role]);
 }
 
-function getNavItems(){
-  if(APP.role==='admin')return[{id:'admin-param',icon:'⚙️',label:'Catégories'},{id:'admin-concours',icon:'🏆',label:'Concours'},{id:'admin-cavaliers',icon:'🏇',label:'Cavaliers'},{id:'admin-chevaux',icon:'🐴',label:'Chevaux'}];
-  if(APP.role==='orga')return[{id:'orga-dashboard',icon:'📊',label:'Tableau'},{id:'orga-participants',icon:'👥',label:'Partants'},{id:'orga-resultats',icon:'🏅',label:'Résultats'},{id:'orga-params',icon:'⚙️',label:'Config'},{id:'orga-horaires',icon:'🕐',label:'Horaires'},{id:'orga-juges',icon:'📋',label:'Juges'}];
-  if(APP.role==='juge')return[{id:'juge-entry',icon:'✏️',label:'Saisie'},{id:'juge-recap',icon:'📋',label:'Récap'}];
-  return[];
+async function loadBaseCache() {
+  const [cats, obs] = await Promise.all([
+    sb.from('categories').select('*').order('official', { ascending: false }),
+    sb.from('obstacles').select('*').order('id'),
+  ]);
+  APP.cache.categories = cats.data || [];
+  APP.cache.obstacles = obs.data || [];
 }
-function renderNav(){
-  const items=getNavItems();
-  document.getElementById('bottom-nav').innerHTML=items.map(i=>`<div class="nav-item" data-page="${i.id}" onclick="navigateTo('${i.id}')"><div class="nav-icon">${i.icon}</div><div class="nav-label">${i.label}</div></div>`).join('');
-  document.getElementById('sidebar-nav').innerHTML=items.map(i=>`<div class="sidebar-item" data-page="${i.id}" onclick="navigateTo('${i.id}')"><div class="sidebar-item-icon">${i.icon}</div><div class="sidebar-item-label">${i.label}</div></div>`).join('');
+
+/* ================================================================
+   NAVIGATION
+   ================================================================ */
+function getNavItems() {
+  if (APP.role === 'admin') return [
+    { id:'admin-param', icon:'⚙️', label:'Catégories' },
+    { id:'admin-concours', icon:'🏆', label:'Concours' },
+    { id:'admin-cavaliers', icon:'🏇', label:'Cavaliers' },
+    { id:'admin-chevaux', icon:'🐴', label:'Chevaux' },
+  ];
+  if (APP.role === 'orga') return [
+    { id:'orga-dashboard', icon:'📊', label:'Tableau' },
+    { id:'orga-participants', icon:'👥', label:'Partants' },
+    { id:'orga-resultats', icon:'🏅', label:'Résultats' },
+    { id:'orga-params', icon:'⚙️', label:'Config' },
+    { id:'orga-horaires', icon:'🕐', label:'Horaires' },
+    { id:'orga-juges', icon:'📋', label:'Juges' },
+  ];
+  if (APP.role === 'juge') return [
+    { id:'juge-entry', icon:'✏️', label:'Saisie' },
+    { id:'juge-recap', icon:'📋', label:'Récap' },
+  ];
+  return [];
 }
-function navigateTo(id){
-  APP.currentPage=id;
-  document.querySelectorAll('.nav-item,.sidebar-item').forEach(n=>n.classList.toggle('active',n.dataset.page===id));
-  const map={
-    'admin-param':pageAdminParam,'admin-concours':pageAdminConcours,'admin-cavaliers':pageAdminCavaliers,'admin-chevaux':pageAdminChevaux,
-    'orga-dashboard':pageOrgaDashboard,'orga-participants':pageOrgaParticipants,'orga-resultats':pageOrgaResultats,
-    'orga-params':pageOrgaParams,'orga-horaires':pageOrgaHoraires,'orga-juges':pageOrgaJuges,
-    'juge-entry':pageJugeEntry,'juge-recap':pageJugeRecap,
+function renderNav() {
+  const items = getNavItems();
+  document.getElementById('bottom-nav').innerHTML = items.map(i =>
+    `<div class="nav-item" data-page="${i.id}" onclick="navigateTo('${i.id}')"><div class="nav-icon">${i.icon}</div><div class="nav-label">${i.label}</div></div>`).join('');
+  document.getElementById('sidebar-nav').innerHTML = items.map(i =>
+    `<div class="sidebar-item" data-page="${i.id}" onclick="navigateTo('${i.id}')"><div class="sidebar-item-icon">${i.icon}</div><div class="sidebar-item-label">${i.label}</div></div>`).join('');
+}
+function navigateTo(id) {
+  APP.currentPage = id;
+  document.querySelectorAll('.nav-item,.sidebar-item').forEach(n => n.classList.toggle('active', n.dataset.page === id));
+  renderPageLoading();
+  const map = {
+    'admin-param': pageAdminParam,
+    'admin-concours': pageAdminConcours,
+    'admin-cavaliers': pageAdminCavaliers,
+    'admin-chevaux': pageAdminChevaux,
+    'orga-dashboard': pageOrgaDashboard,
+    'orga-participants': pageOrgaParticipants,
+    'orga-resultats': pageOrgaResultats,
+    'orga-params': pageOrgaParams,
+    'orga-horaires': pageOrgaHoraires,
+    'orga-juges': pageOrgaJuges,
+    'juge-entry': pageJugeEntry,
+    'juge-recap': pageJugeRecap,
   };
-  document.getElementById('app-content').innerHTML=(map[id]?map[id]():'<div class="page active"><p style="color:var(--text3)">Section à venir.</p></div>');
-  if(id==='orga-participants')initDragDrop();
+  if (map[id]) map[id]();
+  else document.getElementById('app-content').innerHTML = '<div class="page active"><p style="color:var(--text3)">Section à venir.</p></div>';
+}
+function renderPageLoading() {
+  document.getElementById('app-content').innerHTML = `<div class="page active"><div class="loading"><div class="spinner"></div><div class="loading-text">Chargement...</div></div></div>`;
+}
+function setPageContent(html) {
+  document.getElementById('app-content').innerHTML = html;
 }
 
-/* ================================================================ ADMIN CATÉGORIES ================================================================ */
-function pageAdminParam(){
-  const cats=APP.data.categories;
-  return`<div class="page active">
+/* ================================================================
+   ADMIN — CATÉGORIES
+   ================================================================ */
+async function pageAdminParam() {
+  const { data: cats } = await sb.from('categories').select('*').order('official', { ascending: false });
+  APP.cache.categories = cats || [];
+  setPageContent(`<div class="page active">
     <div class="page-header"><div><div class="page-title">Catégories</div><div class="page-subtitle">Paramétrage</div></div><button class="btn-outline btn-small" onclick="openEditCat(null)">+ Catégorie</button></div>
     <div class="section-label">Officielles</div>
-    ${cats.filter(c=>c.official).map(renderCatRow).join('')}
+    ${(cats||[]).filter(c=>c.official).map(renderCatRow).join('')}
     <div class="section-label">Club / Non officielles</div>
-    ${cats.filter(c=>!c.official).map(renderCatRow).join('')}
-  </div>`;
+    ${(cats||[]).filter(c=>!c.official).map(renderCatRow).join('')}
+  </div>`);
 }
-function renderCatRow(c){
-  return`<div class="list-item ${c.official?'official':'unofficial'}">
+function renderCatRow(c) {
+  return `<div class="list-item ${c.official?'official':'unofficial'}">
     <div class="list-item-info">
       <div class="list-item-name">${c.label}</div>
       <div style="display:flex;gap:6px;margin-top:4px;align-items:center;flex-wrap:wrap;">
@@ -827,33 +920,41 @@ function renderCatRow(c){
     </div>
   </div>`;
 }
-function openEditCat(id){
-  APP.editTarget=id;
-  const c=id?APP.data.categories.find(x=>x.id===id):null;
-  document.getElementById('edit-cat-title').textContent=c?'Modifier la catégorie':'Nouvelle catégorie';
-  document.getElementById('edit-cat-id').value=c?c.id:'';
-  document.getElementById('edit-cat-label').value=c?c.label:'';
-  document.getElementById('edit-cat-pts').value=c?c.pts_por:0;
-  document.getElementById('edit-cat-official').value=c?String(c.official):'false';
-  document.getElementById('edit-cat-special').value=c?(c.special||''):'';
+function openEditCat(id) {
+  APP.editTarget = id;
+  const c = id ? APP.cache.categories.find(x => x.id === id) : null;
+  document.getElementById('edit-cat-title').textContent = c ? 'Modifier la catégorie' : 'Nouvelle catégorie';
+  document.getElementById('edit-cat-id').value = c ? c.id : '';
+  document.getElementById('edit-cat-label').value = c ? c.label : '';
+  document.getElementById('edit-cat-pts').value = c ? c.pts_por : 0;
+  document.getElementById('edit-cat-official').value = c ? String(c.official) : 'false';
+  document.getElementById('edit-cat-special').value = c ? (c.special || '') : '';
   openModal('modal-edit-cat');
 }
-function saveCat(){
-  const id=document.getElementById('edit-cat-id').value.trim().toUpperCase();
-  const label=document.getElementById('edit-cat-label').value.trim();
-  if(!id||!label){showToast('Identifiant et label requis','error');return}
-  const obj={id,label,official:document.getElementById('edit-cat-official').value==='true',pts_por:parseInt(document.getElementById('edit-cat-pts').value)||0,special:document.getElementById('edit-cat-special').value||null};
-  const idx=APP.data.categories.findIndex(c=>c.id===APP.editTarget);
-  if(idx>=0)APP.data.categories[idx]=obj;else APP.data.categories.push(obj);
-  closeModal('modal-edit-cat');navigateTo('admin-param');showToast('Catégorie enregistrée','success');
+async function saveCat() {
+  const id = document.getElementById('edit-cat-id').value.trim().toUpperCase();
+  const label = document.getElementById('edit-cat-label').value.trim();
+  if (!id || !label) { showToast('Identifiant et label requis', 'error'); return; }
+  const obj = { id, label, official: document.getElementById('edit-cat-official').value === 'true', pts_por: parseInt(document.getElementById('edit-cat-pts').value) || 0, special: document.getElementById('edit-cat-special').value || null };
+  const { error } = await sb.from('categories').upsert(obj, { onConflict: 'id' });
+  if (error) { showToast(error.message, 'error'); return; }
+  closeModal('modal-edit-cat'); navigateTo('admin-param'); showToast('Catégorie enregistrée', 'success');
 }
 
-/* ================================================================ ADMIN CONCOURS ================================================================ */
-function pageAdminConcours(){
-  return`<div class="page active">
+/* ================================================================
+   ADMIN — CONCOURS
+   ================================================================ */
+async function pageAdminConcours() {
+  const [{ data: concours }, { data: challenges }] = await Promise.all([
+    sb.from('concours').select('*').order('date', { ascending: false }),
+    sb.from('challenges').select('*, challenge_concours(concours_id, ordre)').order('created_at'),
+  ]);
+  APP.cache.concours = concours || [];
+  APP.cache.challenges = challenges || [];
+  setPageContent(`<div class="page active">
     <div class="page-header"><div><div class="page-title">Concours</div></div><button class="btn-outline btn-small" onclick="openEditConcours(null)">+ Concours</button></div>
     <div class="section-label">Épreuves</div>
-    ${APP.data.concours.map(c=>`
+    ${(concours||[]).map(c=>`
     <div class="card mb8"><div class="card-body">
       <div class="flex-between mb8">
         <div style="font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:800;text-transform:uppercase;">${c.nom}</div>
@@ -861,154 +962,257 @@ function pageAdminConcours(){
       </div>
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
         <span style="font-size:13px;color:var(--text2);">📅 ${formatDate(c.date)}</span>
-        <span style="font-size:13px;color:var(--text2);">📍 ${c.lieu}</span>
+        <span style="font-size:13px;color:var(--text2);">📍 ${c.lieu||'—'}</span>
         <span class="mono" style="font-size:12px;color:var(--accent);background:var(--accent-bg);border:1px solid rgba(122,173,90,.2);border-radius:3px;padding:2px 8px;">🔑 ${c.mot_de_passe}</span>
       </div>
     </div></div>`).join('')}
     <div class="section-label">Challenges</div>
     <button class="btn-outline full-width mb16" onclick="openEditChallenge(null)">+ Créer un challenge</button>
-    ${APP.data.challenges.map(ch=>`
-    <div class="challenge-card">
-      <div class="flex-between mb8">
-        <div class="challenge-title" style="margin-bottom:0;">🏆 ${ch.nom}</div>
-        <button class="btn-icon" onclick="openEditChallenge('${ch.id}')">✎</button>
-      </div>
-      ${ch.concours_ids.map(cid=>{const cc=APP.data.concours.find(x=>x.id===cid);const fin=cid===ch.finale_id;return`<div class="challenge-concours-item ${fin?'challenge-finale':''}"><span>${cc?cc.nom:cid}</span>${fin?'<span class="finale-badge">FINALE</span>':''}</div>`}).join('')}
-      <div style="font-size:12px;color:var(--text3);margin-top:8px;">Qualification : 2 concours + finale · Score : 2 meilleurs + finale</div>
-    </div>`).join('')}
-  </div>`;
+    ${(challenges||[]).map(ch=>{
+      const cids = (ch.challenge_concours||[]).sort((a,b)=>a.ordre-b.ordre).map(x=>x.concours_id);
+      return`<div class="challenge-card">
+        <div class="flex-between mb8"><div class="challenge-title" style="margin-bottom:0;">🏆 ${ch.nom}</div><button class="btn-icon" onclick="openEditChallenge('${ch.id}')">✎</button></div>
+        ${cids.map(cid=>{const cc=APP.cache.concours.find(x=>x.id===cid);const fin=cid===ch.finale_id;return`<div class="challenge-concours-item ${fin?'challenge-finale':''}"><span>${cc?cc.nom:cid}</span>${fin?'<span class="finale-badge">FINALE</span>':''}</div>`}).join('')}
+        <div style="font-size:12px;color:var(--text3);margin-top:8px;">Qualification : 2 concours + finale · Score : 2 meilleurs + finale</div>
+      </div>`;
+    }).join('')}
+  </div>`);
 }
-function openEditConcours(id){
-  APP.editTarget=id;
-  const c=id?APP.data.concours.find(x=>x.id===id):null;
-  document.getElementById('modal-concours-title').textContent=c?'Modifier le concours':'Nouveau concours';
-  document.getElementById('edit-concours-nom').value=c?c.nom:'';
-  document.getElementById('edit-concours-date').value=c?c.date:'';
-  document.getElementById('edit-concours-lieu').value=c?c.lieu:'';
-  document.getElementById('edit-concours-mdp').value=c?c.mot_de_passe:genMdpVal();
-  document.getElementById('edit-concours-open').checked=c?c.engagements_ouverts:false;
+function openEditConcours(id) {
+  APP.editTarget = id;
+  const c = id ? APP.cache.concours.find(x => x.id === id) : null;
+  document.getElementById('modal-concours-title').textContent = c ? 'Modifier le concours' : 'Nouveau concours';
+  document.getElementById('edit-concours-nom').value = c ? c.nom : '';
+  document.getElementById('edit-concours-date').value = c ? c.date : '';
+  document.getElementById('edit-concours-lieu').value = c ? (c.lieu||'') : '';
+  document.getElementById('edit-concours-mdp').value = c ? c.mot_de_passe : genMdpVal();
+  document.getElementById('edit-concours-open').checked = c ? c.engagements_ouverts : false;
   openModal('modal-edit-concours');
 }
-function genMdpVal(){const w=['GALOP','TROT','HARAS','TREC','ALLURE','BALISE','PARCOURS'];return w[Math.floor(Math.random()*w.length)]+Math.floor(10+Math.random()*90)}
-function genMdp(){document.getElementById('edit-concours-mdp').value=genMdpVal()}
-function saveConcours(){
-  const nom=document.getElementById('edit-concours-nom').value.trim();
-  if(!nom){showToast('Nom requis','error');return}
-  const obj={id:APP.editTarget||('C'+Date.now()),nom,date:document.getElementById('edit-concours-date').value,lieu:document.getElementById('edit-concours-lieu').value,mot_de_passe:document.getElementById('edit-concours-mdp').value.toUpperCase(),engagements_ouverts:document.getElementById('edit-concours-open').checked};
-  const idx=APP.data.concours.findIndex(c=>c.id===APP.editTarget);
-  if(idx>=0)APP.data.concours[idx]=obj;else APP.data.concours.push(obj);
-  closeModal('modal-edit-concours');navigateTo('admin-concours');showToast('Concours enregistré','success');
+function genMdpVal() { const w=['GALOP','TROT','HARAS','TREC','ALLURE','BALISE','PARCOURS']; return w[Math.floor(Math.random()*w.length)]+Math.floor(10+Math.random()*90); }
+function genMdp() { document.getElementById('edit-concours-mdp').value = genMdpVal(); }
+async function saveConcours() {
+  const nom = document.getElementById('edit-concours-nom').value.trim();
+  if (!nom) { showToast('Nom requis', 'error'); return; }
+  const obj = { nom, date: document.getElementById('edit-concours-date').value || null, lieu: document.getElementById('edit-concours-lieu').value, mot_de_passe: document.getElementById('edit-concours-mdp').value.toUpperCase(), engagements_ouverts: document.getElementById('edit-concours-open').checked };
+  let error;
+  if (APP.editTarget) {
+    ({ error } = await sb.from('concours').update(obj).eq('id', APP.editTarget));
+  } else {
+    ({ error } = await sb.from('concours').insert(obj));
+  }
+  if (error) { showToast(error.message, 'error'); return; }
+  closeModal('modal-edit-concours'); navigateTo('admin-concours'); showToast('Concours enregistré', 'success');
 }
-function openEditChallenge(id){
-  APP.editTarget=id;
-  const ch=id?APP.data.challenges.find(x=>x.id===id):null;
-  document.getElementById('modal-challenge-title').textContent=ch?'Modifier le challenge':'Nouveau challenge';
-  document.getElementById('challenge-nom').value=ch?ch.nom:'';
-  const concours=APP.data.concours;
-  const opts=concours.map(c=>`<option value="${c.id}">${c.nom}</option>`).join('');
-  document.getElementById('challenge-concours-selects').innerHTML=[1,2,3,4].map(i=>`<div class="form-group"><label class="form-label">Concours ${i}</label><select id="ch-c${i}"><option value="">—</option>${opts}</select></div>`).join('');
-  document.getElementById('challenge-finale').innerHTML=`<option value="">—</option>`+opts;
-  if(ch){
-    ch.concours_ids.forEach((cid,i)=>{const s=document.getElementById(`ch-c${i+1}`);if(s)s.value=cid});
-    document.getElementById('challenge-finale').value=ch.finale_id||'';
+async function openEditChallenge(id) {
+  APP.editTarget = id;
+  if (!APP.cache.concours.length) {
+    const { data } = await sb.from('concours').select('id,nom').order('date');
+    APP.cache.concours = data || [];
+  }
+  let ch = null;
+  if (id) {
+    const { data } = await sb.from('challenges').select('*, challenge_concours(concours_id,ordre)').eq('id', id).single();
+    ch = data;
+  }
+  document.getElementById('modal-challenge-title').textContent = ch ? 'Modifier le challenge' : 'Nouveau challenge';
+  document.getElementById('challenge-nom').value = ch ? ch.nom : '';
+  const opts = APP.cache.concours.map(c => `<option value="${c.id}">${c.nom}</option>`).join('');
+  document.getElementById('challenge-concours-selects').innerHTML = [1,2,3,4].map(i =>
+    `<div class="form-group"><label class="form-label">Concours ${i}</label><select id="ch-c${i}"><option value="">—</option>${opts}</select></div>`).join('');
+  document.getElementById('challenge-finale').innerHTML = `<option value="">—</option>${opts}`;
+  if (ch) {
+    const sorted = (ch.challenge_concours||[]).sort((a,b)=>a.ordre-b.ordre);
+    sorted.forEach((cc,i) => { const s = document.getElementById(`ch-c${i+1}`); if (s) s.value = cc.concours_id; });
+    document.getElementById('challenge-finale').value = ch.finale_id || '';
   }
   openModal('modal-edit-challenge');
 }
-function saveChallenge(){
-  const nom=document.getElementById('challenge-nom').value.trim();
-  if(!nom){showToast('Nom requis','error');return}
-  const ids=[1,2,3,4].map(i=>document.getElementById('ch-c'+i)?.value).filter(Boolean);
-  const finale=document.getElementById('challenge-finale').value;
-  const obj={id:APP.editTarget||('ch'+Date.now()),nom,concours_ids:ids,finale_id:finale};
-  const idx=APP.data.challenges.findIndex(c=>c.id===APP.editTarget);
-  if(idx>=0)APP.data.challenges[idx]=obj;else APP.data.challenges.push(obj);
-  closeModal('modal-edit-challenge');navigateTo('admin-concours');showToast('Challenge enregistré','success');
+async function saveChallenge() {
+  const nom = document.getElementById('challenge-nom').value.trim();
+  if (!nom) { showToast('Nom requis', 'error'); return; }
+  const ids = [1,2,3,4].map(i => document.getElementById('ch-c'+i)?.value).filter(Boolean);
+  const finale = document.getElementById('challenge-finale').value;
+  let chId = APP.editTarget;
+  if (chId) {
+    await sb.from('challenges').update({ nom, finale_id: finale||null }).eq('id', chId);
+    await sb.from('challenge_concours').delete().eq('challenge_id', chId);
+  } else {
+    const { data } = await sb.from('challenges').insert({ nom, finale_id: finale||null }).select().single();
+    chId = data?.id;
+  }
+  if (chId && ids.length) {
+    await sb.from('challenge_concours').insert(ids.map((cid,i) => ({ challenge_id: chId, concours_id: cid, ordre: i+1 })));
+  }
+  closeModal('modal-edit-challenge'); navigateTo('admin-concours'); showToast('Challenge enregistré', 'success');
 }
 
-/* ================================================================ ADMIN CAVALIERS ================================================================ */
-function pageAdminCavaliers(){
-  return`<div class="page active">
+/* ================================================================
+   ADMIN — CAVALIERS
+   ================================================================ */
+async function pageAdminCavaliers() {
+  const { data: cavaliers } = await sb.from('cavaliers').select('*').order('nom');
+  setPageContent(`<div class="page active">
     <div class="page-header"><div><div class="page-title">Cavaliers</div></div><button class="btn-outline btn-small" onclick="openEditCavalier(null)">+ Cavalier</button></div>
     <input type="search" placeholder="Rechercher..." style="margin-bottom:16px;" oninput="filterList(this.value,'cav-list')">
     <div id="cav-list">
-      ${APP.data.participants.map(x=>`
-      <div class="list-item ${getCat(x.categorie)?.official?'official':'unofficial'}">
+      ${(cavaliers||[]).map(x=>`
+      <div class="list-item">
         <div class="list-item-info">
           <div class="list-item-name">${x.prenom} ${x.nom}</div>
-          <div class="list-item-sub"><span class="mono">${x.licence}</span> · ${x.ecurie}</div>
+          <div class="list-item-sub"><span class="mono">${x.licence}</span> · ${x.ecurie||'—'}</div>
           ${x.observation?`<div style="font-size:12px;color:var(--orange);margin-top:2px;">📝 ${x.observation}</div>`:''}
         </div>
-        <div class="flex-gap"><span class="cat-badge ${getCat(x.categorie)?.official?'official':'unofficial'}">${x.categorie}</span><button class="btn-icon" onclick="openEditCavalier('${x.id}')">✎</button></div>
+        <button class="btn-icon" onclick="openEditCavalier('${x.id}','${encodeURIComponent(JSON.stringify(x))}')">✎</button>
       </div>`).join('')}
     </div>
-  </div>`;
+  </div>`);
 }
-function openEditCavalier(id){
-  APP.editTarget=id;
-  const p=id?APP.data.participants.find(x=>x.id===id):null;
-  document.getElementById('edit-cav-title').textContent=p?`${p.prenom} ${p.nom}`:'Nouveau cavalier';
-  document.getElementById('edit-cav-licence').value=p?p.licence:'';
-  document.getElementById('edit-cav-prenom').value=p?p.prenom:'';
-  document.getElementById('edit-cav-nom').value=p?p.nom:'';
-  document.getElementById('edit-cav-ecurie').value=p?p.ecurie:'';
-  document.getElementById('edit-cav-obs').value=p?(p.observation||''):'';
+function openEditCavalier(id, encoded) {
+  APP.editTarget = id;
+  const x = encoded ? JSON.parse(decodeURIComponent(encoded)) : null;
+  document.getElementById('edit-cav-title').textContent = x ? `${x.prenom} ${x.nom}` : 'Nouveau cavalier';
+  document.getElementById('edit-cav-licence').value = x ? x.licence : '';
+  document.getElementById('edit-cav-prenom').value = x ? x.prenom : '';
+  document.getElementById('edit-cav-nom').value = x ? x.nom : '';
+  document.getElementById('edit-cav-ecurie').value = x ? (x.ecurie||'') : '';
+  document.getElementById('edit-cav-obs').value = x ? (x.observation||'') : '';
   openModal('modal-edit-cavalier');
 }
-function saveCavalier(){
-  const licence=document.getElementById('edit-cav-licence').value.trim().toUpperCase();
-  const prenom=document.getElementById('edit-cav-prenom').value.trim();
-  const nom=document.getElementById('edit-cav-nom').value.trim();
-  if(!licence||!prenom||!nom){showToast('Licence, prénom et nom requis','error');return}
-  const idx=APP.data.participants.findIndex(p=>p.id===APP.editTarget);
-  if(idx>=0){
-    APP.data.participants[idx]={...APP.data.participants[idx],licence,prenom,nom,ecurie:document.getElementById('edit-cav-ecurie').value,observation:document.getElementById('edit-cav-obs').value};
+async function saveCavalier() {
+  const licence = document.getElementById('edit-cav-licence').value.trim().toUpperCase();
+  const prenom = document.getElementById('edit-cav-prenom').value.trim();
+  const nom = document.getElementById('edit-cav-nom').value.trim();
+  if (!licence || !prenom || !nom) { showToast('Licence, prénom et nom requis', 'error'); return; }
+  const obj = { licence, prenom, nom, ecurie: document.getElementById('edit-cav-ecurie').value, observation: document.getElementById('edit-cav-obs').value };
+  let error;
+  if (APP.editTarget) {
+    ({ error } = await sb.from('cavaliers').update(obj).eq('id', APP.editTarget));
   } else {
-    APP.data.participants.push({id:'p'+Date.now(),dossard:null,licence,prenom,nom,ecurie:document.getElementById('edit-cav-ecurie').value,observation:document.getElementById('edit-cav-obs').value,cheval_nom:'',cheval_sire:'',categorie:'',equipe:null,statut:'partant',scores:{por:null,ma:null,ptv:null}});
+    ({ error } = await sb.from('cavaliers').insert(obj));
   }
-  closeModal('modal-edit-cavalier');navigateTo('admin-cavaliers');showToast('Cavalier enregistré','success');
+  if (error) { showToast(error.message, 'error'); return; }
+  closeModal('modal-edit-cavalier'); navigateTo('admin-cavaliers'); showToast('Cavalier enregistré', 'success');
 }
 
-/* ================================================================ ADMIN CHEVAUX ================================================================ */
-function pageAdminChevaux(){
-  return`<div class="page active">
+/* ================================================================
+   ADMIN — CHEVAUX
+   ================================================================ */
+async function pageAdminChevaux() {
+  const { data: chevaux } = await sb.from('chevaux').select('*').order('nom');
+  setPageContent(`<div class="page active">
     <div class="page-header"><div><div class="page-title">Chevaux</div></div><button class="btn-outline btn-small" onclick="openEditCheval(null)">+ Cheval</button></div>
     <input type="search" placeholder="Rechercher..." style="margin-bottom:16px;" oninput="filterList(this.value,'chev-list')">
     <div id="chev-list">
-      ${APP.data.participants.map(x=>`
+      ${(chevaux||[]).map(x=>`
       <div class="list-item">
         <div class="list-item-info">
-          <div class="list-item-name">${x.cheval_nom||'—'}</div>
-          <div class="list-item-sub"><span class="mono">${x.cheval_sire||'—'}</span> · ${x.ecurie}</div>
+          <div class="list-item-name">${x.nom}</div>
+          <div class="list-item-sub"><span class="mono">${x.sire||'—'}</span> · ${x.ecurie||'—'}</div>
         </div>
-        <div class="flex-gap"><span style="font-size:13px;color:var(--text3);">${x.prenom} ${x.nom}</span><button class="btn-icon" onclick="openEditCheval('${x.id}')">✎</button></div>
+        <button class="btn-icon" onclick="openEditCheval('${x.id}','${encodeURIComponent(JSON.stringify(x))}')">✎</button>
       </div>`).join('')}
     </div>
-  </div>`;
+  </div>`);
 }
-function openEditCheval(id){
-  APP.editTarget=id;
-  const p=id?APP.data.participants.find(x=>x.id===id):null;
-  document.getElementById('edit-chev-title').textContent=p?p.cheval_nom:'Nouveau cheval';
-  document.getElementById('edit-chev-sire').value=p?p.cheval_sire:'';
-  document.getElementById('edit-chev-nom').value=p?p.cheval_nom:'';
-  document.getElementById('edit-chev-ecurie').value=p?p.ecurie:'';
+function openEditCheval(id, encoded) {
+  APP.editTarget = id;
+  const x = encoded ? JSON.parse(decodeURIComponent(encoded)) : null;
+  document.getElementById('edit-chev-title').textContent = x ? x.nom : 'Nouveau cheval';
+  document.getElementById('edit-chev-sire').value = x ? (x.sire||'') : '';
+  document.getElementById('edit-chev-nom').value = x ? x.nom : '';
+  document.getElementById('edit-chev-ecurie').value = x ? (x.ecurie||'') : '';
   openModal('modal-edit-cheval');
 }
-function saveCheval(){
-  const sire=document.getElementById('edit-chev-sire').value.trim().toUpperCase();
-  const nom=document.getElementById('edit-chev-nom').value.trim();
-  if(!nom){showToast('Nom requis','error');return}
-  const idx=APP.data.participants.findIndex(p=>p.id===APP.editTarget);
-  if(idx>=0)APP.data.participants[idx]={...APP.data.participants[idx],cheval_sire:sire,cheval_nom:nom,ecurie:document.getElementById('edit-chev-ecurie').value};
-  closeModal('modal-edit-cheval');navigateTo('admin-chevaux');showToast('Cheval enregistré','success');
+async function saveCheval() {
+  const nom = document.getElementById('edit-chev-nom').value.trim();
+  if (!nom) { showToast('Nom requis', 'error'); return; }
+  const obj = { sire: document.getElementById('edit-chev-sire').value.trim().toUpperCase() || null, nom, ecurie: document.getElementById('edit-chev-ecurie').value };
+  let error;
+  if (APP.editTarget) {
+    ({ error } = await sb.from('chevaux').update(obj).eq('id', APP.editTarget));
+  } else {
+    ({ error } = await sb.from('chevaux').insert(obj));
+  }
+  if (error) { showToast(error.message, 'error'); return; }
+  closeModal('modal-edit-cheval'); navigateTo('admin-chevaux'); showToast('Cheval enregistré', 'success');
 }
 
-/* ================================================================ ORGA DASHBOARD ================================================================ */
-function pageOrgaDashboard(){
-  const parts=APP.data.participants;
-  const partants=parts.filter(p=>p.statut==='partant').length;
-  return`<div class="page active">
-    <div class="page-header"><div><div class="page-title">Tableau de bord</div><div class="page-subtitle">Concours de Printemps · 12 Avr</div></div></div>
+/* ================================================================
+   LOAD ENGAGEMENTS (shared)
+   ================================================================ */
+async function loadEngagements() {
+  const q = sb.from('engagements').select(`
+    id, dossard, statut, type_participation,
+    cavalier:cavaliers(id, licence, prenom, nom, ecurie),
+    cheval:chevaux(id, sire, nom),
+    categorie:categories(id, label, official, pts_por, special),
+    equipe:equipes(id, nom),
+    scores_por(controle, heure_theorique, heure_reelle, penalites_hors_piste, penalites_autres),
+    scores_ma(mode, balises_data, chrono_data),
+    scores_ptv(obstacle_id, points)
+  `);
+  if (APP.currentConcoursId) q.eq('concours_id', APP.currentConcoursId);
+  const { data } = await q.order('dossard');
+  APP.cache.participants = (data || []).map(e => ({
+    id: e.id,
+    dossard: e.dossard,
+    statut: e.statut,
+    type_participation: e.type_participation,
+    nom: e.cavalier?.nom || '—',
+    prenom: e.cavalier?.prenom || '—',
+    licence: e.cavalier?.licence || '—',
+    ecurie: e.cavalier?.ecurie || '—',
+    cavalier_id: e.cavalier?.id,
+    cheval_nom: e.cheval?.nom || '—',
+    cheval_sire: e.cheval?.sire || '—',
+    cheval_id: e.cheval?.id,
+    categorie: e.categorie?.id || '—',
+    categorie_obj: e.categorie,
+    equipe: e.equipe?.nom || null,
+    equipe_id: e.equipe?.id || null,
+    scores: {
+      por: calcPORScore(e.scores_por, e.categorie),
+      ma: calcMAScore(e.scores_ma),
+      ptv: calcPTVScore(e.scores_ptv),
+    },
+    raw_scores_ptv: e.scores_ptv || [],
+  }));
+}
+
+function calcPORScore(rows, cat) {
+  if (!rows || !rows.length || !cat) return null;
+  // Sum of points based on time difference vs theoretical (simplified)
+  const pts = (cat.pts_por || 160);
+  let pen = 0;
+  rows.forEach(r => { pen += (r.penalites_hors_piste || 0) * 10 + (r.penalites_autres || 0) * 5; });
+  return Math.max(0, pts - pen);
+}
+function calcMAScore(rows) {
+  if (!rows || !rows.length) return null;
+  const r = rows[0];
+  if (r.mode === 'balises' && r.balises_data) {
+    const b = r.balises_data;
+    return Object.values(b).filter(v => v === true).length * 5;
+  }
+  return null;
+}
+function calcPTVScore(rows) {
+  if (!rows || !rows.length) return null;
+  return rows.reduce((a, r) => a + (r.points || 0), 0);
+}
+
+/* ================================================================
+   ORGA — DASHBOARD
+   ================================================================ */
+async function pageOrgaDashboard() {
+  await loadEngagements();
+  const parts = APP.cache.participants;
+  const partants = parts.filter(p => p.statut === 'partant').length;
+  const { data: juges } = await sb.from('juges').select('*, juge_assignations!inner(*)').eq('juge_assignations.concours_id', APP.currentConcoursId);
+
+  setPageContent(`<div class="page active">
+    <div class="page-header"><div><div class="page-title">Tableau de bord</div><div class="page-subtitle" id="dash-sub">—</div></div></div>
     <div class="stats-grid">
       <div class="stat-card accent"><div class="stat-val">${partants}</div><div class="stat-label">Partants</div></div>
       <div class="stat-card"><div class="stat-val">${parts.length}</div><div class="stat-label">Engagés</div></div>
@@ -1016,29 +1220,42 @@ function pageOrgaDashboard(){
       <div class="stat-card alert"><div class="stat-val">${parts.filter(p=>p.statut==='elim').length}</div><div class="stat-label">Éliminés</div></div>
     </div>
     <div class="section-label">Avancement saisie</div>
-    ${['PTV','POR','MA'].map(e=>{
-      const done=e==='POR'?1:e==='MA'?0:Object.keys(APP.data.ptv_scores).length;
-      const pct=partants>0?Math.round(done/partants*100):0;
-      return`<div class="card mb8"><div class="card-header"><div class="card-title">${e}</div><div class="mono" style="font-size:12px;color:var(--text2);">${done}/${partants}</div></div><div style="background:var(--bg4);height:6px;"><div style="height:6px;background:var(--accent);width:${pct}%;border-radius:3px;transition:width .5s;"></div></div></div>`;
+    ${['PTV','POR','MA'].map(e => {
+      const done = parts.filter(p => p.statut==='partant' && p.scores[e.toLowerCase()]!==null).length;
+      const pct = partants > 0 ? Math.round(done/partants*100) : 0;
+      return `<div class="card mb8"><div class="card-header"><div class="card-title">${e}</div><div class="mono" style="font-size:12px;color:var(--text2);">${done}/${partants}</div></div><div style="background:var(--bg4);height:6px;"><div style="height:6px;background:var(--accent);width:${pct}%;border-radius:3px;transition:width .5s;"></div></div></div>`;
     }).join('')}
-    <div class="alert-banner warn"><div style="font-size:16px;">⚠️</div><div>Juge PTV Obstacle 3 — dernière saisie il y a <strong>28 min</strong>. Retard possible.</div></div>
-    <div class="section-label">Juges actifs</div>
-    ${APP.data.juges.filter(j=>j.en_ligne).map(j=>`
-    <div class="list-item"><div><span class="judge-status-dot online"></span></div><div class="list-item-info"><div class="list-item-name">${j.prenom} ${j.nom}</div><div class="list-item-sub">${j.assignation.type} · ${j.assignation.poste}</div></div><div class="list-item-right"><div class="mono" style="font-size:13px;color:var(--text2);">${j.derniere_saisie}</div><div class="text-muted">dernière saisie</div></div></div>`).join('')}
-  </div>`;
+    <div class="section-label">Juges</div>
+    ${(juges||[]).map(j=>`
+    <div class="list-item">
+      <div><span class="judge-status-dot offline"></span></div>
+      <div class="list-item-info"><div class="list-item-name">${j.prenom||''} ${j.nom||''}</div><div class="list-item-sub">${j.juge_assignations?.[0]?.type_epreuve||'—'} · ${j.juge_assignations?.[0]?.poste||'—'}</div></div>
+    </div>`).join('')}
+    ${!(juges||[]).length ? '<div style="color:var(--text3);font-size:13px;padding:8px 0;">Aucun juge assigné.</div>' : ''}
+  </div>`);
+  // Set concours name
+  if (APP.currentConcoursId) {
+    const c = APP.cache.concours.find(x=>x.id===APP.currentConcoursId);
+    const sub = document.getElementById('dash-sub');
+    if (sub && c) sub.textContent = `${c.nom} · ${formatDate(c.date)}`;
+  }
 }
 
-/* ================================================================ ORGA PARTICIPANTS ================================================================ */
-function pageOrgaParticipants(){
-  return`<div class="page active">
-    <div class="page-header"><div><div class="page-title">Participants</div><div class="page-subtitle">${APP.data.participants.length} engagés</div></div><button class="btn-outline btn-small" onclick="openModal('modal-dossards')">Dossards</button></div>
+/* ================================================================
+   ORGA — PARTICIPANTS
+   ================================================================ */
+async function pageOrgaParticipants() {
+  await loadEngagements();
+  const parts = APP.cache.participants;
+  setPageContent(`<div class="page active">
+    <div class="page-header"><div><div class="page-title">Participants</div><div class="page-subtitle">${parts.length} engagés</div></div><button class="btn-outline btn-small" onclick="openModal('modal-dossards');initDragDrop()">Dossards</button></div>
     <button class="btn-secondary full-width mb16" onclick="generateTempSheet()">📋 Fiche température (PDF)</button>
     <input type="search" placeholder="Rechercher..." style="margin-bottom:12px;" oninput="filterList(this.value,'part-list')">
     <div id="part-list">
-      ${APP.data.participants.map(p=>{
-        const cat=getCat(p.categorie);
-        const total=(p.scores.por||0)+(p.scores.ma||0)+(p.scores.ptv||0);
-        return`<div class="list-item ${cat?.official?'official':'unofficial'}" onclick="openParticipantDetail('${p.id}')">
+      ${parts.map(p => {
+        const cat = p.categorie_obj;
+        const total = (p.scores.por||0)+(p.scores.ma||0)+(p.scores.ptv||0);
+        return `<div class="list-item ${cat?.official?'official':'unofficial'}" onclick="openParticipantDetail('${p.id}')">
           <div class="list-item-dossard">${p.dossard||'—'}</div>
           <div class="list-item-info">
             <div class="list-item-name">${p.prenom} ${p.nom}</div>
@@ -1052,12 +1269,16 @@ function pageOrgaParticipants(){
         </div>`;
       }).join('')}
     </div>
-  </div>`;
+  </div>`);
+  initDragDropData();
 }
 
-/* ================================================================ ORGA RÉSULTATS ================================================================ */
-function pageOrgaResultats(){
-  return`<div class="page active">
+/* ================================================================
+   ORGA — RÉSULTATS
+   ================================================================ */
+async function pageOrgaResultats() {
+  await loadEngagements();
+  setPageContent(`<div class="page active">
     <div class="page-header"><div><div class="page-title">Résultats</div></div></div>
     <div class="tabs">
       <div class="tab-btn active" onclick="switchResultTab('global',this)">Général</div>
@@ -1066,66 +1287,70 @@ function pageOrgaResultats(){
       <div class="tab-btn" onclick="switchResultTab('ptv',this)">PTV</div>
     </div>
     <div id="results-content">${renderResultsByCategory('global')}</div>
-  </div>`;
+  </div>`);
 }
-function switchResultTab(type,el){
-  document.querySelectorAll('.tabs .tab-btn').forEach(b=>b.classList.remove('active'));
+function switchResultTab(type, el) {
+  document.querySelectorAll('.tabs .tab-btn').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
-  document.getElementById('results-content').innerHTML=renderResultsByCategory(type);
+  document.getElementById('results-content').innerHTML = renderResultsByCategory(type);
 }
-function renderResultsByCategory(type){
-  const partants=APP.data.participants.filter(p=>p.statut==='partant');
-  const cats=[...new Set(partants.map(p=>p.categorie))];
-  let html='';
-  cats.forEach(catId=>{
-    const cat=getCat(catId);
-    const catParts=partants.filter(p=>p.categorie===catId);
-    const indivs=catParts.filter(p=>!p.equipe);
-    const equipeMap={};
-    catParts.filter(p=>p.equipe).forEach(p=>{if(!equipeMap[p.equipe])equipeMap[p.equipe]=[];equipeMap[p.equipe].push(p)});
-    html+=`<div class="cat-section">
+function renderResultsByCategory(type) {
+  const partants = APP.cache.participants.filter(p => p.statut === 'partant');
+  const cats = [...new Set(partants.map(p => p.categorie))];
+  let html = '';
+  cats.forEach(catId => {
+    const cat = APP.cache.categories.find(c => c.id === catId);
+    const catParts = partants.filter(p => p.categorie === catId);
+    const indivs = catParts.filter(p => !p.equipe);
+    const equipeMap = {};
+    catParts.filter(p => p.equipe).forEach(p => { if (!equipeMap[p.equipe]) equipeMap[p.equipe] = []; equipeMap[p.equipe].push(p); });
+    html += `<div class="cat-section">
       <div class="cat-section-header">
         <span class="cat-section-title">${cat?cat.label:catId}</span>
         <span class="cat-badge ${cat?.official?'official':'unofficial'}">${cat?.official?'OFFICIEL':'CLUB'}</span>
       </div>
       <div class="cat-section-body">`;
-    if(indivs.length){
-      const sorted=[...indivs].sort((a,b)=>getScore(b,type)-getScore(a,type));
-      html+=`<div class="cat-sub-label">Individuel</div><div class="scrollable-x">${buildTable(sorted,type)}</div>`;
+    if (indivs.length) {
+      const sorted = [...indivs].sort((a,b) => getScore(b,type)-getScore(a,type));
+      html += `<div class="cat-sub-label">Individuel</div><div class="scrollable-x">${buildTable(sorted,type)}</div>`;
     }
-    const equipes=Object.entries(equipeMap);
-    if(equipes.length){
-      const eqScores=equipes.map(([name,members])=>{
-        const globals=members.map(m=>(m.scores.por||0)+(m.scores.ma||0)+(m.scores.ptv||0)).sort((a,b)=>b-a);
-        const score=cat?.official?globals.slice(0,3).reduce((a,b)=>a+b,0):globals.reduce((a,b)=>a+b,0);
-        return{name,members,score};
+    const equipes = Object.entries(equipeMap);
+    if (equipes.length) {
+      const eqScores = equipes.map(([name,members]) => {
+        const globals = members.map(m=>(m.scores.por||0)+(m.scores.ma||0)+(m.scores.ptv||0)).sort((a,b)=>b-a);
+        const score = cat?.official ? globals.slice(0,3).reduce((a,b)=>a+b,0) : globals.reduce((a,b)=>a+b,0);
+        return { name, members, score };
       }).sort((a,b)=>b.score-a.score);
-      html+=`<div class="cat-sub-label">Équipes${cat?.official?' (3 meilleurs scores)':''}</div><div class="scrollable-x"><table class="results-table" style="min-width:100%;"><thead><tr><th>#</th><th>Équipe</th><th>Membres</th><th style="text-align:right">Score</th></tr></thead><tbody>`;
-      eqScores.forEach(({name,members,score},i)=>{html+=`<tr class="rank-${i+1}"><td class="rank-cell">${i+1}</td><td style="font-weight:600;">${name}</td><td style="font-size:12px;color:var(--text3);">${members.map(m=>m.prenom+' '+m.nom).join(', ')}</td><td class="score-cell">${score}</td></tr>`});
-      html+=`</tbody></table></div>`;
+      html += `<div class="cat-sub-label">Équipes${cat?.official?' (3 meilleurs)':''}</div><div class="scrollable-x"><table class="results-table" style="min-width:100%;"><thead><tr><th>#</th><th>Équipe</th><th>Membres</th><th style="text-align:right">Score</th></tr></thead><tbody>`;
+      eqScores.forEach(({name,members,score},i) => { html += `<tr class="rank-${i+1}"><td class="rank-cell">${i+1}</td><td style="font-weight:600;">${name}</td><td style="font-size:12px;color:var(--text3);">${members.map(m=>m.prenom+' '+m.nom).join(', ')}</td><td class="score-cell">${score}</td></tr>`; });
+      html += `</tbody></table></div>`;
     }
-    html+=`</div></div>`;
+    html += `</div></div>`;
   });
-  return html||`<div style="color:var(--text3);padding:16px;">Aucun partant.</div>`;
+  return html || `<div style="color:var(--text3);padding:16px;">Aucun partant.</div>`;
 }
-function getScore(p,type){
-  if(type==='global')return(p.scores.por||0)+(p.scores.ma||0)+(p.scores.ptv||0);
-  return p.scores[type]||0;
+function getScore(p, type) {
+  if (type === 'global') return (p.scores.por||0)+(p.scores.ma||0)+(p.scores.ptv||0);
+  return p.scores[type] || 0;
 }
-function buildTable(sorted,type){
-  return`<table class="results-table" style="min-width:100%;"><thead><tr><th>#</th><th>Doss.</th><th>Cavalier</th>${type==='global'?'<th style="text-align:right">POR</th><th style="text-align:right">MA</th><th style="text-align:right">PTV</th>':''}<th style="text-align:right">Score</th></tr></thead><tbody>
-  ${sorted.map((p,i)=>`<tr class="rank-${i+1}"><td class="rank-cell">${i+1}</td><td class="mono">${p.dossard}</td><td>${p.prenom} ${p.nom}</td>${type==='global'?`<td class="score-cell" style="color:var(--text2);">${p.scores.por||'—'}</td><td class="score-cell" style="color:var(--text2);">${p.scores.ma||'—'}</td><td class="score-cell" style="color:var(--text2);">${p.scores.ptv||'—'}</td>`:''}<td class="score-cell">${getScore(p,type)||'—'}</td></tr>`).join('')}
+function buildTable(sorted, type) {
+  return `<table class="results-table" style="min-width:100%;"><thead><tr><th>#</th><th>Doss.</th><th>Cavalier</th>${type==='global'?'<th style="text-align:right">POR</th><th style="text-align:right">MA</th><th style="text-align:right">PTV</th>':''}<th style="text-align:right">Score</th></tr></thead><tbody>
+  ${sorted.map((p,i)=>`<tr class="rank-${i+1}"><td class="rank-cell">${i+1}</td><td class="mono">${p.dossard||'—'}</td><td>${p.prenom} ${p.nom}</td>${type==='global'?`<td class="score-cell" style="color:var(--text2);">${p.scores.por??'—'}</td><td class="score-cell" style="color:var(--text2);">${p.scores.ma??'—'}</td><td class="score-cell" style="color:var(--text2);">${p.scores.ptv??'—'}</td>`:''}<td class="score-cell">${getScore(p,type)||'—'}</td></tr>`).join('')}
   </tbody></table>`;
 }
 
-/* ================================================================ ORGA PARAMS ================================================================ */
-function pageOrgaParams(){
-  const vis=APP.data.results_visibility;
-  const cfg=APP.data.por_configs[0]||{vitesse:8,distance:12.5,nb_controles:3,categories:[]};
-  const catOpts=APP.data.categories.map(c=>`<option value="${c.id}" ${cfg.categories.includes(c.id)?'selected':''}>${c.id} — ${c.label}</option>`).join('');
-  return`<div class="page active">
+/* ================================================================
+   ORGA — CONFIG
+   ================================================================ */
+async function pageOrgaParams() {
+  const { data: visRow } = await sb.from('concours').select('engagements_ouverts').eq('id', APP.currentConcoursId).single();
+  // Store visibility locally (would need a proper table in production)
+  const vis = APP.cache.results_visibility;
+  const { data: cats } = await sb.from('categories').select('id,label').order('label');
+  const catOpts = (cats||[]).map(c => `<option value="${c.id}">${c.id} — ${c.label}</option>`).join('');
+  setPageContent(`<div class="page active">
     <div class="page-header"><div><div class="page-title">Configuration</div></div></div>
-    <div class="section-label">Visibilité des résultats (par participants)</div>
+    <div class="section-label">Visibilité des résultats (participants)</div>
     <div class="card"><div class="card-body">
       <div class="toggle-wrap"><div class="toggle-info"><div class="toggle-label">POR</div></div><label class="toggle"><input type="checkbox" ${vis.por?'checked':''} onchange="setVisibility('por',this.checked)"><span class="toggle-slider"></span></label></div>
       <div class="toggle-wrap"><div class="toggle-info"><div class="toggle-label">MA</div></div><label class="toggle"><input type="checkbox" ${vis.ma?'checked':''} onchange="setVisibility('ma',this.checked)"><span class="toggle-slider"></span></label></div>
@@ -1133,75 +1358,85 @@ function pageOrgaParams(){
     </div></div>
     <div class="section-label">POR</div>
     <div class="card"><div class="card-body">
-      <button class="btn-outline full-width mb16" onclick="showToast('Ajout POR — à venir')">+ Ajouter un POR</button>
       <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:14px;">
         <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;color:var(--text2);letter-spacing:.1em;text-transform:uppercase;margin-bottom:12px;">POR 1</div>
         <div class="form-row">
-          <div class="form-group"><label class="form-label">Vitesse cible</label><div class="input-group"><input type="number" value="${cfg.vitesse}" step="0.1" id="por-vitesse"><div class="input-group-append">km/h</div></div></div>
-          <div class="form-group"><label class="form-label">Distance</label><div class="input-group"><input type="number" value="${cfg.distance}" step="0.1" id="por-dist"><div class="input-group-append">km</div></div></div>
+          <div class="form-group"><label class="form-label">Vitesse cible</label><div class="input-group"><input type="number" value="8" step="0.1" id="por-vitesse"><div class="input-group-append">km/h</div></div></div>
+          <div class="form-group"><label class="form-label">Distance</label><div class="input-group"><input type="number" value="12.5" step="0.1" id="por-dist"><div class="input-group-append">km</div></div></div>
         </div>
         <div class="form-group">
-          <label class="form-label">Nombre de contrôles intermédiaires (hors départ/arrivée)</label>
+          <label class="form-label">Nombre de contrôles (hors départ/arrivée)</label>
           <select id="por-controles">
-            <option value="0" ${cfg.nb_controles===0?'selected':''}>0 contrôle → 1 tronçon (départ→arrivée)</option>
-            <option value="1" ${cfg.nb_controles===1?'selected':''}>1 contrôle → 2 tronçons</option>
-            <option value="2" ${cfg.nb_controles===2?'selected':''}>2 contrôles → 3 tronçons</option>
-            <option value="3" ${cfg.nb_controles===3?'selected':''}>3 contrôles → 4 tronçons</option>
+            <option value="0">0 contrôle → 1 tronçon</option>
+            <option value="1">1 contrôle → 2 tronçons</option>
+            <option value="2">2 contrôles → 3 tronçons</option>
+            <option value="3" selected>3 contrôles → 4 tronçons</option>
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label">Catégories rattachées à ce POR</label>
+          <label class="form-label">Catégories rattachées</label>
           <select multiple style="height:120px;" id="por-categories">${catOpts}</select>
-          <div style="font-size:11px;color:var(--text3);margin-top:4px;">Maintenez Ctrl (ou ⌘) pour sélectionner plusieurs</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px;">Ctrl/⌘ pour sélectionner plusieurs</div>
         </div>
         <button class="btn-primary mt8" onclick="savePORConfig()">Enregistrer ce POR</button>
       </div>
     </div></div>
     <div class="section-label">PTV — Obstacles</div>
     <div class="card"><div class="card-body">
-      ${APP.data.obstacles.map(o=>`
+      ${APP.cache.obstacles.map(o=>`
       <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
         <div><span class="mono" style="font-size:12px;color:var(--text3);">${o.code}</span><span style="font-size:14px;margin-left:8px;">${o.label}</span></div>
-        <div class="flex-gap"><span class="mono" style="font-size:13px;color:var(--accent);">${o.pts_max} pts</span><button class="btn-icon">✎</button></div>
+        <span class="mono" style="font-size:13px;color:var(--accent);">${o.pts_max} pts</span>
       </div>`).join('')}
     </div></div>
-    <div class="section-label">MA — Mode de notation</div>
-    <div class="card"><div class="card-body">
-      <div class="alert-banner info" style="margin-bottom:0;">
-        <div style="font-size:16px;">ℹ️</div>
-        <div><strong>Balises</strong> : le juge coche présence/absence sur des balises numérotées.<br><strong>Chrono allures</strong> : le juge chronomètre chaque allure imposée (pas/trot/galop allongé/rassemblé) et note selon la précision.</div>
-      </div>
-    </div></div>
-  </div>`;
+  </div>`);
 }
-function setVisibility(type,val){APP.data.results_visibility[type]=val;showToast(`${type.toUpperCase()} ${val?'visible':'masqué'}`,val?'success':'')}
-function savePORConfig(){
-  const cats=Array.from(document.getElementById('por-categories').selectedOptions).map(o=>o.value);
-  APP.data.por_configs[0]={id:'por1',vitesse:parseFloat(document.getElementById('por-vitesse').value)||8,distance:parseFloat(document.getElementById('por-dist').value)||12.5,nb_controles:parseInt(document.getElementById('por-controles').value)||3,categories:cats};
-  showToast('POR enregistré','success');
+function setVisibility(type, val) {
+  APP.cache.results_visibility[type] = val;
+  showToast(`${type.toUpperCase()} ${val?'visible':'masqué'}`, val?'success':'');
+}
+async function savePORConfig() {
+  const cats = Array.from(document.getElementById('por-categories').selectedOptions).map(o => o.value);
+  const obj = {
+    concours_id: APP.currentConcoursId,
+    nom: 'POR 1',
+    vitesse: parseFloat(document.getElementById('por-vitesse').value) || 8,
+    distance: parseFloat(document.getElementById('por-dist').value) || 12,
+    nb_controles: parseInt(document.getElementById('por-controles').value) || 3,
+  };
+  const { data: cfg, error } = await sb.from('por_configs').upsert(obj, { onConflict: 'concours_id,nom' }).select().single();
+  if (error) { showToast(error.message, 'error'); return; }
+  if (cfg && cats.length) {
+    await sb.from('por_config_categories').delete().eq('por_config_id', cfg.id);
+    await sb.from('por_config_categories').insert(cats.map(c => ({ por_config_id: cfg.id, categorie_id: c })));
+  }
+  showToast('POR enregistré', 'success');
 }
 
-/* ================================================================ ORGA HORAIRES ================================================================ */
-function pageOrgaHoraires(){
-  if(!APP.data.schedules.por.length)generateScheduleData('por');
-  return`<div class="page active">
+/* ================================================================
+   ORGA — HORAIRES
+   ================================================================ */
+async function pageOrgaHoraires() {
+  if (!APP.cache.participants.length) await loadEngagements();
+  if (!APP.cache.schedules.por.length) generateScheduleData('por');
+  setPageContent(`<div class="page active">
     <div class="page-header"><div><div class="page-title">Horaires</div></div></div>
     <div class="tabs"><div class="tab-btn active" onclick="switchSchedTab('por',this)">POR</div><div class="tab-btn" onclick="switchSchedTab('ma',this)">MA</div><div class="tab-btn" onclick="switchSchedTab('ptv',this)">PTV</div></div>
     <div id="sched-content">${renderSchedSection('por')}</div>
-  </div>`;
+  </div>`);
 }
-function switchSchedTab(t,el){
-  document.querySelectorAll('.tabs .tab-btn').forEach(b=>b.classList.remove('active'));
+function switchSchedTab(t, el) {
+  document.querySelectorAll('.tabs .tab-btn').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
-  document.getElementById('sched-content').innerHTML=renderSchedSection(t);
+  document.getElementById('sched-content').innerHTML = renderSchedSection(t);
 }
-function renderSchedSection(type){
-  const enabled=APP.data.schedules[type+'_enabled']!==false;
-  const scheds=APP.data.schedules[type]||[];
-  return`<div class="card mb16"><div class="card-body">
+function renderSchedSection(type) {
+  const enabled = APP.cache.schedules[type+'_enabled'] !== false;
+  const scheds = APP.cache.schedules[type] || [];
+  return `<div class="card mb16"><div class="card-body">
     <div class="toggle-wrap" style="padding-top:0;">
-      <div class="toggle-info"><div class="toggle-label">Activer les horaires ${type.toUpperCase()}</div><div class="toggle-desc">Désactiver si non utilisé ce concours</div></div>
-      <label class="toggle"><input type="checkbox" ${enabled?'checked':''} onchange="APP.data.schedules['${type}_enabled']=this.checked"><span class="toggle-slider"></span></label>
+      <div class="toggle-info"><div class="toggle-label">Activer les horaires ${type.toUpperCase()}</div><div class="toggle-desc">Désactiver si non utilisé</div></div>
+      <label class="toggle"><input type="checkbox" ${enabled?'checked':''} onchange="APP.cache.schedules['${type}_enabled']=this.checked"><span class="toggle-slider"></span></label>
     </div>
     <div class="form-row mt8">
       ${type==='por'?`
@@ -1210,115 +1445,143 @@ function renderSchedSection(type){
       `:`<div class="form-group"><label class="form-label">Intervalle entre passages</label><div class="input-group"><input type="number" id="sched-interval" value="10"><div class="input-group-append">min</div></div></div>`}
       <div class="form-group"><label class="form-label">Premier départ</label><input type="time" id="sched-first" value="09:00" style="font-family:'DM Mono',monospace;font-size:16px;"></div>
     </div>
-    <button class="btn-primary full-width" onclick="generateScheduleData('${type}');document.getElementById('sched-content').innerHTML=renderSchedSection('${type}')">⟳ Générer les horaires</button>
+    <button class="btn-primary full-width" onclick="generateScheduleData('${type}');document.getElementById('sched-content').innerHTML=renderSchedSection('${type}')">⟳ Générer</button>
   </div></div>
   <div class="card">
-    ${scheds.length?scheds.map((s,i)=>`
+    ${scheds.length ? scheds.map((s,i)=>`
     <div class="schedule-item">
       <div class="schedule-time ${s.modified?'modified':''}">${s.time}</div>
       <div class="schedule-name">${s.name}</div>
-      <div class="schedule-dossard">#${s.dossard}</div>
+      <div class="schedule-dossard">#${s.dossard||'—'}</div>
       <button class="btn-icon" onclick="openEditSchedule(${i},'${type}')">✎</button>
-    </div>`).join(''):`<div style="padding:16px;color:var(--text3);font-size:13px;">Aucun horaire. Configurez et cliquez Générer.</div>`}
+    </div>`).join('') : `<div style="padding:16px;color:var(--text3);font-size:13px;">Aucun horaire. Configurez et cliquez Générer.</div>`}
   </div>`;
 }
-function generateScheduleData(type){
-  const partants=APP.data.participants.filter(p=>p.statut==='partant');
-  const firstEl=document.getElementById('sched-first');
-  const intervalEl=document.getElementById('sched-interval');
-  const sdcEl=document.getElementById('sched-sdc');
-  const firstTime=firstEl?firstEl.value:'09:00';
-  const interval=intervalEl?parseInt(intervalEl.value)||10:type==='por'?25:10;
-  const [fh,fm]=firstTime.split(':').map(Number);
-  APP.data.schedules[type]=partants.map((p,i)=>{
-    const tot=fh*60+fm+i*interval;
-    return{id:p.id,time:String(Math.floor(tot/60)).padStart(2,'0')+':'+String(tot%60).padStart(2,'0'),name:p.prenom+' '+p.nom,dossard:p.dossard,modified:false};
+function generateScheduleData(type) {
+  const partants = APP.cache.participants.filter(p => p.statut === 'partant');
+  const firstEl = document.getElementById('sched-first');
+  const intervalEl = document.getElementById('sched-interval');
+  const firstTime = firstEl ? firstEl.value : '09:00';
+  const interval = intervalEl ? parseInt(intervalEl.value)||10 : (type==='por'?25:10);
+  const [fh, fm] = firstTime.split(':').map(Number);
+  APP.cache.schedules[type] = partants.map((p,i) => {
+    const tot = fh*60+fm+i*interval;
+    return { id:p.id, time:String(Math.floor(tot/60)).padStart(2,'0')+':'+String(tot%60).padStart(2,'0'), name:p.prenom+' '+p.nom, dossard:p.dossard, modified:false };
   });
 }
-function openEditSchedule(idx,type){
-  APP.scheduleEditCtx={idx,type};
-  const s=APP.data.schedules[type][idx];
-  document.getElementById('edit-schedule-info').textContent=`Doss. ${s.dossard} — ${s.name}`;
-  document.getElementById('edit-schedule-time').value=s.time;
-  document.getElementById('edit-schedule-delay').value=0;
+function openEditSchedule(idx, type) {
+  APP.scheduleEditCtx = { idx, type };
+  const s = APP.cache.schedules[type][idx];
+  document.getElementById('edit-schedule-info').textContent = `Doss. ${s.dossard||'—'} — ${s.name}`;
+  document.getElementById('edit-schedule-time').value = s.time;
+  document.getElementById('edit-schedule-delay').value = 0;
   openModal('modal-edit-schedule');
 }
-function saveScheduleEdit(){
-  const {idx,type}=APP.scheduleEditCtx;
-  const s=APP.data.schedules[type][idx];
-  s.time=document.getElementById('edit-schedule-time').value;
-  s.modified=true;
-  const delay=parseInt(document.getElementById('edit-schedule-delay').value)||0;
-  if(delay>0){
-    for(let i=idx+1;i<APP.data.schedules[type].length;i++){
-      const [h,m]=APP.data.schedules[type][i].time.split(':').map(Number);
-      const tot=h*60+m+delay;
-      APP.data.schedules[type][i].time=String(Math.floor(tot/60)).padStart(2,'0')+':'+String(tot%60).padStart(2,'0');
-      APP.data.schedules[type][i].modified=true;
+function saveScheduleEdit() {
+  const { idx, type } = APP.scheduleEditCtx;
+  const s = APP.cache.schedules[type][idx];
+  s.time = document.getElementById('edit-schedule-time').value;
+  s.modified = true;
+  const delay = parseInt(document.getElementById('edit-schedule-delay').value) || 0;
+  if (delay > 0) {
+    for (let i = idx+1; i < APP.cache.schedules[type].length; i++) {
+      const [h,m] = APP.cache.schedules[type][i].time.split(':').map(Number);
+      const tot = h*60+m+delay;
+      APP.cache.schedules[type][i].time = String(Math.floor(tot/60)).padStart(2,'0')+':'+String(tot%60).padStart(2,'0');
+      APP.cache.schedules[type][i].modified = true;
     }
   }
   closeModal('modal-edit-schedule');
-  document.getElementById('sched-content').innerHTML=renderSchedSection(type);
-  showToast('Horaire modifié','success');
+  document.getElementById('sched-content').innerHTML = renderSchedSection(type);
+  showToast('Horaire modifié', 'success');
 }
 
-/* ================================================================ ORGA JUGES ================================================================ */
-function pageOrgaJuges(){
-  return`<div class="page active">
-    <div class="page-header"><div><div class="page-title">Juges</div><div class="page-subtitle">Surveillance & gestion</div></div><button class="btn-outline btn-small" onclick="generateJugeCode()">+ Code</button></div>
+/* ================================================================
+   ORGA — JUGES
+   ================================================================ */
+async function pageOrgaJuges() {
+  const { data: juges } = await sb.from('juges').select('*, juge_assignations(*)').order('nom');
+  APP.cache.juges = juges || [];
+  setPageContent(`<div class="page active">
+    <div class="page-header"><div><div class="page-title">Juges</div></div><button class="btn-outline btn-small" onclick="generateJugeCode()">+ Code</button></div>
     <div class="scrollable-x"><table class="judge-table" style="min-width:600px;">
-      <thead><tr><th>Statut</th><th>Juge</th><th>E-mail</th><th>Assignation</th><th>Dernière saisie</th><th>Actions</th></tr></thead>
+      <thead><tr><th>Juge</th><th>E-mail</th><th>Assignation</th><th>Code</th><th>Actions</th></tr></thead>
       <tbody>
-        ${APP.data.juges.map(j=>`
+        ${(juges||[]).map(j=>`
         <tr>
-          <td><span class="judge-status-dot ${j.en_ligne?'online':'offline'}"></span><span style="font-size:12px;color:${j.en_ligne?'var(--accent)':'var(--text3)'};">${j.en_ligne?'En ligne':'Hors ligne'}</span></td>
-          <td style="font-weight:600;">${j.prenom} ${j.nom}</td>
+          <td style="font-weight:600;">${j.prenom||'—'} ${j.nom||'—'}</td>
           <td style="font-size:12px;color:var(--text3);">${j.email}</td>
-          <td><span class="status-badge pending">${j.assignation.type}</span> <span style="font-size:12px;color:var(--text2);">${j.assignation.poste}</span></td>
-          <td class="mono" style="font-size:13px;color:var(--text2);">${j.derniere_saisie}</td>
-          <td><div class="flex-gap"><button class="btn-outline btn-small" onclick="openEditJuge('${j.id}')">Modifier</button><button class="btn-danger btn-small" onclick="revokeJuge('${j.id}')">Révoquer</button></div></td>
+          <td>${j.juge_assignations?.length ? j.juge_assignations.map(a=>`<span class="status-badge pending">${a.type_epreuve}</span> <span style="font-size:12px;color:var(--text2);">${a.poste}</span>`).join(' ') : '<span style="color:var(--text3);font-size:12px;">Non assigné</span>'}</td>
+          <td class="mono" style="font-size:12px;color:${j.code_used?'var(--text3)':'var(--accent)'};">${j.code_invitation||'—'}${j.code_used?' ✓':''}</td>
+          <td><div class="flex-gap"><button class="btn-outline btn-small" onclick="openEditJuge('${j.id}','${encodeURIComponent(JSON.stringify(j))}')">Modifier</button><button class="btn-danger btn-small" onclick="revokeJuge('${j.id}')">Révoquer</button></div></td>
         </tr>`).join('')}
       </tbody>
     </table></div>
-  </div>`;
+  </div>`);
 }
-function openEditJuge(id){
-  APP.editTarget=id;
-  const j=APP.data.juges.find(x=>x.id===id);
-  document.getElementById('edit-juge-name').textContent=j.prenom+' '+j.nom;
-  document.getElementById('edit-juge-type').value=j.assignation.type;
+function openEditJuge(id, encoded) {
+  APP.editTarget = id;
+  const j = JSON.parse(decodeURIComponent(encoded));
+  document.getElementById('edit-juge-name').textContent = `${j.prenom||''} ${j.nom||''}`.trim() || j.email;
+  const asgn = j.juge_assignations?.[0];
+  document.getElementById('edit-juge-type').value = asgn?.type_epreuve || 'POR';
   updateJugePosteOptions();
-  setTimeout(()=>document.getElementById('edit-juge-poste').value=j.assignation.poste,10);
+  setTimeout(() => { document.getElementById('edit-juge-poste').value = asgn?.poste || ''; }, 10);
   openModal('modal-edit-juge');
 }
-function updateJugePosteOptions(){
-  const type=document.getElementById('edit-juge-type').value;
-  const opts={POR:['depart','controle1','controle2','controle3','arrivee'],MA:APP.data.categories.map(c=>c.id),PTV:APP.data.obstacles.map(o=>o.id)};
-  document.getElementById('edit-juge-poste').innerHTML=(opts[type]||[]).map(v=>`<option value="${v}">${v}</option>`).join('');
+function updateJugePosteOptions() {
+  const type = document.getElementById('edit-juge-type').value;
+  const opts = {
+    POR: ['depart','controle1','controle2','controle3','arrivee'],
+    MA: APP.cache.categories.map(c => c.id),
+    PTV: APP.cache.obstacles.map(o => o.id),
+  };
+  document.getElementById('edit-juge-poste').innerHTML = (opts[type]||[]).map(v=>`<option value="${v}">${v}</option>`).join('');
 }
-function saveJugeEdit(){
-  const j=APP.data.juges.find(x=>x.id===APP.editTarget);
-  if(j){j.assignation.type=document.getElementById('edit-juge-type').value;j.assignation.poste=document.getElementById('edit-juge-poste').value}
-  closeModal('modal-edit-juge');navigateTo('orga-juges');showToast('Juge mis à jour','success');
+async function saveJugeEdit() {
+  const type = document.getElementById('edit-juge-type').value;
+  const poste = document.getElementById('edit-juge-poste').value;
+  await sb.from('juge_assignations').upsert({ juge_id: APP.editTarget, concours_id: APP.currentConcoursId, type_epreuve: type, poste }, { onConflict: 'juge_id,concours_id' });
+  closeModal('modal-edit-juge'); navigateTo('orga-juges'); showToast('Juge mis à jour', 'success');
 }
-function revokeJuge(id){APP.data.juges=APP.data.juges.filter(j=>j.id!==id);navigateTo('orga-juges');showToast('Juge révoqué','success')}
+async function revokeJuge(id) {
+  await sb.from('juge_assignations').delete().eq('juge_id', id).eq('concours_id', APP.currentConcoursId);
+  navigateTo('orga-juges'); showToast('Juge révoqué du concours', 'success');
+}
+async function generateJugeCode() {
+  const code = 'TREC-' + Math.floor(1000+Math.random()*9000);
+  const { error } = await sb.from('juges').insert({ email: `invite_${Date.now()}@trec.fr`, code_invitation: code, code_used: false });
+  if (error) { showToast(error.message, 'error'); return; }
+  document.getElementById('generated-code').textContent = code;
+  openModal('modal-gen-code');
+}
+function copyCode() { navigator.clipboard.writeText(document.getElementById('generated-code').textContent).catch(()=>{}); showToast('Code copié !', 'success'); }
 
-/* ================================================================ JUGE PAGES ================================================================ */
-function pageJugeEntry(){
-  const type=APP.user?.assignation?.type||'PTV';
-  if(type==='PTV')return pageJugePTV();
-  if(type==='POR')return pageJugePOR();
-  return pageJugeMA();
+/* ================================================================
+   JUGE — ENTRY
+   ================================================================ */
+async function pageJugeEntry() {
+  if (!APP.cache.participants.length) await loadEngagements();
+  const type = APP.jugeAssignation?.type_epreuve || 'PTV';
+  if (type === 'PTV') renderJugePTV();
+  else if (type === 'POR') renderJugePOR();
+  else renderJugeMA();
 }
-function pageJugePTV(){
-  const parts=APP.data.participants.filter(p=>p.statut==='partant');
-  return`<div class="page active">
-    <div class="page-header"><div><div class="page-title">PTV</div><div class="page-subtitle">Saisie obstacles</div></div></div>
-    <select id="ptv-sel" onchange="loadPTVPart(this.value)" style="margin-bottom:16px;"><option value="">— Sélectionner un participant —</option>${parts.map(p=>`<option value="${p.id}">Doss. ${p.dossard} — ${p.prenom} ${p.nom}</option>`).join('')}</select>
+function renderJugePTV() {
+  const parts = APP.cache.participants.filter(p => p.statut === 'partant');
+  setPageContent(`<div class="page active">
+    <div class="page-header"><div><div class="page-title">PTV</div><div class="page-subtitle">Obstacle : ${APP.jugeAssignation?.poste||'—'}</div></div></div>
+    <select id="ptv-sel" onchange="loadPTVPart(this.value)" style="margin-bottom:16px;"><option value="">— Sélectionner un participant —</option>${parts.map(p=>`<option value="${p.id}">Doss. ${p.dossard||'—'} — ${p.prenom} ${p.nom}</option>`).join('')}</select>
     <div id="ptv-content" style="display:none;">
       <div class="card mb12"><div class="card-body"><div id="ptv-info" style="font-size:14px;font-weight:600;"></div></div></div>
       <div class="obstacle-grid" id="obs-grid">
-        ${APP.data.obstacles.map(o=>{const sc=APP.data.ptv_scores[o.id];const has=sc!==undefined;return`<div class="obstacle-card ${has?(sc===0?'scored-zero':'scored'):''}" onclick="openObsModal('${o.id}')"><div class="obstacle-num">${o.code}</div><div class="obstacle-name">${o.label}</div><div class="obstacle-score">${has?sc:'—'}</div></div>`}).join('')}
+        ${APP.cache.obstacles.map(o => {
+          const sc = APP.data_ptv_scores ? APP.data_ptv_scores[o.id] : undefined;
+          const has = sc !== undefined && sc !== null;
+          return `<div class="obstacle-card ${has?(sc===0?'scored-zero':'scored'):''}" onclick="openObsModal('${o.id}','${o.label}',${o.pts_max})">
+            <div class="obstacle-num">${o.code}</div><div class="obstacle-name">${o.label}</div><div class="obstacle-score">${has?sc:'—'}</div>
+          </div>`;
+        }).join('')}
       </div>
       <div style="margin-top:16px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius2);padding:14px;display:flex;justify-content:space-between;align-items:center;">
         <span style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);">Total PTV</span>
@@ -1326,34 +1589,113 @@ function pageJugePTV(){
       </div>
       <button class="btn-primary full-width mt16" onclick="savePTVEntry()">✓ Valider la saisie</button>
     </div>
-  </div>`;
+  </div>`);
+  APP.data_ptv_scores = {};
 }
-function pageJugePOR(){
-  const parts=APP.data.participants.filter(p=>p.statut==='partant');
-  return`<div class="page active">
-    <div class="page-header"><div><div class="page-title">POR</div><div class="page-subtitle">Contrôle</div></div></div>
-    <select style="margin-bottom:16px;" onchange="document.getElementById('por-entry').style.display=this.value?'block':'none'"><option value="">— Sélectionner —</option>${parts.map(p=>`<option value="${p.id}">Doss. ${p.dossard} — ${p.prenom} ${p.nom}</option>`).join('')}</select>
+async function loadPTVPart(id) {
+  const div = document.getElementById('ptv-content');
+  if (!id) { div.style.display='none'; return; }
+  const p = APP.cache.participants.find(x => x.id === id);
+  APP.jugeCtx.participantId = id;
+  // Load existing PTV scores for this engagement
+  const { data: existing } = await sb.from('scores_ptv').select('obstacle_id,points').eq('engagement_id', id);
+  APP.data_ptv_scores = {};
+  (existing||[]).forEach(r => { APP.data_ptv_scores[r.obstacle_id] = r.points; });
+  div.style.display = 'block';
+  document.getElementById('ptv-info').textContent = `${p.prenom} ${p.nom} · Doss. ${p.dossard||'—'} · ${p.cheval_nom}`;
+  // Re-render obstacles with existing scores
+  document.getElementById('obs-grid').innerHTML = APP.cache.obstacles.map(o => {
+    const sc = APP.data_ptv_scores[o.id];
+    const has = sc !== undefined && sc !== null;
+    return `<div class="obstacle-card ${has?(sc===0?'scored-zero':'scored'):''}" onclick="openObsModal('${o.id}','${o.label}',${o.pts_max})">
+      <div class="obstacle-num">${o.code}</div><div class="obstacle-name">${o.label}</div><div class="obstacle-score">${has?sc:'—'}</div>
+    </div>`;
+  }).join('');
+  updatePTVTotal();
+}
+function openObsModal(oid, label, max) {
+  if (!APP.jugeCtx.participantId) { showToast('Sélectionner un participant', 'error'); return; }
+  APP.obsEdit = { id:oid, score: APP.data_ptv_scores?.[oid] ?? 0, max };
+  document.getElementById('obstacle-modal-title').textContent = label;
+  document.getElementById('obstacle-max').textContent = max;
+  document.getElementById('obstacle-score-display').textContent = APP.obsEdit.score;
+  openModal('modal-obstacle');
+}
+function adjObs(d) { APP.obsEdit.score = Math.max(0, Math.min(APP.obsEdit.max, APP.obsEdit.score+d)); document.getElementById('obstacle-score-display').textContent = APP.obsEdit.score; }
+function setObs(v) { APP.obsEdit.score = v >= 99 ? APP.obsEdit.max : v; document.getElementById('obstacle-score-display').textContent = APP.obsEdit.score; }
+async function saveObstacleScore() {
+  const pid = APP.jugeCtx.participantId;
+  const score = APP.obsEdit.score;
+  APP.data_ptv_scores[APP.obsEdit.id] = score;
+  const action = { type:'ptv', engagement_id:pid, obstacle_id:APP.obsEdit.id, score, juge_id:APP.jugeProfile?.id };
+  if (APP.isOnline) {
+    await processSyncAction(action);
+  } else {
+    addPendingSync(action);
+  }
+  // Log
+  if (APP.isOnline && APP.jugeProfile) {
+    await sb.from('log_saisies').insert({ juge_id: APP.jugeProfile.id, engagement_id: pid, type_action: 'ptv_score', detail: { obstacle_id: APP.obsEdit.id, points: score } });
+  }
+  closeModal('modal-obstacle');
+  await loadPTVPart(pid);
+  showToast('Score enregistré', 'success');
+}
+function updatePTVTotal() {
+  const tot = APP.cache.obstacles.reduce((a,o) => a+(APP.data_ptv_scores?.[o.id]||0), 0);
+  const el = document.getElementById('ptv-total');
+  if (el) el.textContent = tot;
+}
+async function savePTVEntry() {
+  showToast('Saisie PTV validée ✓', 'success');
+  if (APP.jugeProfile) {
+    await sb.from('log_saisies').insert({ juge_id: APP.jugeProfile.id, engagement_id: APP.jugeCtx.participantId, type_action: 'ptv_complete', detail: {} });
+  }
+}
+
+function renderJugePOR() {
+  const parts = APP.cache.participants.filter(p => p.statut === 'partant');
+  setPageContent(`<div class="page active">
+    <div class="page-header"><div><div class="page-title">POR</div><div class="page-subtitle">Poste : ${APP.jugeAssignation?.poste||'—'}</div></div></div>
+    <select style="margin-bottom:16px;" onchange="document.getElementById('por-entry').style.display=this.value?'block':'none'"><option value="">— Sélectionner —</option>${parts.map(p=>`<option value="${p.id}">Doss. ${p.dossard||'—'} — ${p.prenom} ${p.nom}</option>`).join('')}</select>
     <div id="por-entry" style="display:none;">
-      <div class="por-control">
-        <div class="por-control-label">Passage</div>
+      <div class="por-control"><div class="por-control-label">Passage</div>
         <div class="time-grid">
-          <div class="form-group"><label class="form-label">Heure théorique</label><input type="time" value="09:00" readonly style="font-family:'DM Mono',monospace;font-size:20px;text-align:center;background:var(--bg2);color:var(--text3);"></div>
-          <div class="form-group"><label class="form-label">Heure réelle</label><input type="time" value="09:00" style="font-family:'DM Mono',monospace;font-size:20px;text-align:center;"></div>
+          <div class="form-group"><label class="form-label">Heure théorique</label><input type="time" id="por-theorique" value="09:00" readonly style="font-family:'DM Mono',monospace;font-size:20px;text-align:center;background:var(--bg2);color:var(--text3);"></div>
+          <div class="form-group"><label class="form-label">Heure réelle</label><input type="time" id="por-reel" value="09:00" style="font-family:'DM Mono',monospace;font-size:20px;text-align:center;"></div>
         </div>
         <div class="penalty-grid">
           <div class="penalty-item"><div class="penalty-label">Hors piste</div><div class="penalty-counter"><button class="penalty-btn" onclick="adjPen('hp',-1)">−</button><div class="penalty-val" id="pen-hp">0</div><button class="penalty-btn" onclick="adjPen('hp',1)">+</button></div></div>
           <div class="penalty-item"><div class="penalty-label">Autres</div><div class="penalty-counter"><button class="penalty-btn" onclick="adjPen('au',-1)">−</button><div class="penalty-val" id="pen-au">0</div><button class="penalty-btn" onclick="adjPen('au',1)">+</button></div></div>
         </div>
       </div>
-      <button class="btn-primary full-width" onclick="savePOREntry()">✓ Enregistrer</button>
+      <button class="btn-primary full-width" onclick="savePOREntry(document.querySelector('#por-entry').previousElementSibling.value)">✓ Enregistrer</button>
     </div>
-  </div>`;
+  </div>`);
+  APP._pen = { hp:0, au:0 };
 }
-function pageJugeMA(){
-  const parts=APP.data.participants.filter(p=>p.statut==='partant');
-  return`<div class="page active">
-    <div class="page-header"><div><div class="page-title">MA</div><div class="page-subtitle">Maîtrise des allures</div></div></div>
-    <select style="margin-bottom:16px;"><option value="">— Sélectionner —</option>${parts.map(p=>`<option value="${p.id}">Doss. ${p.dossard} — ${p.prenom} ${p.nom}</option>`).join('')}</select>
+function adjPen(t, d) { APP._pen[t] = Math.max(0, APP._pen[t]+d); document.getElementById('pen-'+t).textContent = APP._pen[t]; }
+async function savePOREntry(engId) {
+  if (!engId) { showToast('Sélectionner un participant', 'error'); return; }
+  const action = {
+    type: 'por',
+    engagement_id: engId,
+    controle: APP.jugeAssignation?.poste || 'depart',
+    heure_theorique: document.getElementById('por-theorique').value,
+    heure_reelle: document.getElementById('por-reel').value,
+    hp: APP._pen.hp,
+    au: APP._pen.au,
+  };
+  if (APP.isOnline) await processSyncAction(action);
+  else addPendingSync(action);
+  showToast('Passage enregistré ✓', 'success');
+}
+
+function renderJugeMA() {
+  const parts = APP.cache.participants.filter(p => p.statut === 'partant');
+  setPageContent(`<div class="page active">
+    <div class="page-header"><div><div class="page-title">MA</div><div class="page-subtitle">Catégorie : ${APP.jugeAssignation?.poste||'—'}</div></div></div>
+    <select id="ma-sel" style="margin-bottom:16px;" onchange="APP._maEngId=this.value"><option value="">— Sélectionner —</option>${parts.map(p=>`<option value="${p.id}">Doss. ${p.dossard||'—'} — ${p.prenom} ${p.nom}</option>`).join('')}</select>
     <div class="tabs" style="margin-bottom:16px;"><div class="tab-btn active" onclick="switchMAMode('balises',this)">Balises</div><div class="tab-btn" onclick="switchMAMode('chrono',this)">Chrono allures</div></div>
     <div id="ma-balises">
       <div style="font-size:13px;color:var(--text2);margin-bottom:12px;">1 appui = validée ✓ · 2 appuis = manquée ✗ · 3 appuis = effacer</div>
@@ -1374,153 +1716,176 @@ function pageJugeMA(){
       </div>`).join('')}
     </div>
     <button class="btn-primary full-width mt16" onclick="saveMAEntry()">✓ Valider la saisie</button>
-  </div>`;
+  </div>`);
+  APP._bal = {};
+  APP._maEngId = null;
 }
-function switchMAMode(mode,el){
-  document.querySelectorAll('.tabs .tab-btn').forEach(b=>b.classList.remove('active'));el.classList.add('active');
-  document.getElementById('ma-balises').style.display=mode==='balises'?'block':'none';
-  document.getElementById('ma-chrono').style.display=mode==='chrono'?'block':'none';
+function switchMAMode(mode, el) {
+  document.querySelectorAll('.tabs .tab-btn').forEach(b => b.classList.remove('active')); el.classList.add('active');
+  document.getElementById('ma-balises').style.display = mode==='balises' ? 'block' : 'none';
+  document.getElementById('ma-chrono').style.display = mode==='chrono' ? 'block' : 'none';
 }
-function pageJugeRecap(){
-  return`<div class="page active">
-    <div class="page-header"><div><div class="page-title">Récap</div><div class="page-subtitle">Mes saisies du jour</div></div></div>
-    ${APP.data.participants.filter(p=>p.statut==='partant').map(p=>`
-    <div class="list-item">
-      <div class="list-item-dossard">${p.dossard}</div>
-      <div class="list-item-info"><div class="list-item-name">${p.prenom} ${p.nom}</div><div class="list-item-sub">${p.cheval_nom}</div></div>
-      <span class="status-badge ${APP.data.ptv_scores[p.id]!==undefined?'partant':'pending'}">${APP.data.ptv_scores[p.id]!==undefined?'✓ SAISI':'EN ATTENTE'}</span>
-    </div>`).join('')}
-  </div>`;
+function toggleBalise(i, el) {
+  if (APP._bal[i]===undefined) { APP._bal[i]=true; el.classList.add('hit'); el.classList.remove('miss'); }
+  else if (APP._bal[i]===true) { APP._bal[i]=false; el.classList.add('miss'); el.classList.remove('hit'); }
+  else { delete APP._bal[i]; el.classList.remove('hit','miss'); }
+  const hit=Object.values(APP._bal).filter(v=>v===true).length, miss=Object.values(APP._bal).filter(v=>v===false).length;
+  const ce=document.getElementById('bal-count'),me=document.getElementById('bal-miss'),pe=document.getElementById('bal-pending');
+  if(ce)ce.textContent=hit; if(me)me.textContent=miss; if(pe)pe.textContent=20-hit-miss;
+}
+async function saveMAEntry() {
+  if (!APP._maEngId) { showToast('Sélectionner un participant', 'error'); return; }
+  const action = { type:'ma', engagement_id: APP._maEngId, mode:'balises', balises_data: APP._bal || {}, chrono_data: null };
+  if (APP.isOnline) await processSyncAction(action);
+  else addPendingSync(action);
+  showToast('Saisie MA validée ✓', 'success');
 }
 
-/* ================================================================ PARTICIPANT ================================================================ */
-function initParticipantView(){
-  const open=APP.data.concours.find(c=>c.engagements_ouverts);
-  const b=document.getElementById('engage-banner');
-  if(open){b.style.display='flex';document.getElementById('engage-banner-text').textContent=`${open.nom} — ${formatDate(open.date)} · ${open.lieu}`}
-  else b.style.display='none';
+/* ================================================================
+   JUGE — RÉCAP
+   ================================================================ */
+async function pageJugeRecap() {
+  if (!APP.cache.participants.length) await loadEngagements();
+  // Load today's logs for this juge
+  const { data: logs } = await sb.from('log_saisies')
+    .select('engagement_id, type_action, created_at')
+    .eq('juge_id', APP.jugeProfile?.id || '')
+    .gte('created_at', new Date().toISOString().split('T')[0]);
+  const saisedIds = new Set((logs||[]).map(l => l.engagement_id));
+  setPageContent(`<div class="page active">
+    <div class="page-header"><div><div class="page-title">Récap</div><div class="page-subtitle">Mes saisies du jour</div></div></div>
+    ${APP.cache.participants.filter(p => p.statut==='partant').map(p=>`
+    <div class="list-item">
+      <div class="list-item-dossard">${p.dossard||'—'}</div>
+      <div class="list-item-info"><div class="list-item-name">${p.prenom} ${p.nom}</div><div class="list-item-sub">${p.cheval_nom}</div></div>
+      <span class="status-badge ${saisedIds.has(p.id)?'partant':'pending'}">${saisedIds.has(p.id)?'✓ SAISI':'EN ATTENTE'}</span>
+    </div>`).join('')}
+  </div>`);
 }
-function searchLicence(){
-  const lic=document.getElementById('licence-input').value.trim();
-  const container=document.getElementById('participant-results');
-  if(!lic){container.innerHTML='';return}
-  const results=APP.data.participants.filter(p=>p.licence===lic||lic==='TEST');
-  if(!results.length){container.innerHTML=`<div class="alert-banner warn"><div>ℹ️</div><div>Aucun résultat pour <strong>${lic}</strong>.</div></div>`;return}
-  const vis=APP.data.results_visibility;
-  container.innerHTML=APP.data.concours.map(c=>{
-    const p=results[0];
-    const total=(vis.por?(p.scores.por||0):0)+(vis.ma?(p.scores.ma||0):0)+(vis.ptv?(p.scores.ptv||0):0);
-    return`<div class="concours-result-card">
-      <div class="concours-result-header"><div><div class="concours-result-name">${c.nom}</div><div class="concours-result-date">${formatDate(c.date)} · ${c.lieu}</div></div><div class="mono" style="font-size:22px;color:var(--accent);">${total||'—'}</div></div>
-      ${vis.por?`<div class="epreuve-row"><div><div class="epreuve-name">POR</div></div><div class="epreuve-score">${p.scores.por||'—'}</div></div>`:''}
-      ${vis.ma?`<div class="epreuve-row"><div><div class="epreuve-name">MA</div></div><div class="epreuve-score">${p.scores.ma||'—'}</div></div>`:''}
-      ${vis.ptv?`<div class="epreuve-row"><div><div class="epreuve-name">PTV</div></div><div class="epreuve-score">${p.scores.ptv||'—'}</div></div>`:''}
-      ${!vis.por&&!vis.ma&&!vis.ptv?`<div style="padding:14px;color:var(--text3);font-size:13px;">Résultats non encore publiés.</div>`:''}
+
+/* ================================================================
+   PARTICIPANT VIEW
+   ================================================================ */
+async function initParticipantView() {
+  const { data: concours } = await sb.from('concours').select('*').eq('engagements_ouverts', true).limit(1);
+  const banner = document.getElementById('engage-banner');
+  if (concours && concours.length) {
+    const c = concours[0];
+    banner.style.display = 'flex';
+    document.getElementById('engage-banner-text').textContent = `${c.nom} — ${formatDate(c.date)} · ${c.lieu||''}`;
+    banner.dataset.concoursId = c.id;
+    banner.dataset.mdp = c.mot_de_passe;
+    // Populate categories
+    const { data: cats } = await sb.from('categories').select('id,label').order('label');
+    const sel = document.getElementById('eng-categorie');
+    sel.innerHTML = '<option value="">Sélectionner...</option>' + (cats||[]).map(c=>`<option value="${c.id}">${c.id} — ${c.label}</option>`).join('');
+  } else {
+    banner.style.display = 'none';
+  }
+}
+async function searchLicence() {
+  const lic = document.getElementById('licence-input').value.trim().toUpperCase();
+  const container = document.getElementById('participant-results');
+  if (!lic) { container.innerHTML = ''; return; }
+  container.innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
+  const { data: cavalier } = await sb.from('cavaliers').select('id').eq('licence', lic).single();
+  if (!cavalier) {
+    container.innerHTML = `<div class="alert-banner warn"><div>ℹ️</div><div>Aucun résultat pour <strong>${lic}</strong>.</div></div>`;
+    return;
+  }
+  const { data: engagements } = await sb.from('engagements').select(`
+    concours:concours(id,nom,date,lieu),
+    scores_por(controle,penalites_hors_piste,penalites_autres),
+    scores_ma(mode,balises_data),
+    scores_ptv(obstacle_id,points),
+    categorie:categories(id,pts_por)
+  `).eq('cavalier_id', cavalier.id).eq('statut', 'partant');
+
+  if (!engagements || !engagements.length) {
+    container.innerHTML = `<div class="alert-banner warn"><div>ℹ️</div><div>Aucune participation trouvée pour <strong>${lic}</strong>.</div></div>`;
+    return;
+  }
+
+  // Group by concours
+  const byConc = {};
+  engagements.forEach(e => {
+    const c = e.concours;
+    if (!c) return;
+    if (!byConc[c.id]) byConc[c.id] = { concours: c, eng: e };
+  });
+
+  container.innerHTML = Object.values(byConc).map(({ concours: c, eng: e }) => {
+    const vis = APP.cache.results_visibility;
+    const porScore = vis.por ? calcPORScore(e.scores_por, e.categorie) : null;
+    const maScore = vis.ma ? calcMAScore(e.scores_ma) : null;
+    const ptvScore = vis.ptv ? calcPTVScore(e.scores_ptv) : null;
+    const total = (porScore||0)+(maScore||0)+(ptvScore||0);
+    const anyVisible = vis.por || vis.ma || vis.ptv;
+    return `<div class="concours-result-card">
+      <div class="concours-result-header"><div><div class="concours-result-name">${c.nom}</div><div class="concours-result-date">${formatDate(c.date)} · ${c.lieu||''}</div></div><div class="mono" style="font-size:22px;color:var(--accent);">${anyVisible?(total||'—'):'—'}</div></div>
+      ${vis.por&&porScore!==null?`<div class="epreuve-row"><div><div class="epreuve-name">POR</div></div><div class="epreuve-score">${porScore}</div></div>`:''}
+      ${vis.ma&&maScore!==null?`<div class="epreuve-row"><div><div class="epreuve-name">MA</div></div><div class="epreuve-score">${maScore}</div></div>`:''}
+      ${vis.ptv&&ptvScore!==null?`<div class="epreuve-row"><div><div class="epreuve-name">PTV</div></div><div class="epreuve-score">${ptvScore}</div></div>`:''}
+      ${!anyVisible?`<div style="padding:14px;color:var(--text3);font-size:13px;">Résultats non encore publiés.</div>`:''}
     </div>`;
   }).join('');
 }
-function toggleEquipeField(){document.getElementById('eng-equipe-wrap').classList.toggle('hidden',document.getElementById('eng-type').value!=='equ')}
-function validateEngagement(){
-  const mdp=document.getElementById('engage-mdp').value.toUpperCase();
-  const form=document.getElementById('engagement-form');
-  const open=APP.data.concours.find(c=>c.engagements_ouverts);
-  if(!open){showToast('Aucun concours ouvert','error');return}
-  if(!form.style.display||form.style.display==='none'){if(mdp!==open.mot_de_passe){showToast('Mot de passe incorrect','error');return}form.style.display='block';return}
-  showToast('Engagement enregistré !','success');closeModal('modal-engagement');
-  if(!APP.isOnline)addPendingSync({type:'engagement'});
+function toggleEquipeField() { document.getElementById('eng-equipe-wrap').classList.toggle('hidden', document.getElementById('eng-type').value !== 'equ'); }
+async function validateEngagement() {
+  const mdp = document.getElementById('engage-mdp').value.toUpperCase();
+  const form = document.getElementById('engagement-form');
+  const banner = document.getElementById('engage-banner');
+  const correctMdp = banner.dataset.mdp;
+  const concoursId = banner.dataset.concoursId;
+  if (!form.style.display || form.style.display === 'none') {
+    if (mdp !== correctMdp) { showToast('Mot de passe incorrect', 'error'); return; }
+    form.style.display = 'block'; return;
+  }
+  const licence = document.getElementById('eng-licence').value.trim().toUpperCase();
+  const prenom = document.getElementById('eng-prenom').value.trim();
+  const nom = document.getElementById('eng-nom').value.trim();
+  const sire = document.getElementById('eng-sire').value.trim().toUpperCase();
+  const chevNom = document.getElementById('eng-cheval').value.trim();
+  const catId = document.getElementById('eng-categorie').value;
+  const ecurie = document.getElementById('eng-ecurie').value.trim();
+  if (!licence || !prenom || !nom || !chevNom || !catId) { showToast('Tous les champs obligatoires', 'error'); return; }
+
+  // Upsert cavalier
+  let { data: cav } = await sb.from('cavaliers').select('id').eq('licence', licence).single();
+  if (!cav) {
+    const { data } = await sb.from('cavaliers').insert({ licence, prenom, nom, ecurie }).select().single();
+    cav = data;
+  }
+  // Upsert cheval
+  let { data: chev } = sire ? await sb.from('chevaux').select('id').eq('sire', sire).single() : { data: null };
+  if (!chev) {
+    const { data } = await sb.from('chevaux').insert({ sire: sire||null, nom: chevNom, ecurie }).select().single();
+    chev = data;
+  }
+  // Handle equipe
+  let equipeId = null;
+  const equipeNom = document.getElementById('eng-equipe').value.trim();
+  if (equipeNom) {
+    const { data: eq } = await sb.from('equipes').upsert({ concours_id: concoursId, categorie_id: catId, nom: equipeNom }, { onConflict: 'concours_id,categorie_id,nom' }).select().single();
+    equipeId = eq?.id;
+  }
+  // Insert engagement
+  const { error } = await sb.from('engagements').insert({ concours_id: concoursId, cavalier_id: cav.id, cheval_id: chev.id, categorie_id: catId, equipe_id: equipeId, type_participation: document.getElementById('eng-type').value, statut: 'partant' });
+  if (error) { showToast(error.message, 'error'); return; }
+  showToast('Engagement enregistré !', 'success');
+  closeModal('modal-engagement');
 }
 
-/* ================================================================ PTV LOGIC ================================================================ */
-function loadPTVPart(id){
-  const div=document.getElementById('ptv-content');
-  if(!id){div.style.display='none';return}
-  const p=APP.data.participants.find(x=>x.id===id);
-  div.style.display='block';
-  document.getElementById('ptv-info').textContent=`${p.prenom} ${p.nom} · Doss. ${p.dossard} · ${p.cheval_nom}`;
-  APP.jugeCtx.participantId=id;updatePTVTotal();
-}
-function openObsModal(oid){
-  if(!APP.jugeCtx.participantId){showToast('Sélectionner un participant','error');return}
-  const o=APP.data.obstacles.find(x=>x.id===oid);
-  APP.obsEdit={id:oid,score:APP.data.ptv_scores[oid]??0,max:o.pts_max};
-  document.getElementById('obstacle-modal-title').textContent=`${o.code} · ${o.label}`;
-  document.getElementById('obstacle-max').textContent=o.pts_max;
-  document.getElementById('obstacle-score-display').textContent=APP.obsEdit.score;
-  openModal('modal-obstacle');
-}
-function adjObs(d){APP.obsEdit.score=Math.max(0,Math.min(APP.obsEdit.max,APP.obsEdit.score+d));document.getElementById('obstacle-score-display').textContent=APP.obsEdit.score}
-function setObs(v){APP.obsEdit.score=v>=99?APP.obsEdit.max:v;document.getElementById('obstacle-score-display').textContent=APP.obsEdit.score}
-function saveObstacleScore(){
-  APP.data.ptv_scores[APP.obsEdit.id]=APP.obsEdit.score;
-  if(!APP.isOnline)addPendingSync({type:'ptv',id:APP.obsEdit.id,score:APP.obsEdit.score});
-  closeModal('modal-obstacle');navigateTo('juge-entry');showToast('Score enregistré','success');
-}
-function updatePTVTotal(){const tot=APP.data.obstacles.reduce((a,o)=>a+(APP.data.ptv_scores[o.id]||0),0);const el=document.getElementById('ptv-total');if(el)el.textContent=tot}
-function savePTVEntry(){showToast('Saisie PTV validée ✓','success');if(!APP.isOnline)addPendingSync({type:'ptv_complete'})}
-
-/* ================================================================ POR / MA LOGIC ================================================================ */
-const _pen={hp:0,au:0};
-function adjPen(t,d){_pen[t]=Math.max(0,_pen[t]+d);document.getElementById('pen-'+t).textContent=_pen[t]}
-function savePOREntry(){showToast('Passage enregistré ✓','success');if(!APP.isOnline)addPendingSync({type:'por'})}
-const _bal={};
-function toggleBalise(i,el){
-  if(_bal[i]===undefined){_bal[i]=true;el.classList.add('hit');el.classList.remove('miss')}
-  else if(_bal[i]===true){_bal[i]=false;el.classList.add('miss');el.classList.remove('hit')}
-  else{delete _bal[i];el.classList.remove('hit','miss')}
-  const hit=Object.values(_bal).filter(v=>v===true).length,miss=Object.values(_bal).filter(v=>v===false).length;
-  const ce=document.getElementById('bal-count'),me=document.getElementById('bal-miss'),pe=document.getElementById('bal-pending');
-  if(ce)ce.textContent=hit;if(me)me.textContent=miss;if(pe)pe.textContent=20-hit-miss;
-}
-function saveMAEntry(){showToast('Saisie MA validée ✓','success');if(!APP.isOnline)addPendingSync({type:'ma'})}
-
-/* ================================================================ DOSSARDS ================================================================ */
-function initDragDrop(){
-  const zone=document.getElementById('dossard-drag-zone');
-  if(!zone)return;
-  APP.data.pending_dossard=APP.data.participants.map(p=>({id:p.id,name:p.prenom+' '+p.nom,equipe:p.equipe}));
-  renderDragItems();
-}
-function renderDragItems(){
-  const zone=document.getElementById('dossard-drag-zone');if(!zone)return;
-  zone.innerHTML=APP.data.pending_dossard.map((p,i)=>`
-    <div class="drag-item" draggable="true" data-id="${p.id}" data-index="${i}" ondragstart="dStart(event)" ondragover="dOver(event)" ondrop="dDrop(event)" ondragend="dEnd(event)">
-      <div class="drag-handle">⠿</div><div class="drag-dossard" id="dd-${p.id}">—</div>
-      <div style="flex:1;font-size:14px;">${p.name}</div>
-      ${p.equipe?`<div style="font-size:11px;color:var(--text3);">${p.equipe}</div>`:''}
-    </div>`).join('');
-  updateDossardNumbers();
-}
-let _dSrc=null;
-function dStart(e){_dSrc=+e.currentTarget.dataset.index;e.currentTarget.style.opacity='.4'}
-function dOver(e){e.preventDefault();e.currentTarget.classList.add('over')}
-function dDrop(e){
-  e.preventDefault();e.currentTarget.classList.remove('over');
-  const t=+e.currentTarget.dataset.index;
-  if(_dSrc===null||_dSrc===t)return;
-  const arr=APP.data.pending_dossard,item=arr.splice(_dSrc,1)[0];
-  arr.splice(t,0,item);_dSrc=null;renderDragItems();
-}
-function dEnd(e){e.currentTarget.style.opacity='';document.querySelectorAll('.drag-item').forEach(i=>i.classList.remove('over'))}
-function updateDossardNumbers(){
-  const first=parseInt(document.getElementById('first-dossard')?.value||'1');
-  const excl=(document.getElementById('excluded-dossards')?.value||'').split(',').map(x=>parseInt(x.trim())).filter(x=>!isNaN(x));
-  let num=first;
-  APP.data.pending_dossard.forEach(p=>{while(excl.includes(num))num++;const el=document.getElementById('dd-'+p.id);if(el)el.textContent=num;num++});
-}
-function applyDossards(){
-  const first=parseInt(document.getElementById('first-dossard')?.value||'1');
-  const excl=(document.getElementById('excluded-dossards')?.value||'').split(',').map(x=>parseInt(x.trim())).filter(x=>!isNaN(x));
-  let num=first;
-  APP.data.pending_dossard.forEach(p=>{while(excl.includes(num))num++;const part=APP.data.participants.find(x=>x.id===p.id);if(part)part.dossard=num;num++});
-  closeModal('modal-dossards');navigateTo('orga-participants');showToast('Dossards attribués ✓','success');
-}
-
-/* ================================================================ PARTICIPANT DETAIL ================================================================ */
-function openParticipantDetail(id){
-  const p=APP.data.participants.find(x=>x.id===id);if(!p)return;
-  const cat=getCat(p.categorie);APP.editTarget=id;
-  document.getElementById('modal-participant-name').textContent=`${p.prenom} ${p.nom}`;
-  document.getElementById('modal-participant-body').innerHTML=`
+/* ================================================================
+   PARTICIPANT DETAIL (orga)
+   ================================================================ */
+function openParticipantDetail(id) {
+  const p = APP.cache.participants.find(x => x.id === id);
+  if (!p) return;
+  const cat = p.categorie_obj;
+  APP.editTarget = id;
+  document.getElementById('modal-participant-name').textContent = `${p.prenom} ${p.nom}`;
+  document.getElementById('modal-participant-body').innerHTML = `
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
       <span class="cat-badge ${cat?.official?'official':'unofficial'}">${p.categorie}</span>
       <span class="status-badge ${p.statut}">${{partant:'PARTANT',np:'NON PARTANT',elim:'ÉLIMINÉ'}[p.statut]}</span>
@@ -1535,98 +1900,163 @@ function openParticipantDetail(id){
     </div></div>
     <div class="section-label">Scores</div>
     <div class="stats-grid">
-      <div class="stat-card"><div class="stat-val mono">${p.scores.por||'—'}</div><div class="stat-label">POR</div></div>
-      <div class="stat-card"><div class="stat-val mono">${p.scores.ma||'—'}</div><div class="stat-label">MA</div></div>
-      <div class="stat-card"><div class="stat-val mono">${p.scores.ptv||'—'}</div><div class="stat-label">PTV</div></div>
+      <div class="stat-card"><div class="stat-val mono">${p.scores.por??'—'}</div><div class="stat-label">POR</div></div>
+      <div class="stat-card"><div class="stat-val mono">${p.scores.ma??'—'}</div><div class="stat-label">MA</div></div>
+      <div class="stat-card"><div class="stat-val mono">${p.scores.ptv??'—'}</div><div class="stat-label">PTV</div></div>
       <div class="stat-card accent"><div class="stat-val mono">${p.statut==='partant'?((p.scores.por||0)+(p.scores.ma||0)+(p.scores.ptv||0)):'—'}</div><div class="stat-label">Total</div></div>
-    </div>
-    <div class="form-group mt16"><label class="form-label">Observation</label><textarea style="height:72px;resize:none;" placeholder="Optionnel...">${p.observation||''}</textarea></div>`;
+    </div>`;
   openModal('modal-participant-detail');
 }
-function setStatut(s){
-  const p=APP.data.participants.find(x=>x.id===APP.editTarget);
-  if(p)p.statut=s;
-  showToast(`Statut : ${s==='np'?'Non Partant':'Éliminé'}`,'success');
-  closeModal('modal-participant-detail');navigateTo('orga-participants');
+async function setStatut(s) {
+  const action = { type:'statut', engagement_id: APP.editTarget, statut: s };
+  if (APP.isOnline) await processSyncAction(action);
+  else addPendingSync(action);
+  const p = APP.cache.participants.find(x => x.id === APP.editTarget);
+  if (p) p.statut = s;
+  showToast(`Statut : ${s==='np'?'Non Partant':'Éliminé'}`, 'success');
+  closeModal('modal-participant-detail');
+  navigateTo('orga-participants');
 }
 
-/* ================================================================ PDF FICHE TEMPÉRATURE ================================================================ */
-function generateTempSheet(){
-  const {jsPDF}=window.jspdf;
-  if(!jsPDF){showToast('jsPDF non chargé','error');return}
-  const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
-  const parts=APP.data.participants.filter(p=>p.statut==='partant').sort((a,b)=>a.dossard-b.dossard);
-  const concours=APP.data.concours.find(c=>c.id===APP.currentConcours)||APP.data.concours[0];
+/* ================================================================
+   DOSSARDS
+   ================================================================ */
+function initDragDropData() {
+  APP.cache.pending_dossard = APP.cache.participants.map(p => ({ id:p.id, name:p.prenom+' '+p.nom, equipe:p.equipe, dossard:p.dossard }));
+}
+function initDragDrop() {
+  initDragDropData();
+  const zone = document.getElementById('dossard-drag-zone');
+  if (!zone) return;
+  renderDragItems();
+}
+function renderDragItems() {
+  const zone = document.getElementById('dossard-drag-zone'); if (!zone) return;
+  zone.innerHTML = APP.cache.pending_dossard.map((p,i) =>
+    `<div class="drag-item" draggable="true" data-id="${p.id}" data-index="${i}" ondragstart="dStart(event)" ondragover="dOver(event)" ondrop="dDrop(event)" ondragend="dEnd(event)">
+      <div class="drag-handle">⠿</div><div class="drag-dossard" id="dd-${p.id}">—</div>
+      <div style="flex:1;font-size:14px;">${p.name}</div>
+      ${p.equipe?`<div style="font-size:11px;color:var(--text3);">${p.equipe}</div>`:''}
+    </div>`).join('');
+  updateDossardNumbers();
+}
+let _dSrc = null;
+function dStart(e) { _dSrc = +e.currentTarget.dataset.index; e.currentTarget.style.opacity = '.4'; }
+function dOver(e) { e.preventDefault(); e.currentTarget.classList.add('over'); }
+function dDrop(e) {
+  e.preventDefault(); e.currentTarget.classList.remove('over');
+  const t = +e.currentTarget.dataset.index;
+  if (_dSrc === null || _dSrc === t) return;
+  const arr = APP.cache.pending_dossard, item = arr.splice(_dSrc,1)[0];
+  arr.splice(t, 0, item); _dSrc = null; renderDragItems();
+}
+function dEnd(e) { e.currentTarget.style.opacity = ''; document.querySelectorAll('.drag-item').forEach(i => i.classList.remove('over')); }
+function updateDossardNumbers() {
+  const first = parseInt(document.getElementById('first-dossard')?.value || '1');
+  const excl = (document.getElementById('excluded-dossards')?.value || '').split(',').map(x => parseInt(x.trim())).filter(x => !isNaN(x));
+  let num = first;
+  APP.cache.pending_dossard.forEach(p => { while(excl.includes(num)) num++; const el = document.getElementById('dd-'+p.id); if(el) el.textContent = num; num++; });
+}
+async function applyDossards() {
+  const first = parseInt(document.getElementById('first-dossard')?.value || '1');
+  const excl = (document.getElementById('excluded-dossards')?.value || '').split(',').map(x => parseInt(x.trim())).filter(x => !isNaN(x));
+  let num = first;
+  const updates = [];
+  APP.cache.pending_dossard.forEach(p => { while(excl.includes(num)) num++; updates.push({ id:p.id, dossard:num }); num++; });
+  const action = { type:'dossards', updates };
+  if (APP.isOnline) await processSyncAction(action);
+  else addPendingSync(action);
+  updates.forEach(({ id, dossard }) => { const p = APP.cache.participants.find(x=>x.id===id); if(p) p.dossard = dossard; });
+  closeModal('modal-dossards'); navigateTo('orga-participants'); showToast('Dossards attribués ✓', 'success');
+}
 
-  // Header
-  doc.setFont('helvetica','bold');
-  doc.setFontSize(16);
-  doc.text('FICHE DE TEMPÉRATURE',105,18,{align:'center'});
-  doc.setFontSize(11);
-  doc.setFont('helvetica','normal');
-  doc.text(`${concours.nom} — ${formatDate(concours.date)} — ${concours.lieu}`,105,26,{align:'center'});
-
-  // Table header
-  const cols=[14,30,70,110,150,180];
-  const headers=['Doss.','Cheval','Cavalier','Écurie','Température',''];
-  doc.setFillColor(30,40,30);
-  doc.setTextColor(230,240,230);
-  doc.rect(10,32,190,8,'F');
-  doc.setFont('helvetica','bold');
-  doc.setFontSize(9);
-  headers.forEach((h,i)=>doc.text(h,cols[i],38));
-
-  // Rows
-  doc.setTextColor(20,20,20);
-  doc.setFont('helvetica','normal');
-  doc.setFontSize(9);
-  let y=40;
-  parts.forEach((p,idx)=>{
-    if(y>270){doc.addPage();y=20}
-    const fill=idx%2===0;
-    if(fill){doc.setFillColor(245,248,245);doc.rect(10,y,190,8,'F')}
-    doc.text(String(p.dossard||'—'),cols[0],y+6);
-    doc.text(p.cheval_nom||'—',cols[1],y+6);
-    doc.text(`${p.prenom} ${p.nom}`,cols[2],y+6);
-    doc.text(p.ecurie||'—',cols[3],y+6);
-    // Temperature box
-    doc.setDrawColor(150,160,150);
-    doc.rect(cols[4],y+1,28,6);
-    y+=8;
+/* ================================================================
+   PDF FICHE TEMPÉRATURE
+   ================================================================ */
+async function generateTempSheet() {
+  const { jsPDF } = window.jspdf;
+  if (!jsPDF) { showToast('jsPDF non chargé', 'error'); return; }
+  if (!APP.cache.participants.length) await loadEngagements();
+  const parts = APP.cache.participants.filter(p => p.statut === 'partant').sort((a,b) => (a.dossard||99)-(b.dossard||99));
+  const { data: conc } = APP.currentConcoursId ? await sb.from('concours').select('nom,date,lieu').eq('id', APP.currentConcoursId).single() : { data: null };
+  const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+  doc.setFont('helvetica','bold'); doc.setFontSize(16);
+  doc.text('FICHE DE TEMPÉRATURE', 105, 18, { align:'center' });
+  doc.setFontSize(10); doc.setFont('helvetica','normal');
+  doc.text(`${conc?conc.nom:'Concours'} — ${conc?formatDate(conc.date):'—'} — ${conc?conc.lieu:'—'}`, 105, 25, { align:'center' });
+  const cols = [14, 30, 70, 120, 160, 190];
+  doc.setFillColor(30,40,30); doc.setTextColor(230,240,230);
+  doc.rect(10, 30, 190, 8, 'F');
+  doc.setFont('helvetica','bold'); doc.setFontSize(9);
+  ['Doss.','Cheval','Cavalier','Écurie','Température',''].forEach((h,i) => doc.text(h, cols[i], 36));
+  doc.setTextColor(20,20,20); doc.setFont('helvetica','normal'); doc.setFontSize(9);
+  let y = 38;
+  parts.forEach((p, idx) => {
+    if (y > 270) { doc.addPage(); y = 20; }
+    if (idx%2===0) { doc.setFillColor(245,248,245); doc.rect(10,y,190,8,'F'); }
+    doc.text(String(p.dossard||'—'), cols[0], y+6);
+    doc.text(p.cheval_nom||'—', cols[1], y+6);
+    doc.text(`${p.prenom} ${p.nom}`, cols[2], y+6);
+    doc.text(p.ecurie||'—', cols[3], y+6);
+    doc.setDrawColor(150,160,150); doc.rect(cols[4], y+1, 24, 6);
+    y += 8;
   });
-
-  doc.setFontSize(8);
-  doc.setTextColor(120,130,120);
-  doc.text(`Généré le ${new Date().toLocaleDateString('fr-FR')} — TREC Compétition`,105,290,{align:'center'});
-
-  doc.save(`fiche-temperature-${concours.id}.pdf`);
-  showToast('PDF généré ✓','success');
+  doc.setFontSize(8); doc.setTextColor(120,130,120);
+  doc.text(`Généré le ${new Date().toLocaleDateString('fr-FR')} — TREC Compétition`, 105, 290, { align:'center' });
+  doc.save(`fiche-temperature-${conc?.nom||'concours'}.pdf`);
+  showToast('PDF généré ✓', 'success');
 }
 
-/* ================================================================ MISC ================================================================ */
-function generateJugeCode(){document.getElementById('generated-code').textContent='TREC-'+Math.floor(1000+Math.random()*9000);openModal('modal-gen-code')}
-function copyCode(){navigator.clipboard.writeText(document.getElementById('generated-code').textContent).catch(()=>{});showToast('Code copié !','success')}
-function filterList(q,lid){document.querySelectorAll(`#${lid} .list-item`).forEach(el=>el.style.display=el.textContent.toLowerCase().includes(q.toLowerCase())?'':'none')}
-function getCat(id){return APP.data.categories.find(c=>c.id===id)}
-function formatDate(d){if(!d)return'—';const p=d.split('-');return`${p[2]}/${p[1]}/${p[0]}`}
+/* ================================================================
+   MISC
+   ================================================================ */
+function filterList(q, lid) {
+  document.querySelectorAll(`#${lid} .list-item`).forEach(el => el.style.display = el.textContent.toLowerCase().includes(q.toLowerCase()) ? '' : 'none');
+}
+function getCat(id) { return APP.cache.categories.find(c => c.id === id); }
+function formatDate(d) { if (!d) return '—'; const p = d.split('-'); return `${p[2]}/${p[1]}/${p[0]}`; }
 
-/* ================================================================ MODAL ================================================================ */
-function openModal(id){document.getElementById(id)?.classList.add('open')}
-function closeModal(id){document.getElementById(id)?.classList.remove('open')}
-document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open')}));
+/* ================================================================
+   MODAL
+   ================================================================ */
+function openModal(id) { document.getElementById(id)?.classList.add('open'); }
+function closeModal(id) { document.getElementById(id)?.classList.remove('open'); }
+document.querySelectorAll('.modal-overlay').forEach(o => o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); }));
 
-/* ================================================================ TOAST ================================================================ */
+/* ================================================================
+   TOAST
+   ================================================================ */
 let _tt;
-function showToast(msg,type=''){
-  const t=document.getElementById('toast');
-  t.textContent=msg;t.className='toast show'+(type?' '+type:'');
-  clearTimeout(_tt);_tt=setTimeout(()=>t.classList.remove('show'),2500);
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast show'+(type?' '+type:'');
+  clearTimeout(_tt); _tt = setTimeout(() => t.classList.remove('show'), 2500);
 }
 
-/* ================================================================ INIT ================================================================ */
-window.addEventListener('load',()=>{
-  checkPWA();initConn();
-  try{const s=localStorage.getItem('trec_pending');if(s){APP.pendingSync=JSON.parse(s);if(APP.pendingSync.length){document.getElementById('sync-badge').classList.add('show');document.getElementById('sync-count').textContent=APP.pendingSync.length}}}catch(e){}
+/* ================================================================
+   INIT
+   ================================================================ */
+window.addEventListener('load', async () => {
+  checkPWA();
+  initConn();
+
+  // Restore pending sync
+  try {
+    const s = localStorage.getItem('trec_pending');
+    if (s) { APP.pendingSync = JSON.parse(s); if (APP.pendingSync.length) { document.getElementById('sync-badge').classList.add('show'); document.getElementById('sync-count').textContent = APP.pendingSync.length; } }
+  } catch(e) {}
+
+  // Check existing Supabase session (stay logged in all day)
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) {
+    APP.user = session.user;
+    await resolveRole();
+  }
+
+  // Listen for auth changes
+  sb.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'SIGNED_OUT') { APP.user = null; APP.role = null; switchScreen('screen-auth'); }
+  });
 });
 </script>
 </body>
