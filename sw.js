@@ -1,4 +1,4 @@
-const CACHE_NAME = 'trec-v1';
+const CACHE_NAME = 'demeter-v1';
 const ASSETS = [
 '/',
 '/index.html',
