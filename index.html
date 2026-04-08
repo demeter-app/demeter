@@ -1,15 +1,14 @@
 <!DOCTYPE html>
-
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0d0f0d">
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/icon-192.png">
-<title>Déméter</title>
+<title>TREC Compétition</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&family=DM+Mono:wght@300;400;500&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -342,7 +341,6 @@ a{color:var(--accent);text-decoration:none}
 <div id="toast" class="toast"></div>
 
 <!-- AUTH -->
-
 <div id="screen-auth" class="screen active">
   <div style="text-align:center;padding-top:64px;">
     <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--text3);margin-bottom:6px;">Gestion de compétition</div>
@@ -356,12 +354,12 @@ a{color:var(--accent);text-decoration:none}
     <div id="auth-error" class="auth-error"></div>
     <button class="btn-primary" id="btn-login" onclick="doLogin()">Connexion</button>
     <button class="btn-secondary" onclick="openModal('modal-juge-code')">Activer un code juge</button>
+    <button class="btn-secondary" onclick="openModal('modal-orga-code')" style="margin-top:-8px;">Activer un code organisateur</button>
   </div>
   <div style="margin-top:32px;font-size:13px;color:var(--text3);text-align:center;padding-bottom:32px;"><a href="#" onclick="showParticipant()">Accès participants →</a></div>
 </div>
 
 <!-- APP -->
-
 <div id="screen-app" class="screen">
   <nav class="desktop-sidebar" id="desktop-sidebar">
     <div class="sidebar-logo">
@@ -390,7 +388,6 @@ a{color:var(--accent);text-decoration:none}
 </div>
 
 <!-- PARTICIPANT -->
-
 <div id="screen-participant" class="screen">
   <div class="participant-header">
     <div class="participant-logo">TREC</div>
@@ -414,6 +411,27 @@ a{color:var(--accent);text-decoration:none}
 </div>
 
 <!-- MODALS -->
+<div class="modal-overlay" id="modal-assign-orga">
+  <div class="modal"><div class="modal-handle"></div><div class="modal-title">Assigner un concours</div>
+  <div class="modal-body">
+    <div id="assign-orga-name" style="font-size:18px;font-weight:600;margin-bottom:16px;"></div>
+    <div class="form-group"><label class="form-label">Concours assign\u00e9</label><select id="assign-orga-concours"><option value="">— Aucun —</option></select></div>
+  </div>
+  <div class="modal-actions"><button class="btn-primary" onclick="saveAssignOrga()">Enregistrer</button><button class="btn-secondary" onclick="closeModal('modal-assign-orga')">Annuler</button></div></div>
+</div>
+
+<div class="modal-overlay" id="modal-orga-code">
+  <div class="modal"><div class="modal-handle"></div><div class="modal-title">Activer un code organisateur</div>
+  <div class="modal-body">
+    <div class="form-group"><label class="form-label">Code d'invitation</label><input type="text" id="orga-code-input" placeholder="ORGA-XXXX" maxlength="10" oninput="this.value=this.value.toUpperCase()" style="font-family:'DM Mono',monospace;font-size:20px;letter-spacing:.15em;text-align:center;"></div>
+    <div id="orga-reg-form" style="display:none;">
+      <div class="form-row"><div class="form-group"><label class="form-label">Pr\u00e9nom</label><input type="text" id="orga-prenom"></div><div class="form-group"><label class="form-label">Nom</label><input type="text" id="orga-nom"></div></div>
+      <div class="form-group"><label class="form-label">E-mail</label><input type="email" id="orga-email"></div>
+      <div class="form-group"><label class="form-label">Mot de passe</label><input type="password" id="orga-mdp" placeholder="8 caract\u00e8res minimum"></div>
+    </div>
+  </div>
+  <div class="modal-actions"><button class="btn-primary" onclick="validateOrgaCode()">Valider</button><button class="btn-secondary" onclick="closeModal('modal-orga-code')">Annuler</button></div></div>
+</div>
 
 <div class="modal-overlay" id="modal-juge-code">
   <div class="modal"><div class="modal-handle"></div><div class="modal-title">Activer un code juge</div>
@@ -485,7 +503,7 @@ a{color:var(--accent);text-decoration:none}
     <div style="font-size:13px;color:var(--text2);margin-bottom:8px;">Code à usage unique — partagez-le avec le juge.</div>
     <div class="invite-code" id="generated-code">TREC-0000</div>
   </div>
-  <div class="modal-actions"><button class="btn-primary" onclick="copyCode()">Copier</button><button class="btn-secondary" onclick="closeModal('modal-gen-code')">Fermer</button></div></div>
+  <div class="modal-actions"><button class="btn-primary" onclick="copyCode();if(APP.currentPage==='admin-orgas')navigateTo('admin-orgas')">Copier</button><button class="btn-secondary" onclick="closeModal('modal-gen-code');if(APP.currentPage==='admin-orgas')navigateTo('admin-orgas')">Fermer</button></div></div>
 </div>
 
 <div class="modal-overlay" id="modal-edit-cat">
@@ -496,6 +514,7 @@ a{color:var(--accent);text-decoration:none}
     <div class="form-group"><label class="form-label">Points de départ POR</label><input type="number" id="edit-cat-pts" min="0"></div>
     <div class="form-group"><label class="form-label">Type</label><select id="edit-cat-official"><option value="false">Club (non officiel)</option><option value="true">Officiel</option></select></div>
     <div class="form-group"><label class="form-label">Spéciale</label><select id="edit-cat-special"><option value="">Aucune — 3 épreuves</option><option value="POR">Spéciale POR uniquement</option><option value="PTV">Spéciale PTV uniquement</option></select></div>
+    <div class="form-group"><label class="form-label">Mode MA</label><select id="edit-cat-mode-ma"><option value="portes">Portes (balises numérotées)</option><option value="temps">Au temps (chrono allures)</option></select></div>
   </div>
   <div class="modal-actions"><button class="btn-primary" onclick="saveCat()">Enregistrer</button><button class="btn-secondary" onclick="closeModal('modal-edit-cat')">Annuler</button></div></div>
 </div>
@@ -577,7 +596,7 @@ a{color:var(--accent);text-decoration:none}
 /* ================================================================
    SUPABASE CONFIG
    ================================================================ */
-const SUPABASE_URL = 'https://thmmmkpshkqxhvphjypk.supabase.co';
+const SUPABASE_URL = 'https://thmmkkpshkqxhvphjypk.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRobW1ra3BzaGtxeGh2cGhqeXBrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1NjE1NzUsImV4cCI6MjA5MTEzNzU3NX0.lVOOWE_HBmqBmK0FtR8htawz6c4IvI_tPVaSVVfg37I';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 
@@ -714,24 +733,25 @@ async function doLogin() {
 }
 
 async function resolveRole() {
-  // Check user metadata for role
   const meta = APP.user.user_metadata || {};
 
-  // Check if admin (metadata role = 'admin')
   if (meta.role === 'admin') {
     APP.role = 'admin';
     await initApp();
     return;
   }
-  // Check if orga
-  if (meta.role === 'orga') {
+
+  // Check orgas table
+  const { data: orgaData, error: orgaError } = await sb.from('orgas').select('*').eq('user_id', APP.user.id).maybeSingle();
+  if (orgaData) {
     APP.role = 'orga';
-    APP.currentConcoursId = meta.concours_id || null;
+    APP.currentConcoursId = orgaData.concours_id || null;
     await initApp();
     return;
   }
+
   // Check juges table
-  const { data: jugeData } = await sb.from('juges').select('*, juge_assignations(*)').eq('user_id', APP.user.id).single();
+  const { data: jugeData } = await sb.from('juges').select('*, juge_assignations(*)').eq('user_id', APP.user.id).maybeSingle();
   if (jugeData) {
     APP.role = 'juge';
     APP.jugeProfile = jugeData;
@@ -740,16 +760,21 @@ async function resolveRole() {
     await initApp();
     return;
   }
-  // Unknown role
+
   const err = document.getElementById('auth-error');
-  err.textContent = 'Compte non assigné. Contactez l\'organisateur.';
+  err.textContent = 'Compte non assign\u00e9. Contactez l\'organisateur.';
   err.classList.add('show');
   await sb.auth.signOut();
 }
 
 async function doLogout() {
   await sb.auth.signOut();
-  APP.role = null; APP.user = null; APP.jugeProfile = null;
+  APP.role = null; APP.user = null; APP.jugeProfile = null; APP.currentConcoursId = null;
+  // Reset any display overrides from no-concours screen
+  document.getElementById('bottom-nav').style.display = '';
+  document.getElementById('desktop-sidebar').style.display = '';
+  const header = document.querySelector('.app-header');
+  if (header) header.style.display = '';
   switchScreen('screen-auth');
 }
 
@@ -785,6 +810,30 @@ async function validateJugeCode() {
   closeModal('modal-juge-code');
 }
 
+async function validateOrgaCode() {
+  const code = document.getElementById('orga-code-input').value.trim().toUpperCase();
+  const form = document.getElementById('orga-reg-form');
+  if (!code.startsWith('ORGA-')) { showToast('Code invalide', 'error'); return; }
+  if (!form.style.display || form.style.display === 'none') {
+    const { data } = await sb.from('orgas').select('id,code_used').eq('code_invitation', code).single();
+    if (!data) { showToast('Code introuvable', 'error'); return; }
+    if (data.code_used) { showToast('Code d\u00e9j\u00e0 utilis\u00e9', 'error'); return; }
+    form.style.display = 'block';
+    return;
+  }
+  const email = document.getElementById('orga-email').value.trim();
+  const mdp = document.getElementById('orga-mdp').value;
+  const prenom = document.getElementById('orga-prenom').value.trim();
+  const nom = document.getElementById('orga-nom').value.trim();
+  if (!email || !mdp || !prenom || !nom) { showToast('Tous les champs sont requis', 'error'); return; }
+  if (mdp.length < 8) { showToast('Mot de passe trop court (8 car. min)', 'error'); return; }
+  const { data: authData, error } = await sb.auth.signUp({ email, password: mdp, options: { data: { prenom, nom } } });
+  if (error) { showToast(error.message, 'error'); return; }
+  await sb.from('orgas').update({ user_id: authData.user.id, email, prenom, nom, code_used: true }).eq('code_invitation', code);
+  showToast('Compte cr\u00e9\u00e9 ! Connectez-vous.', 'success');
+  closeModal('modal-orga-code');
+}
+
 function showAuth() { switchScreen('screen-auth'); }
 function showParticipant() {
   document.getElementById('pwa-gate').classList.add('hidden');
@@ -800,15 +849,48 @@ function switchScreen(id) {
    APP INIT
    ================================================================ */
 async function initApp() {
+  // Fermer tous les modals ouverts
+  document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
+
   switchScreen('screen-app');
   const rc = 'role-' + APP.role;
   document.getElementById('screen-app').className = 'screen active ' + rc;
   document.getElementById('bottom-nav').className = 'bottom-nav ' + rc;
   document.getElementById('desktop-sidebar').className = 'desktop-sidebar ' + rc;
 
-  const roleLabel = APP.role.toUpperCase();
-  document.getElementById('app-header-role').textContent = roleLabel;
-  document.getElementById('sidebar-role').textContent = roleLabel;
+  // Juge sans assignation — écran bloquant
+  if (APP.role === 'juge' && !APP.jugeAssignation) {
+    document.getElementById('app-content').innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:80dvh;padding:32px 24px;text-align:center;gap:20px;">
+        <div style="width:72px;height:72px;background:var(--orange-bg);border:2px solid var(--orange);border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:32px;">⚠️</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;">Aucune épreuve assignée</div>
+        <div style="font-size:15px;color:var(--text2);max-width:320px;line-height:1.6;">Votre compte n'est assigné à aucune épreuve. Contactez l'organisateur.</div>
+        <button class="btn-secondary" style="max-width:240px;" onclick="doLogout()">Se déconnecter</button>
+      </div>`;
+    document.getElementById('bottom-nav').style.display = 'none';
+    document.getElementById('desktop-sidebar').style.display = 'none';
+    document.querySelector('.app-header').style.display = 'none';
+    return;
+  }
+
+
+  if (APP.role === 'orga' && !APP.currentConcoursId) {
+    document.getElementById('app-content').innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:80dvh;padding:32px 24px;text-align:center;gap:20px;">
+        <div style="width:72px;height:72px;background:var(--orange-bg);border:2px solid var(--orange);border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:32px;">⚠️</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;">Aucune épreuve assignée</div>
+        <div style="font-size:15px;color:var(--text2);max-width:320px;line-height:1.6;">Votre compte n'est associé à aucun concours. Contactez l'administrateur pour être assigné.</div>
+        <button class="btn-secondary" style="max-width:240px;" onclick="doLogout()">Se déconnecter</button>
+      </div>`;
+    document.getElementById('bottom-nav').style.display = 'none';
+    document.getElementById('desktop-sidebar').style.display = 'none';
+    document.querySelector('.app-header').style.display = 'none';
+    return;
+  }
+
+
+  document.getElementById('app-header-role').textContent = APP.role.toUpperCase();
+  document.getElementById('sidebar-role').textContent = APP.role.toUpperCase();
 
   const userName = APP.user.user_metadata?.prenom
     ? `${APP.user.user_metadata.prenom} ${APP.user.user_metadata.nom || ''}`.trim()
@@ -836,6 +918,8 @@ async function loadBaseCache() {
   ]);
   APP.cache.categories = cats.data || [];
   APP.cache.obstacles = obs.data || [];
+  if (cats.error) console.error('loadBaseCache categories:', cats.error);
+  if (obs.error) console.error('loadBaseCache obstacles:', obs.error);
 }
 
 /* ================================================================
@@ -843,8 +927,9 @@ async function loadBaseCache() {
    ================================================================ */
 function getNavItems() {
   if (APP.role === 'admin') return [
-    { id:'admin-param', icon:'⚙️', label:'Catégories' },
+    { id:'admin-param', icon:'⚙️', label:'Cat\u00e9gories' },
     { id:'admin-concours', icon:'🏆', label:'Concours' },
+    { id:'admin-orgas', icon:'👤', label:'Orgas' },
     { id:'admin-cavaliers', icon:'🏇', label:'Cavaliers' },
     { id:'admin-chevaux', icon:'🐴', label:'Chevaux' },
   ];
@@ -852,9 +937,10 @@ function getNavItems() {
     { id:'orga-dashboard', icon:'📊', label:'Tableau' },
     { id:'orga-participants', icon:'👥', label:'Partants' },
     { id:'orga-resultats', icon:'🏅', label:'Résultats' },
+    { id:'orga-recap', icon:'📋', label:'Récap' },
     { id:'orga-params', icon:'⚙️', label:'Config' },
     { id:'orga-horaires', icon:'🕐', label:'Horaires' },
-    { id:'orga-juges', icon:'📋', label:'Juges' },
+    { id:'orga-juges', icon:'👤', label:'Juges' },
   ];
   if (APP.role === 'juge') return [
     { id:'juge-entry', icon:'✏️', label:'Saisie' },
@@ -876,11 +962,13 @@ function navigateTo(id) {
   const map = {
     'admin-param': pageAdminParam,
     'admin-concours': pageAdminConcours,
+    'admin-orgas': pageAdminOrgas,
     'admin-cavaliers': pageAdminCavaliers,
     'admin-chevaux': pageAdminChevaux,
     'orga-dashboard': pageOrgaDashboard,
     'orga-participants': pageOrgaParticipants,
     'orga-resultats': pageOrgaResultats,
+    'orga-recap': pageOrgaRecap,
     'orga-params': pageOrgaParams,
     'orga-horaires': pageOrgaHoraires,
     'orga-juges': pageOrgaJuges,
@@ -895,6 +983,64 @@ function renderPageLoading() {
 }
 function setPageContent(html) {
   document.getElementById('app-content').innerHTML = html;
+}
+
+/* ================================================================
+   ADMIN — ORGANISATEURS
+   ================================================================ */
+async function pageAdminOrgas() {
+  const [{ data: orgas }, { data: concours }] = await Promise.all([
+    sb.from('orgas').select('*').order('created_at'),
+    sb.from('concours').select('id,nom').order('date', { ascending: false }),
+  ]);
+  APP.cache.concours = concours || [];
+  setPageContent(`<div class="page active">
+    <div class="page-header"><div><div class="page-title">Organisateurs</div><div class="page-subtitle">Gestion des comptes orga</div></div><button class="btn-outline btn-small" onclick="generateOrgaCode()">+ Code orga</button></div>
+    <div class="scrollable-x"><table class="judge-table" style="min-width:500px;">
+      <thead><tr><th>Organisateur</th><th>E-mail</th><th>Concours assign\u00e9</th><th>Code</th><th>Actions</th></tr></thead>
+      <tbody>
+        ${(orgas||[]).map(o => {
+          const c = APP.cache.concours.find(x => x.id === o.concours_id);
+          return `<tr>
+            <td style="font-weight:600;">${o.prenom||''} ${o.nom||''}</td>
+            <td style="font-size:12px;color:var(--text3);">${o.email||'—'}</td>
+            <td>${c ? `<span class="status-badge open">${c.nom}</span>` : '<span style="color:var(--text3);font-size:12px;">Non assign\u00e9</span>'}</td>
+            <td class="mono" style="font-size:12px;color:${o.code_used?'var(--text3)':'var(--accent)'};">${o.code_invitation||'—'}${o.code_used?' \u2713':''}</td>
+            <td><button class="btn-outline btn-small" onclick="openAssignOrga('${o.id}','${encodeURIComponent(JSON.stringify(o))}')">Assigner</button></td>
+          </tr>`;
+        }).join('')}
+        ${!(orgas||[]).length ? '<tr><td colspan="5" style="color:var(--text3);padding:16px;">Aucun organisateur.</td></tr>' : ''}
+      </tbody>
+    </table></div>
+  </div>`);
+}
+
+async function generateOrgaCode() {
+  const code = 'ORGA-' + Math.floor(1000 + Math.random() * 9000);
+  const { error } = await sb.from('orgas').insert({ code_invitation: code, code_used: false });
+  if (error) { showToast(error.message, 'error'); return; }
+  document.getElementById('generated-code').textContent = code;
+  openModal('modal-gen-code');
+}
+
+function openAssignOrga(id, encoded) {
+  APP.editTarget = id;
+  const o = JSON.parse(decodeURIComponent(encoded));
+  document.getElementById('assign-orga-name').textContent = o.prenom ? `${o.prenom} ${o.nom}` : o.email || id;
+  const concours = APP.cache.concours;
+  document.getElementById('assign-orga-concours').innerHTML =
+    '<option value="">— Aucun —</option>' +
+    concours.map(c => `<option value="${c.id}" ${o.concours_id === c.id ? 'selected' : ''}>${c.nom}</option>`).join('');
+  openModal('modal-assign-orga');
+}
+
+async function saveAssignOrga() {
+  const concoursId = document.getElementById('assign-orga-concours').value || null;
+  const { error } = await sb.from('orgas').update({ concours_id: concoursId }).eq('id', APP.editTarget);
+  if (error) { showToast(error.message, 'error'); return; }
+  closeModal('modal-assign-orga');
+  navigateTo('admin-orgas');
+  showToast('Orga assign\u00e9 \u2713', 'success');
 }
 
 /* ================================================================
@@ -919,6 +1065,7 @@ function renderCatRow(c) {
         <span class="mono" style="font-size:12px;color:var(--text3);">${c.id}</span>
         <span class="cat-badge ${c.official?'official':'unofficial'}">${c.official?'OFFICIEL':'CLUB'}</span>
         ${c.special?`<span class="status-badge pending">${c.special}</span>`:''}
+        ${!c.special?`<span class="status-badge ${c.mode_ma==='temps'?'pending':'np'}">MA: ${c.mode_ma==='temps'?'TEMPS':'PORTES'}</span>`:''}
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:8px;">
@@ -936,13 +1083,14 @@ function openEditCat(id) {
   document.getElementById('edit-cat-pts').value = c ? c.pts_por : 0;
   document.getElementById('edit-cat-official').value = c ? String(c.official) : 'false';
   document.getElementById('edit-cat-special').value = c ? (c.special || '') : '';
+  document.getElementById('edit-cat-mode-ma').value = c ? (c.mode_ma || 'portes') : 'portes';
   openModal('modal-edit-cat');
 }
 async function saveCat() {
   const id = document.getElementById('edit-cat-id').value.trim().toUpperCase();
   const label = document.getElementById('edit-cat-label').value.trim();
   if (!id || !label) { showToast('Identifiant et label requis', 'error'); return; }
-  const obj = { id, label, official: document.getElementById('edit-cat-official').value === 'true', pts_por: parseInt(document.getElementById('edit-cat-pts').value) || 0, special: document.getElementById('edit-cat-special').value || null };
+  const obj = { id, label, official: document.getElementById('edit-cat-official').value === 'true', pts_por: parseInt(document.getElementById('edit-cat-pts').value) || 0, special: document.getElementById('edit-cat-special').value || null, mode_ma: document.getElementById('edit-cat-mode-ma').value };
   const { error } = await sb.from('categories').upsert(obj, { onConflict: 'id' });
   if (error) { showToast(error.message, 'error'); return; }
   closeModal('modal-edit-cat'); navigateTo('admin-param'); showToast('Catégorie enregistrée', 'success');
@@ -965,7 +1113,11 @@ async function pageAdminConcours() {
     <div class="card mb8"><div class="card-body">
       <div class="flex-between mb8">
         <div style="font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:800;text-transform:uppercase;">${c.nom}</div>
-        <div class="flex-gap"><span class="status-badge ${c.engagements_ouverts?'open':'closed'}">${c.engagements_ouverts?'OUVERT':'FERMÉ'}</span><button class="btn-icon" onclick="openEditConcours('${c.id}')">✎</button></div>
+        <div class="flex-gap">
+          <span class="status-badge ${c.engagements_ouverts?'open':'closed'}">${c.engagements_ouverts?'OUVERT':'FERMÉ'}</span>
+          <button class="btn-outline btn-small" onclick="supervisionAdmin('${c.id}','${c.nom.replace(/'/g,"\\'")}')">Superviser</button>
+          <button class="btn-icon" onclick="openEditConcours('${c.id}')">✎</button>
+        </div>
       </div>
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
         <span style="font-size:13px;color:var(--text2);">📅 ${formatDate(c.date)}</span>
@@ -1052,6 +1204,50 @@ async function saveChallenge() {
     await sb.from('challenge_concours').insert(ids.map((cid,i) => ({ challenge_id: chId, concours_id: cid, ordre: i+1 })));
   }
   closeModal('modal-edit-challenge'); navigateTo('admin-concours'); showToast('Challenge enregistré', 'success');
+}
+
+function supervisionAdmin(concoursId, concoursNom) {
+  // Switch admin to orga view for this concours
+  APP._adminPrevConcours = APP.currentConcoursId;
+  APP._adminPrevRole = APP.role;
+  APP.currentConcoursId = concoursId;
+  APP.role = 'orga';
+  // Update UI
+  document.getElementById('screen-app').className = 'screen active role-orga';
+  document.getElementById('bottom-nav').className = 'bottom-nav role-orga';
+  document.getElementById('desktop-sidebar').className = 'desktop-sidebar role-orga';
+  document.getElementById('app-header-role').textContent = 'SUPERVISION';
+  document.getElementById('app-header-sub').textContent = concoursNom;
+  document.getElementById('sidebar-role').textContent = 'SUPERVISION';
+  // Add exit button to sidebar footer
+  const footer = document.querySelector('.sidebar-footer');
+  if (footer && !document.getElementById('exit-supervision-btn')) {
+    const btn = document.createElement('button');
+    btn.id = 'exit-supervision-btn';
+    btn.className = 'btn-secondary btn-small full-width';
+    btn.style.marginBottom = '8px';
+    btn.textContent = '← Retour admin';
+    btn.onclick = exitSupervision;
+    footer.prepend(btn);
+  }
+  renderNav();
+  APP.cache.participants = [];
+  navigateTo('orga-dashboard');
+}
+
+function exitSupervision() {
+  APP.currentConcoursId = APP._adminPrevConcours || null;
+  APP.role = 'admin';
+  document.getElementById('screen-app').className = 'screen active role-admin';
+  document.getElementById('bottom-nav').className = 'bottom-nav role-admin';
+  document.getElementById('desktop-sidebar').className = 'desktop-sidebar role-admin';
+  document.getElementById('app-header-role').textContent = 'ADMIN';
+  document.getElementById('app-header-sub').textContent = '';
+  document.getElementById('sidebar-role').textContent = 'ADMIN';
+  document.getElementById('exit-supervision-btn')?.remove();
+  APP.cache.participants = [];
+  renderNav();
+  navigateTo('admin-concours');
 }
 
 /* ================================================================
@@ -1149,7 +1345,7 @@ async function saveCheval() {
    LOAD ENGAGEMENTS (shared)
    ================================================================ */
 async function loadEngagements() {
-  const q = sb.from('engagements').select(`
+  let q = sb.from('engagements').select(`
     id, dossard, statut, type_participation,
     cavalier:cavaliers(id, licence, prenom, nom, ecurie),
     cheval:chevaux(id, sire, nom),
@@ -1159,8 +1355,9 @@ async function loadEngagements() {
     scores_ma(mode, balises_data, chrono_data),
     scores_ptv(obstacle_id, points)
   `);
-  if (APP.currentConcoursId) q.eq('concours_id', APP.currentConcoursId);
-  const { data } = await q.order('dossard');
+  if (APP.currentConcoursId) q = q.eq('concours_id', APP.currentConcoursId);
+  const { data, error } = await q.order('dossard');
+  if (error) { console.error('loadEngagements:', error); APP.cache.participants = []; return; }
   APP.cache.participants = (data || []).map(e => ({
     id: e.id,
     dossard: e.dossard,
@@ -1184,6 +1381,8 @@ async function loadEngagements() {
       ptv: calcPTVScore(e.scores_ptv),
     },
     raw_scores_ptv: e.scores_ptv || [],
+    raw_scores_por: e.scores_por || [],
+    raw_scores_ma: e.scores_ma || [],
   }));
 }
 
@@ -1281,6 +1480,114 @@ async function pageOrgaParticipants() {
 }
 
 /* ================================================================
+   ORGA — RÉCAPITULATIF
+   ================================================================ */
+async function pageOrgaRecap() {
+  await loadEngagements();
+  setPageContent(`<div class="page active">
+    <div class="page-header">
+      <div><div class="page-title">Récapitulatif</div><div class="page-subtitle">Saisies des juges</div></div>
+      <button class="btn-outline btn-small" onclick="pageOrgaRecap()">⟳ Rafraîchir</button>
+    </div>
+    <div class="tabs">
+      <div class="tab-btn active" onclick="switchRecapTab('por',this)">POR</div>
+      <div class="tab-btn" onclick="switchRecapTab('ma',this)">MA</div>
+      <div class="tab-btn" onclick="switchRecapTab('ptv',this)">PTV</div>
+    </div>
+    <div id="recap-content">${renderRecapPOR()}</div>
+  </div>`);
+}
+
+function switchRecapTab(type, el) {
+  document.querySelectorAll('.tabs .tab-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  const fns = { por: renderRecapPOR, ma: renderRecapMA, ptv: renderRecapPTV };
+  document.getElementById('recap-content').innerHTML = fns[type]();
+}
+
+function renderRecapPOR() {
+  const parts = APP.cache.participants.filter(p => p.statut === 'partant');
+  if (!parts.length) return `<div style="color:var(--text3);padding:16px;">Aucun partant.</div>`;
+  return `<div class="scrollable-x"><table class="results-table" style="min-width:700px;">
+    <thead><tr>
+      <th>Doss.</th><th>Cavalier</th><th>Équipe</th>
+      <th style="text-align:right">T1</th><th style="text-align:right">T2</th><th style="text-align:right">T3</th><th style="text-align:right">T4</th>
+      <th style="text-align:right">Pén.</th><th style="text-align:right">Score</th>
+    </tr></thead>
+    <tbody>
+      ${parts.map(p => {
+        const scores = p.raw_scores_por || [];
+        const troncons = ['depart','controle1','controle2','controle3'].map(c => {
+          const s = scores.find(x => x.controle === c);
+          return s ? `<span class="mono" style="font-size:12px;">${s.heure_reelle||'—'}</span>` : '<span style="color:var(--text3);">—</span>';
+        });
+        const pen = scores.reduce((a,s) => a+(s.penalites_hors_piste||0)+(s.penalites_autres||0), 0);
+        return `<tr>
+          <td class="mono">${p.dossard||'—'}</td>
+          <td>${p.prenom} ${p.nom}</td>
+          <td style="font-size:12px;color:var(--text3);">${p.equipe||'—'}</td>
+          ${troncons.map(t=>`<td style="text-align:right;">${t}</td>`).join('')}
+          <td class="score-cell" style="color:${pen>0?'var(--red)':'var(--text3)'};">${pen||'—'}</td>
+          <td class="score-cell">${p.scores.por??'—'}</td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table></div>`;
+}
+
+function renderRecapMA() {
+  const parts = APP.cache.participants.filter(p => p.statut === 'partant');
+  if (!parts.length) return `<div style="color:var(--text3);padding:16px;">Aucun partant.</div>`;
+  return parts.map(p => {
+    const ma = p.raw_scores_ma?.[0];
+    if (!ma) return `<div class="list-item"><div class="list-item-dossard">${p.dossard||'—'}</div><div class="list-item-info"><div class="list-item-name">${p.prenom} ${p.nom}</div><div class="list-item-sub">Non saisi</div></div><span class="status-badge pending">EN ATTENTE</span></div>`;
+    if (ma.mode === 'balises' && ma.balises_data) {
+      const b = ma.balises_data;
+      const hit = Object.values(b).filter(v=>v===true).length;
+      const miss = Object.values(b).filter(v=>v===false).length;
+      const total = Object.keys(b).length;
+      const grid = Array.from({length:20},(_,i)=>{
+        const v = b[i];
+        const color = v===true?'var(--accent)':v===false?'var(--red)':'var(--text3)';
+        const bg = v===true?'var(--accent-bg)':v===false?'var(--red-bg)':'var(--bg3)';
+        return `<div style="width:28px;height:28px;background:${bg};border-radius:4px;display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-size:11px;color:${color};">${i+1}</div>`;
+      }).join('');
+      return `<div class="card mb8"><div class="card-header"><div><div style="font-weight:600;">${p.prenom} ${p.nom} · Doss. ${p.dossard||'—'}</div><div style="font-size:12px;color:var(--text3);">Balises : ${hit}✓ ${miss}✗ sur ${total}</div></div><div class="score-cell">${p.scores.ma??'—'}</div></div><div class="card-body"><div style="display:flex;flex-wrap:wrap;gap:4px;">${grid}</div></div></div>`;
+    }
+    return `<div class="list-item"><div class="list-item-dossard">${p.dossard||'—'}</div><div class="list-item-info"><div class="list-item-name">${p.prenom} ${p.nom}</div><div class="list-item-sub">Mode chrono</div></div><div class="list-item-score">${p.scores.ma??'—'}</div></div>`;
+  }).join('');
+}
+
+function renderRecapPTV() {
+  const parts = APP.cache.participants.filter(p => p.statut === 'partant');
+  if (!parts.length) return `<div style="color:var(--text3);padding:16px;">Aucun partant.</div>`;
+  const obstacles = APP.cache.obstacles;
+  return `<div class="scrollable-x"><table class="results-table" style="min-width:${200+obstacles.length*60}px;">
+    <thead><tr>
+      <th>Doss.</th><th>Cavalier</th>
+      ${obstacles.map(o=>`<th style="text-align:right;font-size:9px;">${o.code}</th>`).join('')}
+      <th style="text-align:right">Total</th>
+    </tr></thead>
+    <tbody>
+      ${parts.map(p => {
+        const scores = p.raw_scores_ptv || [];
+        return `<tr>
+          <td class="mono">${p.dossard||'—'}</td>
+          <td>${p.prenom} ${p.nom}</td>
+          ${obstacles.map(o => {
+            const s = scores.find(x => x.obstacle_id === o.id);
+            const pts = s?.points;
+            const color = pts===undefined?'var(--text3)':pts===0?'var(--red)':pts===o.pts_max?'var(--accent)':'var(--text)';
+            return `<td style="text-align:right;color:${color};" class="mono">${pts??'—'}</td>`;
+          }).join('')}
+          <td class="score-cell">${p.scores.ptv??'—'}</td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table></div>`;
+}
+
+/* ================================================================
    ORGA — RÉSULTATS
    ================================================================ */
 async function pageOrgaResultats() {
@@ -1350,44 +1657,28 @@ function buildTable(sorted, type) {
    ORGA — CONFIG
    ================================================================ */
 async function pageOrgaParams() {
-  const { data: visRow } = await sb.from('concours').select('engagements_ouverts').eq('id', APP.currentConcoursId).single();
-  // Store visibility locally (would need a proper table in production)
   const vis = APP.cache.results_visibility;
-  const { data: cats } = await sb.from('categories').select('id,label').order('label');
-  const catOpts = (cats||[]).map(c => `<option value="${c.id}">${c.id} — ${c.label}</option>`).join('');
+  const { data: cats } = await sb.from('categories').select('id,label,mode_ma').order('label');
+  const { data: porConfigs } = await sb.from('por_configs').select('*, por_config_troncons(*), por_config_categories(categorie_id)').eq('concours_id', APP.currentConcoursId);
+
   setPageContent(`<div class="page active">
     <div class="page-header"><div><div class="page-title">Configuration</div></div></div>
+
     <div class="section-label">Visibilité des résultats (participants)</div>
     <div class="card"><div class="card-body">
-      <div class="toggle-wrap"><div class="toggle-info"><div class="toggle-label">POR</div></div><label class="toggle"><input type="checkbox" ${vis.por?'checked':''} onchange="setVisibility('por',this.checked)"><span class="toggle-slider"></span></label></div>
-      <div class="toggle-wrap"><div class="toggle-info"><div class="toggle-label">MA</div></div><label class="toggle"><input type="checkbox" ${vis.ma?'checked':''} onchange="setVisibility('ma',this.checked)"><span class="toggle-slider"></span></label></div>
-      <div class="toggle-wrap"><div class="toggle-info"><div class="toggle-label">PTV</div></div><label class="toggle"><input type="checkbox" ${vis.ptv?'checked':''} onchange="setVisibility('ptv',this.checked)"><span class="toggle-slider"></span></label></div>
+      <div class="toggle-wrap"><div class="toggle-info"><div class="toggle-label">POR</div></div><label class="toggle"><input type="checkbox" id="vis-por" ${vis.por?'checked':''}><span class="toggle-slider"></span></label></div>
+      <div class="toggle-wrap"><div class="toggle-info"><div class="toggle-label">MA</div></div><label class="toggle"><input type="checkbox" id="vis-ma" ${vis.ma?'checked':''}><span class="toggle-slider"></span></label></div>
+      <div class="toggle-wrap"><div class="toggle-info"><div class="toggle-label">PTV</div></div><label class="toggle"><input type="checkbox" id="vis-ptv" ${vis.ptv?'checked':''}><span class="toggle-slider"></span></label></div>
     </div></div>
-    <div class="section-label">POR</div>
-    <div class="card"><div class="card-body">
-      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:14px;">
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;color:var(--text2);letter-spacing:.1em;text-transform:uppercase;margin-bottom:12px;">POR 1</div>
-        <div class="form-row">
-          <div class="form-group"><label class="form-label">Vitesse cible</label><div class="input-group"><input type="number" value="8" step="0.1" id="por-vitesse"><div class="input-group-append">km/h</div></div></div>
-          <div class="form-group"><label class="form-label">Distance</label><div class="input-group"><input type="number" value="12.5" step="0.1" id="por-dist"><div class="input-group-append">km</div></div></div>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Nombre de contrôles (hors départ/arrivée)</label>
-          <select id="por-controles">
-            <option value="0">0 contrôle → 1 tronçon</option>
-            <option value="1">1 contrôle → 2 tronçons</option>
-            <option value="2">2 contrôles → 3 tronçons</option>
-            <option value="3" selected>3 contrôles → 4 tronçons</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Catégories rattachées</label>
-          <select multiple style="height:120px;" id="por-categories">${catOpts}</select>
-          <div style="font-size:11px;color:var(--text3);margin-top:4px;">Ctrl/⌘ pour sélectionner plusieurs</div>
-        </div>
-        <button class="btn-primary mt8" onclick="savePORConfig()">Enregistrer ce POR</button>
-      </div>
-    </div></div>
+    <button class="btn-primary mb16" onclick="saveVisibility()">Enregistrer la visibilité</button>
+
+    <div class="section-label">POR — Parcours</div>
+    <button class="btn-outline full-width mb16" onclick="addPORConfig()">+ Ajouter un POR</button>
+    <div id="por-configs-list">
+      ${(porConfigs||[]).map((cfg,i) => renderPORConfigCard(cfg, i, cats||[])).join('')}
+      ${!(porConfigs||[]).length ? `<div id="por-new-card">${renderPORConfigCard(null, 0, cats||[])}</div>` : ''}
+    </div>
+
     <div class="section-label">PTV — Obstacles</div>
     <div class="card"><div class="card-body">
       ${APP.cache.obstacles.map(o=>`
@@ -1398,26 +1689,167 @@ async function pageOrgaParams() {
     </div></div>
   </div>`);
 }
+
+function renderPORConfigCard(cfg, idx, cats) {
+  const troncons = cfg?.por_config_troncons?.sort((a,b)=>a.ordre-b.ordre) || [{ vitesse:8, distance:12 }];
+  const selectedCats = (cfg?.por_config_categories||[]).map(x=>x.categorie_id);
+  const cfgId = cfg?.id || 'new';
+
+  // Stats globales
+  const distTotal = troncons.reduce((a,t)=>a+(t.distance||0),0);
+  const vitMoy = troncons.length
+    ? (distTotal / troncons.reduce((a,t)=>a+(t.distance||0)/(t.vitesse||8),0)).toFixed(1)
+    : 8;
+
+  return `<div class="card mb8" id="por-cfg-${cfgId}">
+    <div class="card-header">
+      <div>
+        <div class="card-title">POR ${idx+1}</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:2px;">
+          Distance totale : <span class="mono" style="color:var(--accent);">${distTotal.toFixed(1)} km</span>
+          &nbsp;·&nbsp; Vitesse moy. : <span class="mono" style="color:var(--accent);">${vitMoy} km/h</span>
+        </div>
+      </div>
+      ${cfg ? `<button class="btn-danger btn-small" onclick="deletePORConfig('${cfg.id}')">Supprimer</button>` : ''}
+    </div>
+    <div class="card-body">
+      <div class="section-label" style="margin-top:0;">Tronçons</div>
+      <div id="troncons-${cfgId}">
+        ${troncons.map((t,ti) => renderTronconRow(t, ti, cfgId)).join('')}
+      </div>
+      <button class="btn-outline btn-small mt8" onclick="addTroncon('${cfgId}')">+ Tronçon</button>
+
+      <div class="section-label">Catégories rattachées</div>
+      <div style="display:flex;flex-direction:column;gap:6px;" id="por-cats-checks-${cfgId}">
+        ${cats.map(c => `
+        <label style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg3);border-radius:var(--radius);cursor:pointer;">
+          <input type="checkbox" id="cat-${cfgId}-${c.id}" value="${c.id}" ${selectedCats.includes(c.id)?'checked':''} style="width:16px;height:16px;accent-color:var(--accent);flex-shrink:0;">
+          <span style="font-size:13px;">${c.label}</span>
+          <span class="cat-badge ${c.official?'official':'unofficial'}" style="margin-left:auto;">${c.id}</span>
+        </label>`).join('')}
+      </div>
+
+      <button class="btn-primary full-width mt16" onclick="savePORConfig('${cfgId}')">Enregistrer</button>
+    </div>
+  </div>`;
+}
+
+function renderTronconRow(t, idx, cfgId) {
+  const tpsIdeal = t.vitesse && t.distance ? ((t.distance / t.vitesse) * 60).toFixed(0) : '—';
+  return `<div class="form-row mb8" id="troncon-${cfgId}-${idx}" style="align-items:end;">
+    <div class="form-group" style="margin-bottom:0;">
+      <label class="form-label">Tronçon ${idx+1} — Vitesse</label>
+      <div class="input-group"><input type="number" value="${t.vitesse||8}" step="0.1" id="v-${cfgId}-${idx}" oninput="updateTronconStats('${cfgId}')"><div class="input-group-append">km/h</div></div>
+    </div>
+    <div class="form-group" style="margin-bottom:0;">
+      <label class="form-label">Distance <span class="mono" style="color:var(--accent);font-size:10px;" id="tps-${cfgId}-${idx}">${tpsIdeal} min idéal</span></label>
+      <div style="display:flex;gap:6px;">
+        <div class="input-group" style="flex:1;"><input type="number" value="${t.distance||12}" step="0.1" id="d-${cfgId}-${idx}" oninput="updateTronconStats('${cfgId}')"><div class="input-group-append">km</div></div>
+        ${idx>0?`<button class="btn-icon" onclick="removeTroncon('${cfgId}',${idx})" title="Supprimer">✕</button>`:''}
+      </div>
+    </div>
+  </div>`;
+}
+
+function updateTronconStats(cfgId) {
+  const container = document.getElementById(`troncons-${cfgId}`);
+  if (!container) return;
+  let distTotal = 0, timeTotal = 0;
+  Array.from(container.children).forEach((_, i) => {
+    const v = parseFloat(document.getElementById(`v-${cfgId}-${i}`)?.value) || 8;
+    const d = parseFloat(document.getElementById(`d-${cfgId}-${i}`)?.value) || 0;
+    const tps = v > 0 ? (d / v * 60).toFixed(0) : '—';
+    const el = document.getElementById(`tps-${cfgId}-${i}`);
+    if (el) el.textContent = `${tps} min idéal`;
+    distTotal += d;
+    if (v > 0) timeTotal += d / v;
+  });
+  // Update card header stats
+  const card = document.getElementById(`por-cfg-${cfgId}`);
+  if (card) {
+    const vitMoy = timeTotal > 0 ? (distTotal / timeTotal).toFixed(1) : '—';
+    const statsEl = card.querySelector('.card-header div div:last-child');
+    if (statsEl) statsEl.innerHTML = `Distance totale : <span class="mono" style="color:var(--accent);">${distTotal.toFixed(1)} km</span> &nbsp;·&nbsp; Vitesse moy. : <span class="mono" style="color:var(--accent);">${vitMoy} km/h</span>`;
+  }
+}
+
+function addTroncon(cfgId) {
+  const container = document.getElementById(`troncons-${cfgId}`);
+  const idx = container.children.length;
+  const div = document.createElement('div');
+  div.innerHTML = renderTronconRow({vitesse:8,distance:12}, idx, cfgId);
+  container.appendChild(div.firstElementChild);
+}
+
+function removeTroncon(cfgId, idx) {
+  document.getElementById(`troncon-${cfgId}-${idx}`)?.remove();
+  // Renumber
+  const container = document.getElementById(`troncons-${cfgId}`);
+  Array.from(container.children).forEach((row, i) => {
+    const label = row.querySelector('.form-label');
+    if (label) label.textContent = `Tronçon ${i+1} — Vitesse`;
+  });
+}
+
+function addPORConfig() {
+  const list = document.getElementById('por-configs-list');
+  const idx = list.children.length;
+  const div = document.createElement('div');
+  div.innerHTML = renderPORConfigCard(null, idx, APP.cache.categories);
+  list.appendChild(div.firstElementChild);
+}
+
+async function savePORConfig(cfgId) {
+  // Read categories from checkboxes
+  const checksContainer = document.getElementById(`por-cats-checks-${cfgId}`);
+  const cats = checksContainer
+    ? Array.from(checksContainer.querySelectorAll('input[type=checkbox]:checked')).map(cb => cb.value)
+    : [];
+
+  // Collect troncons
+  const troncons = [];
+  const container = document.getElementById(`troncons-${cfgId}`);
+  if (container) {
+    Array.from(container.children).forEach((_, i) => {
+      const v = parseFloat(document.getElementById(`v-${cfgId}-${i}`)?.value) || 8;
+      const d = parseFloat(document.getElementById(`d-${cfgId}-${i}`)?.value) || 12;
+      troncons.push({ vitesse:v, distance:d, ordre:i+1 });
+    });
+  }
+
+  const isNew = cfgId === 'new';
+  let realId = isNew ? null : cfgId;
+
+  if (isNew) {
+    const { data, error } = await sb.from('por_configs').insert({ concours_id: APP.currentConcoursId, nom: `POR ${Date.now()}` }).select().single();
+    if (error) { showToast(error.message, 'error'); return; }
+    realId = data.id;
+  }
+
+  await sb.from('por_config_troncons').delete().eq('por_config_id', realId);
+  if (troncons.length) await sb.from('por_config_troncons').insert(troncons.map(t=>({...t, por_config_id: realId})));
+
+  await sb.from('por_config_categories').delete().eq('por_config_id', realId);
+  if (cats.length) await sb.from('por_config_categories').insert(cats.map(c=>({ por_config_id: realId, categorie_id: c })));
+
+  showToast('POR enregistré', 'success');
+  navigateTo('orga-params');
+}
+
+async function deletePORConfig(id) {
+  await sb.from('por_configs').delete().eq('id', id);
+  showToast('POR supprimé', 'success');
+  navigateTo('orga-params');
+}
+
+function saveVisibility() {
+  APP.cache.results_visibility.por = document.getElementById('vis-por')?.checked || false;
+  APP.cache.results_visibility.ma = document.getElementById('vis-ma')?.checked || false;
+  APP.cache.results_visibility.ptv = document.getElementById('vis-ptv')?.checked || false;
+  showToast('Visibilité enregistrée', 'success');
+}
 function setVisibility(type, val) {
   APP.cache.results_visibility[type] = val;
-  showToast(`${type.toUpperCase()} ${val?'visible':'masqué'}`, val?'success':'');
-}
-async function savePORConfig() {
-  const cats = Array.from(document.getElementById('por-categories').selectedOptions).map(o => o.value);
-  const obj = {
-    concours_id: APP.currentConcoursId,
-    nom: 'POR 1',
-    vitesse: parseFloat(document.getElementById('por-vitesse').value) || 8,
-    distance: parseFloat(document.getElementById('por-dist').value) || 12,
-    nb_controles: parseInt(document.getElementById('por-controles').value) || 3,
-  };
-  const { data: cfg, error } = await sb.from('por_configs').upsert(obj, { onConflict: 'concours_id,nom' }).select().single();
-  if (error) { showToast(error.message, 'error'); return; }
-  if (cfg && cats.length) {
-    await sb.from('por_config_categories').delete().eq('por_config_id', cfg.id);
-    await sb.from('por_config_categories').insert(cats.map(c => ({ por_config_id: cfg.id, categorie_id: c })));
-  }
-  showToast('POR enregistré', 'success');
 }
 
 /* ================================================================
@@ -1548,7 +1980,10 @@ function updateJugePosteOptions() {
 async function saveJugeEdit() {
   const type = document.getElementById('edit-juge-type').value;
   const poste = document.getElementById('edit-juge-poste').value;
-  await sb.from('juge_assignations').upsert({ juge_id: APP.editTarget, concours_id: APP.currentConcoursId, type_epreuve: type, poste }, { onConflict: 'juge_id,concours_id' });
+  // Delete existing and reinsert to avoid onConflict issues
+  await sb.from('juge_assignations').delete().eq('juge_id', APP.editTarget).eq('concours_id', APP.currentConcoursId);
+  const { error } = await sb.from('juge_assignations').insert({ juge_id: APP.editTarget, concours_id: APP.currentConcoursId, type_epreuve: type, poste });
+  if (error) { showToast(error.message, 'error'); return; }
   closeModal('modal-edit-juge'); navigateTo('orga-juges'); showToast('Juge mis à jour', 'success');
 }
 async function revokeJuge(id) {
@@ -1795,18 +2230,21 @@ async function searchLicence() {
   const container = document.getElementById('participant-results');
   if (!lic) { container.innerHTML = ''; return; }
   container.innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
-  const { data: cavalier } = await sb.from('cavaliers').select('id').eq('licence', lic).single();
+  const { data: cavalier } = await sb.from('cavaliers').select('id').eq('licence', lic).maybeSingle();
   if (!cavalier) {
     container.innerHTML = `<div class="alert-banner warn"><div>ℹ️</div><div>Aucun résultat pour <strong>${lic}</strong>.</div></div>`;
     return;
   }
-  const { data: engagements } = await sb.from('engagements').select(`
+  const { data: engagements, error: engError } = await sb.from('engagements').select(`
+    statut,
     concours:concours(id,nom,date,lieu),
     scores_por(controle,penalites_hors_piste,penalites_autres),
     scores_ma(mode,balises_data),
     scores_ptv(obstacle_id,points),
     categorie:categories(id,pts_por)
-  `).eq('cavalier_id', cavalier.id).eq('statut', 'partant');
+  `).eq('cavalier_id', cavalier.id);
+
+  if (engError) { container.innerHTML = `<div class="alert-banner warn"><div>ℹ️</div><div>Erreur : ${engError.message}</div></div>`; return; }
 
   if (!engagements || !engagements.length) {
     container.innerHTML = `<div class="alert-banner warn"><div>ℹ️</div><div>Aucune participation trouvée pour <strong>${lic}</strong>.</div></div>`;
@@ -1915,9 +2353,11 @@ function openParticipantDetail(id) {
   openModal('modal-participant-detail');
 }
 async function setStatut(s) {
-  const action = { type:'statut', engagement_id: APP.editTarget, statut: s };
-  if (APP.isOnline) await processSyncAction(action);
-  else addPendingSync(action);
+  const { error } = await sb.from('engagements').update({ statut: s }).eq('id', APP.editTarget);
+  if (error) {
+    if (!APP.isOnline) addPendingSync({ type:'statut', engagement_id: APP.editTarget, statut: s });
+    else { showToast(error.message, 'error'); return; }
+  }
   const p = APP.cache.participants.find(x => x.id === APP.editTarget);
   if (p) p.statut = s;
   showToast(`Statut : ${s==='np'?'Non Partant':'Éliminé'}`, 'success');
@@ -2070,6 +2510,5 @@ window.addEventListener('load', async () => {
   });
 });
 </script>
-
 </body>
 </html>
