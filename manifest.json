@@ -1,6 +1,6 @@
 {
   "name": "Déméter",
-  "short_name": "Demeter",
+  "short_name": "Déméter",
   "description": "Gestion de compétitions TREC",
   "start_url": "/",
   "display": "standalone",
