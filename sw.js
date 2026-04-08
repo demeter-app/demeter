@@ -1,13 +1,13 @@
-const CACHE_NAME = 'trec-v1';
+const CACHE_NAME = “trec-v1”;
 const ASSETS = [
-‘/’,
-‘/index.html’,
-‘/manifest.json’,
-‘/icon-192.png’,
-‘/icon-512.png’,
+“/”,
+“/index.html”,
+“/manifest.json”,
+“/icon-192.png”,
+“/icon-512.png”
 ];
 
-self.addEventListener(‘install’, function(e) {
+self.addEventListener(“install”, function(e) {
 e.waitUntil(
 caches.open(CACHE_NAME).then(function(cache) {
 return cache.addAll(ASSETS);
@@ -16,7 +16,7 @@ return cache.addAll(ASSETS);
 self.skipWaiting();
 });
 
-self.addEventListener(‘activate’, function(e) {
+self.addEventListener(“activate”, function(e) {
 e.waitUntil(
 caches.keys().then(function(keys) {
 return Promise.all(
@@ -28,11 +28,11 @@ keys.filter(function(k) { return k !== CACHE_NAME; })
 self.clients.claim();
 });
 
-self.addEventListener(‘fetch’, function(e) {
-if (e.request.url.indexOf(‘supabase.co’) !== -1 ||
-e.request.url.indexOf(‘googleapis’) !== -1 ||
-e.request.url.indexOf(‘jsdelivr’) !== -1 ||
-e.request.url.indexOf(‘cloudflare’) !== -1) {
+self.addEventListener(“fetch”, function(e) {
+if (e.request.url.indexOf(“supabase.co”) !== -1 ||
+e.request.url.indexOf(“googleapis”) !== -1 ||
+e.request.url.indexOf(“jsdelivr”) !== -1 ||
+e.request.url.indexOf(“cloudflare”) !== -1) {
 e.respondWith(
 fetch(e.request).catch(function() {
 return caches.match(e.request);
