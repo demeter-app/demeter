@@ -336,16 +336,16 @@ a{color:var(--accent);text-decoration:none}
   <button class="pwa-bypass" onclick="bypassPWAGate()">Continuer quand même (urgence)</button>
 </div>
 
-<div id="conn-indicator" class="online"><div class="conn-dot pulse"></div><span id="conn-text">EN LIGNE</span></div>
+<div id="conn-indicator" class="online" style="position:fixed;bottom:72px;left:12px;z-index:500;"><div class="conn-dot pulse"></div><span id="conn-text">EN LIGNE</span></div>
 <div id="sync-badge"><span>⏳</span><span id="sync-count">0</span></div>
 <div id="toast" class="toast"></div>
 
 <!-- AUTH -->
-<div id="screen-auth" class="screen active">
+<div id="screen-auth" class="screen">
   <div style="text-align:center;padding-top:64px;">
-    <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--text3);margin-bottom:6px;">Gestion de compétition</div>
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--text3);margin-bottom:6px;">Espace professionnel</div>
     <div style="font-family:'Barlow Condensed',sans-serif;font-size:52px;font-weight:800;letter-spacing:-.01em;text-transform:uppercase;line-height:1;">TREC</div>
-    <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--accent);letter-spacing:.15em;text-transform:uppercase;margin-bottom:32px;">Techniques de Randonnée Équestre</div>
+    <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--accent);letter-spacing:.15em;text-transform:uppercase;margin-bottom:32px;">Juges &amp; Organisateurs</div>
     <div style="width:40px;height:2px;background:var(--accent);margin:0 auto 40px;"></div>
   </div>
   <div class="auth-form">
@@ -356,7 +356,7 @@ a{color:var(--accent);text-decoration:none}
     <button class="btn-secondary" onclick="openModal('modal-juge-code')">Activer un code juge</button>
     <button class="btn-secondary" onclick="openModal('modal-orga-code')" style="margin-top:-8px;">Activer un code organisateur</button>
   </div>
-  <div style="margin-top:32px;font-size:13px;color:var(--text3);text-align:center;padding-bottom:32px;"><a href="#" onclick="showParticipant()">Accès participants →</a></div>
+  <div style="margin-top:32px;font-size:13px;color:var(--text3);text-align:center;padding-bottom:32px;"><a href="#" onclick="showParticipant()">← Retour résultats</a></div>
 </div>
 
 <!-- APP -->
@@ -389,28 +389,39 @@ a{color:var(--accent);text-decoration:none}
 
 <!-- PARTICIPANT -->
 <div id="screen-participant" class="screen">
-  <div class="participant-header">
-    <div class="participant-logo">TREC</div>
-    <button onclick="showAuth()" style="font-size:13px;color:var(--text3);font-family:'Barlow Condensed',sans-serif;font-weight:600;letter-spacing:.08em;text-transform:uppercase;">Connexion ↗</button>
-  </div>
-  <div class="participant-content">
-    <div class="engage-banner" id="engage-banner" style="display:none;">
-      <h3>📋 Engagements ouverts</h3>
-      <p id="engage-banner-text"></p>
-      <button class="btn-primary" onclick="openModal('modal-engagement')">S'engager →</button>
+  <div class="participant-content" style="padding:32px 24px;max-width:480px;margin:0 auto;">
+    <div style="text-align:center;margin-bottom:32px;">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:48px;font-weight:800;letter-spacing:-.01em;text-transform:uppercase;line-height:1;">TREC</div>
+      <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--accent);letter-spacing:.15em;text-transform:uppercase;margin-top:6px;">Résultats</div>
     </div>
-    <label class="licence-label">Rechercher mes résultats</label>
-    <div class="licence-search">
-      <div class="licence-input-row">
-        <input type="text" id="licence-input" placeholder="N° LICENCE" maxlength="12" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')searchLicence()">
-        <button class="btn-primary btn-small" onclick="searchLicence()" style="min-width:72px;">OK</button>
+    <div class="form-group">
+      <label class="form-label">Numéro de licence</label>
+      <div style="display:flex;gap:8px;">
+        <input type="text" id="licence-input" placeholder="ex: LIC001" maxlength="12" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')searchLicence()" style="font-family:'DM Mono',monospace;font-size:18px;letter-spacing:.1em;text-transform:uppercase;">
+        <button class="btn-primary btn-small" onclick="searchLicence()" style="min-width:72px;white-space:nowrap;">Rechercher</button>
       </div>
     </div>
     <div id="participant-results"></div>
+    <div id="engage-banner" style="display:none;background:var(--accent-bg);border:1px solid rgba(122,173,90,.3);border-radius:var(--radius2);padding:16px;margin-top:20px;">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;text-transform:uppercase;color:var(--accent);margin-bottom:8px;">📋 Engagements ouverts</div>
+      <div id="engage-banner-text" style="font-size:13px;color:var(--text2);margin-bottom:12px;"></div>
+      <button class="btn-primary btn-small" onclick="openModal('modal-engagement')">S'engager →</button>
+    </div>
+    <div style="margin-top:48px;text-align:center;">
+      <button onclick="showAuth()" style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;letter-spacing:.1em;text-transform:uppercase;background:none;border:none;cursor:pointer;padding:8px 16px;border-radius:var(--radius);border:1px solid var(--border);">Accès juges &amp; organisateurs</button>
+    </div>
   </div>
 </div>
 
 <!-- MODALS -->
+<div class="modal-overlay" id="modal-assign-orga-concours">
+  <div class="modal"><div class="modal-handle"></div><div class="modal-title">Assigner un organisateur</div>
+  <div class="modal-body">
+    <div class="form-group"><label class="form-label">Organisateur</label><select id="assign-orga-concours-select"><option value="">— Choisir —</option></select></div>
+  </div>
+  <div class="modal-actions"><button class="btn-primary" onclick="saveOrgaConcours()">Assigner</button><button class="btn-secondary" onclick="closeModal('modal-assign-orga-concours')">Annuler</button></div></div>
+</div>
+
 <div class="modal-overlay" id="modal-assign-orga">
   <div class="modal"><div class="modal-handle"></div><div class="modal-title">Assigner un concours</div>
   <div class="modal-body">
@@ -470,7 +481,13 @@ a{color:var(--accent);text-decoration:none}
 <div class="modal-overlay" id="modal-participant-detail">
   <div class="modal"><div class="modal-handle"></div><div class="modal-title" id="modal-participant-name">Participant</div>
   <div class="modal-body" id="modal-participant-body"></div>
-  <div class="modal-actions"><button class="btn-danger btn-small" onclick="setStatut('np')">Non Partant</button><button class="btn-danger btn-small" onclick="setStatut('elim')">Éliminé</button><button class="btn-secondary" onclick="closeModal('modal-participant-detail')">Fermer</button></div></div>
+  <div class="modal-actions">
+    <button class="btn-primary btn-small" onclick="saveElimTests()">Enreg. \u00e9lim.</button>
+    <button class="btn-secondary btn-small" onclick="setStatut('partant')">Remettre partant</button>
+    <button class="btn-danger btn-small" onclick="setStatut('np')">Non Partant</button>
+    <button class="btn-danger btn-small" onclick="setStatut('elim')">Élimin\u00e9</button>
+    <button class="btn-secondary" onclick="closeModal('modal-participant-detail')">Fermer</button>
+  </div></div>
 </div>
 
 <div class="modal-overlay" id="modal-dossards">
@@ -515,6 +532,7 @@ a{color:var(--accent);text-decoration:none}
     <div class="form-group"><label class="form-label">Type</label><select id="edit-cat-official"><option value="false">Club (non officiel)</option><option value="true">Officiel</option></select></div>
     <div class="form-group"><label class="form-label">Spéciale</label><select id="edit-cat-special"><option value="">Aucune — 3 épreuves</option><option value="POR">Spéciale POR uniquement</option><option value="PTV">Spéciale PTV uniquement</option></select></div>
     <div class="form-group"><label class="form-label">Mode MA</label><select id="edit-cat-mode-ma"><option value="portes">Portes (balises numérotées)</option><option value="temps">Au temps (chrono allures)</option></select></div>
+    <div class="form-group"><label class="form-label">Maximum PTV</label><select id="edit-cat-max-ptv"><option value="120">120 pts (Club Poney 2, Club 2, Club 1)</option><option value="140">140 pts (Club Elite, Amat 3, Amat 2)</option><option value="160">160 pts (Amateur 1)</option><option value="180">180 pts (Amateur Elite)</option></select></div>
   </div>
   <div class="modal-actions"><button class="btn-primary" onclick="saveCat()">Enregistrer</button><button class="btn-secondary" onclick="closeModal('modal-edit-cat')">Annuler</button></div></div>
 </div>
@@ -745,7 +763,10 @@ async function resolveRole() {
   const { data: orgaData, error: orgaError } = await sb.from('orgas').select('*').eq('user_id', APP.user.id).maybeSingle();
   if (orgaData) {
     APP.role = 'orga';
-    APP.currentConcoursId = orgaData.concours_id || null;
+    APP.orgaProfile = orgaData;
+    // Lire le premier concours assigné depuis orga_concours
+    const { data: oc } = await sb.from('orga_concours').select('concours_id').eq('orga_id', orgaData.id).limit(1);
+    APP.currentConcoursId = oc?.[0]?.concours_id || orgaData.concours_id || null;
     await initApp();
     return;
   }
@@ -755,7 +776,8 @@ async function resolveRole() {
   if (jugeData) {
     APP.role = 'juge';
     APP.jugeProfile = jugeData;
-    APP.jugeAssignation = jugeData.juge_assignations?.[0] || null;
+    APP.jugeAssignations = jugeData.juge_assignations || [];
+    APP.jugeAssignation = APP.jugeAssignations[0] || null;
     APP.currentConcoursId = APP.jugeAssignation?.concours_id || null;
     await initApp();
     return;
@@ -900,8 +922,11 @@ async function initApp() {
 
   // Load concours name if orga/juge
   if (APP.currentConcoursId) {
-    const { data } = await sb.from('concours').select('nom').eq('id', APP.currentConcoursId).single();
-    if (data) document.getElementById('app-header-sub').textContent = data.nom;
+    const { data } = await sb.from('concours').select('nom, results_visibility').eq('id', APP.currentConcoursId).single();
+    if (data) {
+      document.getElementById('app-header-sub').textContent = data.nom;
+      if (data.results_visibility) APP.cache.results_visibility = data.results_visibility;
+    }
   }
 
   // Load base cache
@@ -989,27 +1014,34 @@ function setPageContent(html) {
    ADMIN — ORGANISATEURS
    ================================================================ */
 async function pageAdminOrgas() {
-  const [{ data: orgas }, { data: concours }] = await Promise.all([
+  const [{ data: orgas }, { data: concours }, { data: oc }] = await Promise.all([
     sb.from('orgas').select('*').order('created_at'),
     sb.from('concours').select('id,nom').order('date', { ascending: false }),
+    sb.from('orga_concours').select('orga_id, concours_id'),
   ]);
   APP.cache.concours = concours || [];
+  // Map orga_id -> liste de noms de concours
+  const orgaConcours = {};
+  (oc||[]).forEach(row => {
+    if (!orgaConcours[row.orga_id]) orgaConcours[row.orga_id] = [];
+    const c = (concours||[]).find(x => x.id === row.concours_id);
+    if (c) orgaConcours[row.orga_id].push(c.nom);
+  });
   setPageContent(`<div class="page active">
     <div class="page-header"><div><div class="page-title">Organisateurs</div><div class="page-subtitle">Gestion des comptes orga</div></div><button class="btn-outline btn-small" onclick="generateOrgaCode()">+ Code orga</button></div>
     <div class="scrollable-x"><table class="judge-table" style="min-width:500px;">
-      <thead><tr><th>Organisateur</th><th>E-mail</th><th>Concours assign\u00e9</th><th>Code</th><th>Actions</th></tr></thead>
+      <thead><tr><th>Organisateur</th><th>E-mail</th><th>Concours assign\u00e9s</th><th>Code</th></tr></thead>
       <tbody>
         ${(orgas||[]).map(o => {
-          const c = APP.cache.concours.find(x => x.id === o.concours_id);
+          const concoursNoms = orgaConcours[o.id] || [];
           return `<tr>
             <td style="font-weight:600;">${o.prenom||''} ${o.nom||''}</td>
             <td style="font-size:12px;color:var(--text3);">${o.email||'—'}</td>
-            <td>${c ? `<span class="status-badge open">${c.nom}</span>` : '<span style="color:var(--text3);font-size:12px;">Non assign\u00e9</span>'}</td>
+            <td>${concoursNoms.length ? concoursNoms.map(n=>`<span class="status-badge open" style="margin-right:4px;">${n}</span>`).join('') : '<span style="color:var(--text3);font-size:12px;">Aucun</span>'}</td>
             <td class="mono" style="font-size:12px;color:${o.code_used?'var(--text3)':'var(--accent)'};">${o.code_invitation||'—'}${o.code_used?' \u2713':''}</td>
-            <td><button class="btn-outline btn-small" onclick="openAssignOrga('${o.id}','${encodeURIComponent(JSON.stringify(o))}')">Assigner</button></td>
           </tr>`;
         }).join('')}
-        ${!(orgas||[]).length ? '<tr><td colspan="5" style="color:var(--text3);padding:16px;">Aucun organisateur.</td></tr>' : ''}
+        ${!(orgas||[]).length ? '<tr><td colspan="4" style="color:var(--text3);padding:16px;">Aucun organisateur.</td></tr>' : ''}
       </tbody>
     </table></div>
   </div>`);
@@ -1069,7 +1101,11 @@ function renderCatRow(c) {
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:8px;">
-      <div class="list-item-right"><div style="font-family:'DM Mono',monospace;font-size:18px;color:${c.official?'var(--official)':'var(--unofficial)'};">${c.pts_por}</div><div class="text-muted">pts POR</div></div>
+      <div class="list-item-right">
+        <div style="font-family:'DM Mono',monospace;font-size:18px;color:${c.official?'var(--official)':'var(--unofficial)'};">${c.pts_por}</div>
+        <div class="text-muted">pts POR</div>
+        <div style="font-family:'DM Mono',monospace;font-size:13px;color:var(--text3);margin-top:2px;">PTV max: ${c.max_ptv||120}</div>
+      </div>
       <button class="btn-icon" onclick="openEditCat('${c.id}')">✎</button>
     </div>
   </div>`;
@@ -1084,16 +1120,24 @@ function openEditCat(id) {
   document.getElementById('edit-cat-official').value = c ? String(c.official) : 'false';
   document.getElementById('edit-cat-special').value = c ? (c.special || '') : '';
   document.getElementById('edit-cat-mode-ma').value = c ? (c.mode_ma || 'portes') : 'portes';
+  document.getElementById('edit-cat-max-ptv').value = c ? String(c.max_ptv || 120) : '120';
   openModal('modal-edit-cat');
 }
 async function saveCat() {
   const id = document.getElementById('edit-cat-id').value.trim().toUpperCase();
   const label = document.getElementById('edit-cat-label').value.trim();
   if (!id || !label) { showToast('Identifiant et label requis', 'error'); return; }
-  const obj = { id, label, official: document.getElementById('edit-cat-official').value === 'true', pts_por: parseInt(document.getElementById('edit-cat-pts').value) || 0, special: document.getElementById('edit-cat-special').value || null, mode_ma: document.getElementById('edit-cat-mode-ma').value };
+  const obj = {
+    id, label,
+    official: document.getElementById('edit-cat-official').value === 'true',
+    pts_por: parseInt(document.getElementById('edit-cat-pts').value) || 0,
+    special: document.getElementById('edit-cat-special').value || null,
+    mode_ma: document.getElementById('edit-cat-mode-ma').value,
+    max_ptv: parseInt(document.getElementById('edit-cat-max-ptv').value) || 120,
+  };
   const { error } = await sb.from('categories').upsert(obj, { onConflict: 'id' });
   if (error) { showToast(error.message, 'error'); return; }
-  closeModal('modal-edit-cat'); navigateTo('admin-param'); showToast('Catégorie enregistrée', 'success');
+  closeModal('modal-edit-cat'); navigateTo('admin-param'); showToast('Cat\u00e9gorie enregistr\u00e9e', 'success');
 }
 
 /* ================================================================
@@ -1108,7 +1152,7 @@ async function pageAdminConcours() {
   APP.cache.challenges = challenges || [];
   setPageContent(`<div class="page active">
     <div class="page-header"><div><div class="page-title">Concours</div></div><button class="btn-outline btn-small" onclick="openEditConcours(null)">+ Concours</button></div>
-    <div class="section-label">Épreuves</div>
+    <div class="section-label">\u00c9preuves</div>
     ${(concours||[]).map(c=>`
     <div class="card mb8"><div class="card-body">
       <div class="flex-between mb8">
@@ -1119,11 +1163,13 @@ async function pageAdminConcours() {
           <button class="btn-icon" onclick="openEditConcours('${c.id}')">✎</button>
         </div>
       </div>
-      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
         <span style="font-size:13px;color:var(--text2);">📅 ${formatDate(c.date)}</span>
         <span style="font-size:13px;color:var(--text2);">📍 ${c.lieu||'—'}</span>
         <span class="mono" style="font-size:12px;color:var(--accent);background:var(--accent-bg);border:1px solid rgba(122,173,90,.2);border-radius:3px;padding:2px 8px;">🔑 ${c.mot_de_passe}</span>
       </div>
+      <div id="orgas-concours-${c.id}" style="font-size:12px;color:var(--text3);">Chargement orgas...</div>
+      <button class="btn-outline btn-small mt8" onclick="openAssignOrgaConcours('${c.id}')">+ Assigner orga</button>
     </div></div>`).join('')}
     <div class="section-label">Challenges</div>
     <button class="btn-outline full-width mb16" onclick="openEditChallenge(null)">+ Créer un challenge</button>
@@ -1136,6 +1182,8 @@ async function pageAdminConcours() {
       </div>`;
     }).join('')}
   </div>`);
+  // Charger les orgas pour chaque concours
+  (concours||[]).forEach(c => loadOrgasConcours(c.id));
 }
 function openEditConcours(id) {
   APP.editTarget = id;
@@ -1161,7 +1209,41 @@ async function saveConcours() {
     ({ error } = await sb.from('concours').insert(obj));
   }
   if (error) { showToast(error.message, 'error'); return; }
-  closeModal('modal-edit-concours'); navigateTo('admin-concours'); showToast('Concours enregistré', 'success');
+  closeModal('modal-edit-concours'); navigateTo('admin-concours'); showToast('Concours enregistr\u00e9', 'success');
+}
+
+async function loadOrgasConcours(concoursId) {
+  const { data } = await sb.from('orga_concours').select('orga:orgas(id,prenom,nom,email)').eq('concours_id', concoursId);
+  const el = document.getElementById(`orgas-concours-${concoursId}`);
+  if (!el) return;
+  if (!data || !data.length) { el.textContent = 'Aucun orga assign\u00e9'; return; }
+  el.innerHTML = data.map(r => `<span class="status-badge open" style="margin-right:4px;">${r.orga?.prenom||''} ${r.orga?.nom||r.orga?.email||'—'} <button onclick="removeOrgaConcours('${r.orga?.id}','${concoursId}')" style="background:none;border:none;color:inherit;cursor:pointer;margin-left:4px;font-size:10px;">✕</button></span>`).join('');
+}
+
+async function openAssignOrgaConcours(concoursId) {
+  APP._assignConcoursId = concoursId;
+  const { data: orgas } = await sb.from('orgas').select('id,prenom,nom,email').order('nom');
+  const { data: existing } = await sb.from('orga_concours').select('orga_id').eq('concours_id', concoursId);
+  const existingIds = (existing||[]).map(x => x.orga_id);
+  document.getElementById('assign-orga-concours-select').innerHTML =
+    '<option value="">— Choisir un orga —</option>' +
+    (orgas||[]).filter(o => !existingIds.includes(o.id)).map(o => `<option value="${o.id}">${o.prenom||''} ${o.nom||o.email}</option>`).join('');
+  openModal('modal-assign-orga-concours');
+}
+
+async function saveOrgaConcours() {
+  const orgaId = document.getElementById('assign-orga-concours-select').value;
+  if (!orgaId) { showToast('S\u00e9lectionner un orga', 'error'); return; }
+  const { error } = await sb.from('orga_concours').insert({ orga_id: orgaId, concours_id: APP._assignConcoursId });
+  if (error) { showToast(error.message, 'error'); return; }
+  closeModal('modal-assign-orga-concours');
+  loadOrgasConcours(APP._assignConcoursId);
+  showToast('Orga assign\u00e9 \u2713', 'success');
+}
+
+async function removeOrgaConcours(orgaId, concoursId) {
+  await sb.from('orga_concours').delete().eq('orga_id', orgaId).eq('concours_id', concoursId);
+  loadOrgasConcours(concoursId);
 }
 async function openEditChallenge(id) {
   APP.editTarget = id;
@@ -1346,14 +1428,14 @@ async function saveCheval() {
    ================================================================ */
 async function loadEngagements() {
   let q = sb.from('engagements').select(`
-    id, dossard, statut, type_participation,
+    id, dossard, statut, type_participation, elim_por, elim_ma, elim_ptv,
     cavalier:cavaliers(id, licence, prenom, nom, ecurie),
     cheval:chevaux(id, sire, nom),
-    categorie:categories(id, label, official, pts_por, special),
+    categorie:categories(id, label, official, pts_por, special, mode_ma, max_ptv),
     equipe:equipes(id, nom),
     scores_por(controle, heure_theorique, heure_reelle, penalites_hors_piste, penalites_autres),
     scores_ma(mode, balises_data, chrono_data),
-    scores_ptv(obstacle_id, points)
+    scores_ptv(obstacle_id, points, temps_reel)
   `);
   if (APP.currentConcoursId) q = q.eq('concours_id', APP.currentConcoursId);
   const { data, error } = await q.order('dossard');
@@ -1378,34 +1460,98 @@ async function loadEngagements() {
     scores: {
       por: calcPORScore(e.scores_por, e.categorie),
       ma: calcMAScore(e.scores_ma),
-      ptv: calcPTVScore(e.scores_ptv),
+      ptv: calcPTVScore(e.scores_ptv, e.scores_ptv?.[0]?.temps_reel, e.categorie),
     },
     raw_scores_ptv: e.scores_ptv || [],
     raw_scores_por: e.scores_por || [],
     raw_scores_ma: e.scores_ma || [],
+    elim_por: e.elim_por || false,
+    elim_ma: e.elim_ma || false,
+    elim_ptv: e.elim_ptv || false,
   }));
 }
 
 function calcPORScore(rows, cat) {
   if (!rows || !rows.length || !cat) return null;
-  // Sum of points based on time difference vs theoretical (simplified)
-  const pts = (cat.pts_por || 160);
+  const ptsDep = cat.pts_por || 230;
   let pen = 0;
-  rows.forEach(r => { pen += (r.penalites_hors_piste || 0) * 10 + (r.penalites_autres || 0) * 5; });
-  return Math.max(0, pts - pen);
+  rows.forEach(r => {
+    // Penalites temps : ecart en minutes entre heure reelle et theorique
+    if (r.heure_theorique && r.heure_reelle) {
+      const toMin = t => { const [h,m] = t.split(':').map(Number); return h*60+m; };
+      pen += Math.abs(toMin(r.heure_reelle) - toMin(r.heure_theorique));
+    }
+    // Penalites parcours : 30 ou 50 pts
+    pen += (r.penalites_hors_piste || 0) * 30;
+    pen += (r.penalites_autres || 0) * 50;
+  });
+  return Math.max(0, ptsDep - pen);
 }
+
+// Bareme MA Amateur (page 29 reglement)
+const MA_BAREME = {
+  galop_100: [ // Club Elite, Amat 3/2 — 100m galop
+    [30,21.2],[29,20.9],[28,20.6],[27,20.3],[26,20],[25,19.7],[24,19.4],[23,19.1],[22,18.8],[21,18.5],
+    [20,18.2],[19,17.9],[18,17.6],[17,17.3],[16,17],[15,16.7],[14,16.4],[13,16.1],[12,15.8],[11,15.5],
+    [10,15.2],[9,14.9],[8,14.6],[7,14.3],[6,14],[5,13.7],[4,13.4],[3,13.1],[2,12.8],[1,12.5]
+  ],
+  galop_150: [ // Amat 1/Elite — 150m galop
+    [30,21.7],[29,21.6],[28,21.5],[27,21.4],[26,21.3],[25,21.2],[24,21.1],[23,21],[22,20.9],[21,20.8],
+    [20,20.6],[19,20.5],[18,20.3],[17,20.2],[16,20],[15,19.8],[14,19.6],[13,19.4],[12,19.2],[11,19],
+    [10,18.8],[9,18.5],[8,18.3],[7,18],[6,17.7],[5,17.5],[4,17.2],[3,16.9],[2,16.7],[1,16.3]
+  ],
+  pas_100: [ // Club Elite, Amat 3/2 — 100m pas
+    [30,50],[29,50.5],[28,51],[27,51.5],[26,52],[25,52.5],[24,53],[23,53.5],[22,54],[21,54.5],
+    [20,55],[19,55.5],[18,56],[17,56.5],[16,57],[15,57.5],[14,58],[13,58.5],[12,59],[11,59.5],
+    [10,60],[9,60.5],[8,61],[7,61.5],[6,62],[5,62.5],[4,63],[3,63.5],[2,64],[1,64.5]
+  ],
+  pas_150: [ // Amat 1/Elite — 150m pas
+    [30,44.7],[29,45.3],[28,46],[27,46.7],[26,47.3],[25,48],[24,48.7],[23,49.3],[22,50],[21,50.7],
+    [20,51.3],[19,52],[18,52.7],[17,53.3],[16,54],[15,54.7],[14,55.3],[13,56],[12,56.7],[11,57.3],
+    [10,58],[9,58.3],[8,58.7],[7,60],[6,60.7],[5,61.3],[4,62],[3,62.7],[2,63.3],[1,64]
+  ]
+};
+
+function scoreFromBareme(temps, bareme) {
+  if (!temps) return 0;
+  // Pour galop : plus c'est lent, mieux c'est (temps eleve = note haute)
+  // Pour pas : plus c'est rapide, mieux c'est (temps faible = note haute)
+  const isGalop = bareme === MA_BAREME.galop_100 || bareme === MA_BAREME.galop_150;
+  for (const [note, seuil] of bareme) {
+    if (isGalop) { if (temps >= seuil) return note; }
+    else { if (temps <= seuil) return note; }
+  }
+  return 0;
+}
+
 function calcMAScore(rows) {
   if (!rows || !rows.length) return null;
   const r = rows[0];
   if (r.mode === 'balises' && r.balises_data) {
+    // Club mode : 5 zones * 10 pts
     const b = r.balises_data;
-    return Object.values(b).filter(v => v === true).length * 5;
+    return Object.values(b).filter(v => v === true).length * 10;
+  }
+  if (r.mode === 'temps' && r.chrono_data) {
+    const d = r.chrono_data;
+    const couloir = d.couloir || 100;
+    const gBareme = couloir === 150 ? MA_BAREME.galop_150 : MA_BAREME.galop_100;
+    const pBareme = couloir === 150 ? MA_BAREME.pas_150 : MA_BAREME.pas_100;
+    const scoreGalop = d.galop_elim ? 0 : scoreFromBareme(d.temps_galop, gBareme);
+    const scorePas = d.pas_elim ? 0 : scoreFromBareme(d.temps_pas, pBareme);
+    return scoreGalop + scorePas;
   }
   return null;
 }
-function calcPTVScore(rows) {
+function calcPTVScore(rows, tempsReel, cat) {
   if (!rows || !rows.length) return null;
-  return rows.reduce((a, r) => a + (r.points || 0), 0);
+  let total = rows.reduce((a, r) => a + (r.points || 0), 0);
+  // Penalite de temps : 1pt par tranche de 4 secondes, max 30pts
+  if (tempsReel && tempsReel > 0) {
+    const pen = Math.min(30, Math.ceil(tempsReel / 4));
+    total = Math.max(0, total - pen);
+  }
+  return total;
 }
 
 /* ================================================================
@@ -1625,7 +1771,7 @@ function renderResultsByCategory(type) {
       </div>
       <div class="cat-section-body">`;
     if (indivs.length) {
-      const sorted = [...indivs].sort((a,b) => getScore(b,type)-getScore(a,type));
+      const sorted = sortWithTiebreak(indivs);
       html += `<div class="cat-sub-label">Individuel</div><div class="scrollable-x">${buildTable(sorted,type)}</div>`;
     }
     const equipes = Object.entries(equipeMap);
@@ -1645,7 +1791,18 @@ function renderResultsByCategory(type) {
 }
 function getScore(p, type) {
   if (type === 'global') return (p.scores.por||0)+(p.scores.ma||0)+(p.scores.ptv||0);
+  if (type === 'tiebreak1') return (p.scores.por||0)+(p.scores.ptv||0);
+  if (type === 'tiebreak2') return p.scores.por||0;
   return p.scores[type] || 0;
+}
+function sortWithTiebreak(parts) {
+  return [...parts].sort((a,b) => {
+    const g = getScore(b,'global') - getScore(a,'global');
+    if (g !== 0) return g;
+    const t1 = getScore(b,'tiebreak1') - getScore(a,'tiebreak1');
+    if (t1 !== 0) return t1;
+    return getScore(b,'tiebreak2') - getScore(a,'tiebreak2');
+  });
 }
 function buildTable(sorted, type) {
   return `<table class="results-table" style="min-width:100%;"><thead><tr><th>#</th><th>Doss.</th><th>Cavalier</th>${type==='global'?'<th style="text-align:right">POR</th><th style="text-align:right">MA</th><th style="text-align:right">PTV</th>':''}<th style="text-align:right">Score</th></tr></thead><tbody>
@@ -1846,7 +2003,12 @@ function saveVisibility() {
   APP.cache.results_visibility.por = document.getElementById('vis-por')?.checked || false;
   APP.cache.results_visibility.ma = document.getElementById('vis-ma')?.checked || false;
   APP.cache.results_visibility.ptv = document.getElementById('vis-ptv')?.checked || false;
-  showToast('Visibilité enregistrée', 'success');
+  // Persister en BDD
+  if (APP.currentConcoursId) {
+    sb.from('concours').update({ results_visibility: APP.cache.results_visibility }).eq('id', APP.currentConcoursId)
+      .then(({ error }) => { if (error) console.error('saveVisibility:', error); });
+  }
+  showToast('Visibilit\u00e9 enregistr\u00e9e', 'success');
 }
 function setVisibility(type, val) {
   APP.cache.results_visibility[type] = val;
@@ -1939,24 +2101,107 @@ function saveScheduleEdit() {
    ORGA — JUGES
    ================================================================ */
 async function pageOrgaJuges() {
-  const { data: juges } = await sb.from('juges').select('*, juge_assignations(*)').order('nom');
+  const [{ data: juges }, { data: assignations }, { data: porConfigs }] = await Promise.all([
+    sb.from('juges').select('id,prenom,nom,email,code_invitation,code_used').order('nom'),
+    sb.from('juge_assignations').select('*').eq('concours_id', APP.currentConcoursId),
+    sb.from('por_configs').select('id,nom,por_config_troncons(ordre)').eq('concours_id', APP.currentConcoursId),
+  ]);
   APP.cache.juges = juges || [];
+
+  // Construire la liste des postes
+  const postes = [];
+  // POR
+  const config = (porConfigs||[])[0];
+  const nbTroncons = config?.por_config_troncons?.length || 3;
+  postes.push({ type:'POR', poste:'depart', label:'POR — D\u00e9part' });
+  for (let i = 1; i < nbTroncons; i++) postes.push({ type:'POR', poste:`controle${i}`, label:`POR — Contr\u00f4le ${i}` });
+  postes.push({ type:'POR', poste:'arrivee', label:'POR — Arriv\u00e9e' });
+  // MA : seulement deux postes
+  postes.push({ type:'MA', poste:'portes', label:'MA — Portes (balises)' });
+  postes.push({ type:'MA', poste:'temps', label:'MA — Chrono allures' });
+  // PTV par obstacle
+  APP.cache.obstacles.forEach(o => postes.push({ type:'PTV', poste:o.id, label:`PTV — ${o.label}` }));
+
+  // Map poste -> juge assigné
+  const assignMap = {};
+  (assignations||[]).forEach(a => {
+    const key = `${a.type_epreuve}__${a.poste}`;
+    if (!assignMap[key]) assignMap[key] = [];
+    assignMap[key].push(a.juge_id);
+  });
+
+  const jugeOpts = `<option value="">— Aucun —</option>` +
+    (juges||[]).map(j => `<option value="${j.id}">${j.prenom||''} ${j.nom||j.email}</option>`).join('');
+
   setPageContent(`<div class="page active">
-    <div class="page-header"><div><div class="page-title">Juges</div></div><button class="btn-outline btn-small" onclick="generateJugeCode()">+ Code</button></div>
-    <div class="scrollable-x"><table class="judge-table" style="min-width:600px;">
-      <thead><tr><th>Juge</th><th>E-mail</th><th>Assignation</th><th>Code</th><th>Actions</th></tr></thead>
+    <div class="page-header">
+      <div><div class="page-title">Juges</div><div class="page-subtitle">Attribution par poste</div></div>
+      <button class="btn-outline btn-small" onclick="generateJugeCode()">+ Code</button>
+    </div>
+
+    <div class="section-label">Comptes juges</div>
+    <div class="scrollable-x"><table class="judge-table" style="min-width:400px;">
+      <thead><tr><th>Juge</th><th>Postes assignés</th><th>Code</th><th>Actions</th></tr></thead>
       <tbody>
-        ${(juges||[]).map(j=>`
-        <tr>
-          <td style="font-weight:600;">${j.prenom||'—'} ${j.nom||'—'}</td>
-          <td style="font-size:12px;color:var(--text3);">${j.email}</td>
-          <td>${j.juge_assignations?.length ? j.juge_assignations.map(a=>`<span class="status-badge pending">${a.type_epreuve}</span> <span style="font-size:12px;color:var(--text2);">${a.poste}</span>`).join(' ') : '<span style="color:var(--text3);font-size:12px;">Non assigné</span>'}</td>
-          <td class="mono" style="font-size:12px;color:${j.code_used?'var(--text3)':'var(--accent)'};">${j.code_invitation||'—'}${j.code_used?' ✓':''}</td>
-          <td><div class="flex-gap"><button class="btn-outline btn-small" onclick="openEditJuge('${j.id}','${encodeURIComponent(JSON.stringify(j))}')">Modifier</button><button class="btn-danger btn-small" onclick="revokeJuge('${j.id}')">Révoquer</button></div></td>
-        </tr>`).join('')}
+        ${(juges||[]).map(j => {
+          const jugeAssigns = (assignations||[]).filter(a => a.juge_id === j.id);
+          return `<tr>
+            <td><div style="font-weight:600;">${j.prenom||'—'} ${j.nom||'—'}</div><div style="font-size:11px;color:var(--text3);">${j.email||''}</div></td>
+            <td>${jugeAssigns.length ? jugeAssigns.map(a => `<span class="status-badge pending" style="margin-right:2px;margin-bottom:2px;">${a.type_epreuve} — ${a.poste}</span>`).join('') : '<span style="color:var(--text3);font-size:12px;">Non assign\u00e9</span>'}</td>
+            <td class="mono" style="font-size:12px;color:${j.code_used?'var(--text3)':'var(--accent)'};">${j.code_invitation||'—'}${j.code_used?' \u2713':''}</td>
+            <td><button class="btn-danger btn-small" onclick="revokeJuge('${j.id}')">R\u00e9voquer</button></td>
+          </tr>`;
+        }).join('')}
+        ${!(juges||[]).length?'<tr><td colspan="4" style="color:var(--text3);padding:12px;">Aucun juge enregistr\u00e9.</td></tr>':''}
       </tbody>
     </table></div>
+
+    <div class="section-label">Attribution des postes</div>
+    <div id="juge-attribution-list">
+      ${postes.map(p => {
+        const key = `${p.type}__${p.poste}`;
+        const assigned = assignMap[key] || [];
+        return `<div class="card mb8"><div class="card-body" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <div style="flex:1;min-width:160px;">
+            <div style="font-size:13px;font-weight:600;">${p.label}</div>
+            <div style="font-size:11px;color:var(--text3);">${assigned.length ? assigned.map(id => { const j = (juges||[]).find(x=>x.id===id); return j ? `${j.prenom||''} ${j.nom||''}`.trim() : id; }).join(', ') : 'Non assign\u00e9'}</div>
+          </div>
+          <select style="width:180px;font-size:13px;" onchange="assignJugePoste('${p.type}','${p.poste}',this.value)">
+            ${jugeOpts.replace(`value="${assigned[0]||''}"`, `value="${assigned[0]||''}" selected`)}
+          </select>
+        </div></div>`;
+      }).join('')}
+    </div>
   </div>`);
+
+  // Pré-sélectionner les juges dans les selects
+  postes.forEach(p => {
+    const key = `${p.type}__${p.poste}`;
+    const assigned = assignMap[key] || [];
+    if (assigned[0]) {
+      const selects = document.querySelectorAll(`[onchange*="'${p.type}','${p.poste}'"]`);
+      selects.forEach(sel => { sel.value = assigned[0]; });
+    }
+  });
+}
+
+async function assignJugePoste(type, poste, jugeId) {
+  // Supprimer l'assignation existante pour ce poste
+  await sb.from('juge_assignations').delete()
+    .eq('concours_id', APP.currentConcoursId)
+    .eq('type_epreuve', type)
+    .eq('poste', poste);
+  // Si un juge sélectionné, insérer la nouvelle assignation
+  if (jugeId) {
+    const { error } = await sb.from('juge_assignations').insert({
+      juge_id: jugeId,
+      concours_id: APP.currentConcoursId,
+      type_epreuve: type,
+      poste,
+    });
+    if (error) { showToast(error.message, 'error'); return; }
+  }
+  showToast('Assignation mise \u00e0 jour \u2713', 'success');
 }
 function openEditJuge(id, encoded) {
   APP.editTarget = id;
@@ -1988,7 +2233,8 @@ async function saveJugeEdit() {
 }
 async function revokeJuge(id) {
   await sb.from('juge_assignations').delete().eq('juge_id', id).eq('concours_id', APP.currentConcoursId);
-  navigateTo('orga-juges'); showToast('Juge révoqué du concours', 'success');
+  navigateTo('orga-juges');
+  showToast('Juge r\u00e9voqu\u00e9 du concours', 'success');
 }
 async function generateJugeCode() {
   const code = 'TREC-' + Math.floor(1000+Math.random()*9000);
@@ -2004,6 +2250,35 @@ function copyCode() { navigator.clipboard.writeText(document.getElementById('gen
    ================================================================ */
 async function pageJugeEntry() {
   if (!APP.cache.participants.length) await loadEngagements();
+  const assignations = APP.jugeAssignations || [];
+
+  // Si plusieurs postes, afficher un sélecteur
+  if (assignations.length > 1) {
+    setPageContent(`<div class="page active">
+      <div class="page-header"><div><div class="page-title">Saisie</div><div class="page-subtitle">Choisir un poste</div></div></div>
+      ${assignations.map((a,i) => `
+      <div class="list-item" onclick="selectJugePoste(${i})">
+        <div class="list-item-info">
+          <div class="list-item-name">${a.type_epreuve} — ${a.poste}</div>
+          <div class="list-item-sub">${a.type_epreuve === 'POR' ? 'Contrôle de passage' : a.type_epreuve === 'MA' ? 'Maîtrise des allures' : 'Obstacle PTV'}</div>
+        </div>
+        <div style="color:var(--text3);font-size:20px;">›</div>
+      </div>`).join('')}
+    </div>`);
+    return;
+  }
+
+  // Un seul poste
+  APP.jugeAssignation = assignations[0] || null;
+  renderJugeEpreuve();
+}
+
+function selectJugePoste(idx) {
+  APP.jugeAssignation = (APP.jugeAssignations || [])[idx] || null;
+  renderJugeEpreuve();
+}
+
+function renderJugeEpreuve() {
   const type = APP.jugeAssignation?.type_epreuve || 'PTV';
   if (type === 'PTV') renderJugePTV();
   else if (type === 'POR') renderJugePOR();
@@ -2011,25 +2286,36 @@ async function pageJugeEntry() {
 }
 function renderJugePTV() {
   const parts = APP.cache.participants.filter(p => p.statut === 'partant');
+  const obstacleId = APP.jugeAssignation?.poste || null;
+  const obstacle = obstacleId ? APP.cache.obstacles.find(o => o.id === obstacleId) : null;
+
+  // Si plusieurs postes PTV, bouton retour
+  const multiPoste = (APP.jugeAssignations||[]).length > 1;
+
   setPageContent(`<div class="page active">
-    <div class="page-header"><div><div class="page-title">PTV</div><div class="page-subtitle">Obstacle : ${APP.jugeAssignation?.poste||'—'}</div></div></div>
-    <select id="ptv-sel" onchange="loadPTVPart(this.value)" style="margin-bottom:16px;"><option value="">— Sélectionner un participant —</option>${parts.map(p=>`<option value="${p.id}">Doss. ${p.dossard||'—'} — ${p.prenom} ${p.nom}</option>`).join('')}</select>
+    <div class="page-header">
+      <div>
+        <div class="page-title">PTV</div>
+        <div class="page-subtitle">${obstacle ? `${obstacle.code} — ${obstacle.label}` : 'Obstacle non assigné'}</div>
+      </div>
+      ${multiPoste ? `<button class="btn-outline btn-small" onclick="pageJugeEntry()">← Postes</button>` : ''}
+    </div>
+    <select id="ptv-sel" onchange="loadPTVPart(this.value)" style="margin-bottom:16px;">
+      <option value="">— Sélectionner un participant —</option>
+      ${parts.map(p=>`<option value="${p.id}">Doss. ${p.dossard||'—'} — ${p.prenom} ${p.nom}</option>`).join('')}
+    </select>
     <div id="ptv-content" style="display:none;">
       <div class="card mb12"><div class="card-body"><div id="ptv-info" style="font-size:14px;font-weight:600;"></div></div></div>
-      <div class="obstacle-grid" id="obs-grid">
-        ${APP.cache.obstacles.map(o => {
-          const sc = APP.data_ptv_scores ? APP.data_ptv_scores[o.id] : undefined;
-          const has = sc !== undefined && sc !== null;
-          return `<div class="obstacle-card ${has?(sc===0?'scored-zero':'scored'):''}" onclick="openObsModal('${o.id}','${o.label}',${o.pts_max})">
-            <div class="obstacle-num">${o.code}</div><div class="obstacle-name">${o.label}</div><div class="obstacle-score">${has?sc:'—'}</div>
-          </div>`;
-        }).join('')}
-      </div>
+      ${obstacle ? `
+      <div class="obstacle-card" id="single-obs-card" onclick="openObsModal('${obstacle.id}','${obstacle.label}',${obstacle.pts_max})" style="max-width:280px;margin:0 auto 16px;cursor:pointer;">
+        <div class="obstacle-num">${obstacle.code}</div>
+        <div class="obstacle-name">${obstacle.label}</div>
+        <div class="obstacle-score" id="single-obs-score">—</div>
+      </div>` : `<div class="alert-banner warn"><div>⚠️</div><div>Aucun obstacle assigné. Contactez l'organisateur.</div></div>`}
       <div style="margin-top:16px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius2);padding:14px;display:flex;justify-content:space-between;align-items:center;">
-        <span style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);">Total PTV</span>
+        <span style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);">Score obstacle</span>
         <span class="mono" style="font-size:28px;color:var(--accent);" id="ptv-total">—</span>
       </div>
-      <button class="btn-primary full-width mt16" onclick="savePTVEntry()">✓ Valider la saisie</button>
     </div>
   </div>`);
   APP.data_ptv_scores = {};
@@ -2039,21 +2325,24 @@ async function loadPTVPart(id) {
   if (!id) { div.style.display='none'; return; }
   const p = APP.cache.participants.find(x => x.id === id);
   APP.jugeCtx.participantId = id;
-  // Load existing PTV scores for this engagement
+  const obstacleId = APP.jugeAssignation?.poste;
+  // Charger le score existant pour cet obstacle
   const { data: existing } = await sb.from('scores_ptv').select('obstacle_id,points').eq('engagement_id', id);
   APP.data_ptv_scores = {};
   (existing||[]).forEach(r => { APP.data_ptv_scores[r.obstacle_id] = r.points; });
   div.style.display = 'block';
   document.getElementById('ptv-info').textContent = `${p.prenom} ${p.nom} · Doss. ${p.dossard||'—'} · ${p.cheval_nom}`;
-  // Re-render obstacles with existing scores
-  document.getElementById('obs-grid').innerHTML = APP.cache.obstacles.map(o => {
-    const sc = APP.data_ptv_scores[o.id];
-    const has = sc !== undefined && sc !== null;
-    return `<div class="obstacle-card ${has?(sc===0?'scored-zero':'scored'):''}" onclick="openObsModal('${o.id}','${o.label}',${o.pts_max})">
-      <div class="obstacle-num">${o.code}</div><div class="obstacle-name">${o.label}</div><div class="obstacle-score">${has?sc:'—'}</div>
-    </div>`;
-  }).join('');
-  updatePTVTotal();
+  // Mettre à jour l'affichage du score de l'obstacle assigné
+  const sc = obstacleId ? APP.data_ptv_scores[obstacleId] : undefined;
+  const scoreEl = document.getElementById('single-obs-score');
+  const totalEl = document.getElementById('ptv-total');
+  if (scoreEl) scoreEl.textContent = sc !== undefined ? sc : '—';
+  if (totalEl) totalEl.textContent = sc !== undefined ? sc : '—';
+  // Mettre à jour la classe de la card
+  const card = document.getElementById('single-obs-card');
+  if (card) {
+    card.className = `obstacle-card ${sc !== undefined ? (sc === 0 ? 'scored-zero' : 'scored') : ''}`;
+  }
 }
 function openObsModal(oid, label, max) {
   if (!APP.jugeCtx.participantId) { showToast('Sélectionner un participant', 'error'); return; }
@@ -2070,18 +2359,27 @@ async function saveObstacleScore() {
   const score = APP.obsEdit.score;
   APP.data_ptv_scores[APP.obsEdit.id] = score;
   const action = { type:'ptv', engagement_id:pid, obstacle_id:APP.obsEdit.id, score, juge_id:APP.jugeProfile?.id };
-  if (APP.isOnline) {
-    await processSyncAction(action);
-  } else {
-    addPendingSync(action);
-  }
-  // Log
+  if (APP.isOnline) await processSyncAction(action);
+  else addPendingSync(action);
   if (APP.isOnline && APP.jugeProfile) {
     await sb.from('log_saisies').insert({ juge_id: APP.jugeProfile.id, engagement_id: pid, type_action: 'ptv_score', detail: { obstacle_id: APP.obsEdit.id, points: score } });
   }
   closeModal('modal-obstacle');
-  await loadPTVPart(pid);
-  showToast('Score enregistré', 'success');
+  // Rafraichir la grille puis passer au participant suivant
+  const sel = document.getElementById('ptv-sel');
+  if (sel) {
+    const opts = Array.from(sel.options);
+    const idx = opts.findIndex(o => o.value === pid);
+    if (idx >= 0 && idx < opts.length - 1) {
+      const nextId = opts[idx+1].value;
+      sel.value = nextId;
+      await loadPTVPart(nextId);
+      showToast('Score enregistr\u00e9 — participant suivant', 'success');
+    } else {
+      await loadPTVPart(pid);
+      showToast('Score enregistr\u00e9 ✓', 'success');
+    }
+  }
 }
 function updatePTVTotal() {
   const tot = APP.cache.obstacles.reduce((a,o) => a+(APP.data_ptv_scores?.[o.id]||0), 0);
@@ -2097,71 +2395,157 @@ async function savePTVEntry() {
 
 function renderJugePOR() {
   const parts = APP.cache.participants.filter(p => p.statut === 'partant');
+  const poste = APP.jugeAssignation?.poste || 'depart';
+  const isDepart = poste === 'depart';
   setPageContent(`<div class="page active">
-    <div class="page-header"><div><div class="page-title">POR</div><div class="page-subtitle">Poste : ${APP.jugeAssignation?.poste||'—'}</div></div></div>
-    <select style="margin-bottom:16px;" onchange="document.getElementById('por-entry').style.display=this.value?'block':'none'"><option value="">— Sélectionner —</option>${parts.map(p=>`<option value="${p.id}">Doss. ${p.dossard||'—'} — ${p.prenom} ${p.nom}</option>`).join('')}</select>
+    <div class="page-header"><div><div class="page-title">POR</div><div class="page-subtitle">Poste : ${poste}</div></div></div>
+    <select id="por-sel" style="margin-bottom:16px;" onchange="showPOREntry(this.value)">
+      <option value="">— S\u00e9lectionner —</option>
+      ${parts.map(p=>`<option value="${p.id}">Doss. ${p.dossard||'—'} — ${p.prenom} ${p.nom}</option>`).join('')}
+    </select>
     <div id="por-entry" style="display:none;">
-      <div class="por-control"><div class="por-control-label">Passage</div>
+      <div class="por-control"><div class="por-control-label">Passage — ${poste}</div>
         <div class="time-grid">
-          <div class="form-group"><label class="form-label">Heure théorique</label><input type="time" id="por-theorique" value="09:00" readonly style="font-family:'DM Mono',monospace;font-size:20px;text-align:center;background:var(--bg2);color:var(--text3);"></div>
-          <div class="form-group"><label class="form-label">Heure réelle</label><input type="time" id="por-reel" value="09:00" style="font-family:'DM Mono',monospace;font-size:20px;text-align:center;"></div>
+          ${isDepart ? `<div class="form-group"><label class="form-label">Heure th\u00e9orique</label><input type="time" id="por-theorique" style="font-family:'DM Mono',monospace;font-size:20px;text-align:center;"></div>` : ''}
+          <div class="form-group"><label class="form-label">Heure r\u00e9elle</label><input type="time" id="por-reel" style="font-family:'DM Mono',monospace;font-size:20px;text-align:center;"></div>
         </div>
         <div class="penalty-grid">
-          <div class="penalty-item"><div class="penalty-label">Hors piste</div><div class="penalty-counter"><button class="penalty-btn" onclick="adjPen('hp',-1)">−</button><div class="penalty-val" id="pen-hp">0</div><button class="penalty-btn" onclick="adjPen('hp',1)">+</button></div></div>
-          <div class="penalty-item"><div class="penalty-label">Autres</div><div class="penalty-counter"><button class="penalty-btn" onclick="adjPen('au',-1)">−</button><div class="penalty-val" id="pen-au">0</div><button class="penalty-btn" onclick="adjPen('au',1)">+</button></div></div>
+          <div class="penalty-item"><div class="penalty-label">Hors piste (×30pts)</div><div class="penalty-counter"><button class="penalty-btn" onclick="adjPen('hp',-1)">−</button><div class="penalty-val" id="pen-hp">0</div><button class="penalty-btn" onclick="adjPen('hp',1)">+</button></div></div>
+          <div class="penalty-item"><div class="penalty-label">Contr\u00f4le manqu\u00e9 (×50pts)</div><div class="penalty-counter"><button class="penalty-btn" onclick="adjPen('au',-1)">−</button><div class="penalty-val" id="pen-au">0</div><button class="penalty-btn" onclick="adjPen('au',1)">+</button></div></div>
         </div>
       </div>
-      <button class="btn-primary full-width" onclick="savePOREntry(document.querySelector('#por-entry').previousElementSibling.value)">✓ Enregistrer</button>
+      <button class="btn-primary full-width mt16" onclick="savePOREntry(document.getElementById('por-sel').value)">✓ Enregistrer</button>
     </div>
   </div>`);
   APP._pen = { hp:0, au:0 };
 }
+
+function showPOREntry(id) {
+  const entry = document.getElementById('por-entry');
+  if (!id) { entry.style.display = 'none'; return; }
+  entry.style.display = 'block';
+  // Pré-remplir heure courante
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2,'0');
+  const mm = String(now.getMinutes()).padStart(2,'0');
+  const reel = document.getElementById('por-reel');
+  if (reel) reel.value = `${hh}:${mm}`;
+  APP._pen = { hp:0, au:0 };
+  document.getElementById('pen-hp').textContent = '0';
+  document.getElementById('pen-au').textContent = '0';
+}
 function adjPen(t, d) { APP._pen[t] = Math.max(0, APP._pen[t]+d); document.getElementById('pen-'+t).textContent = APP._pen[t]; }
 async function savePOREntry(engId) {
-  if (!engId) { showToast('Sélectionner un participant', 'error'); return; }
+  if (!engId) { showToast('S\u00e9lectionner un participant', 'error'); return; }
+  const poste = APP.jugeAssignation?.poste || 'depart';
+  const isDepart = poste === 'depart';
+  const theoriqueEl = document.getElementById('por-theorique');
   const action = {
     type: 'por',
     engagement_id: engId,
-    controle: APP.jugeAssignation?.poste || 'depart',
-    heure_theorique: document.getElementById('por-theorique').value,
-    heure_reelle: document.getElementById('por-reel').value,
+    controle: poste,
+    heure_theorique: isDepart && theoriqueEl ? theoriqueEl.value : null,
+    heure_reelle: document.getElementById('por-reel')?.value || null,
     hp: APP._pen.hp,
     au: APP._pen.au,
   };
   if (APP.isOnline) await processSyncAction(action);
   else addPendingSync(action);
-  showToast('Passage enregistré ✓', 'success');
+  showToast('Passage enregistr\u00e9 ✓', 'success');
+  // Passer au participant suivant
+  const sel = document.getElementById('por-sel');
+  if (sel) {
+    const opts = Array.from(sel.options);
+    const idx = opts.findIndex(o => o.value === engId);
+    if (idx >= 0 && idx < opts.length - 1) {
+      sel.value = opts[idx+1].value;
+      showPOREntry(opts[idx+1].value);
+    } else {
+      sel.value = '';
+      document.getElementById('por-entry').style.display = 'none';
+    }
+  }
 }
 
 function renderJugeMA() {
   const parts = APP.cache.participants.filter(p => p.statut === 'partant');
+  const firstCat = parts[0] ? APP.cache.categories.find(c => c.id === parts[0].categorie) : null;
+  const modeTemps = firstCat?.mode_ma === 'temps';
+  const couloir = (firstCat?.id || '').match(/A1|AE/) ? 150 : 100;
+
   setPageContent(`<div class="page active">
-    <div class="page-header"><div><div class="page-title">MA</div><div class="page-subtitle">Catégorie : ${APP.jugeAssignation?.poste||'—'}</div></div></div>
-    <select id="ma-sel" style="margin-bottom:16px;" onchange="APP._maEngId=this.value"><option value="">— Sélectionner —</option>${parts.map(p=>`<option value="${p.id}">Doss. ${p.dossard||'—'} — ${p.prenom} ${p.nom}</option>`).join('')}</select>
-    <div class="tabs" style="margin-bottom:16px;"><div class="tab-btn active" onclick="switchMAMode('balises',this)">Balises</div><div class="tab-btn" onclick="switchMAMode('chrono',this)">Chrono allures</div></div>
-    <div id="ma-balises">
-      <div style="font-size:13px;color:var(--text2);margin-bottom:12px;">1 appui = validée ✓ · 2 appuis = manquée ✗ · 3 appuis = effacer</div>
+    <div class="page-header"><div><div class="page-title">MA</div><div class="page-subtitle">Mode : ${modeTemps ? 'Chrono allures' : 'Portes'}</div></div></div>
+    <select id="ma-sel" style="margin-bottom:16px;" onchange="loadMAPart(this.value)">
+      <option value="">— S\u00e9lectionner un participant —</option>
+      ${parts.map(p=>`<option value="${p.id}">Doss. ${p.dossard||'—'} — ${p.prenom} ${p.nom}</option>`).join('')}
+    </select>
+    <div id="ma-content" style="display:none;">
+      ${modeTemps ? `
+      <div class="card mb12"><div class="card-body">
+        <div class="section-label" style="margin-top:0;">Galop lent — ${couloir}m</div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Temps (s)</label><input type="number" id="ma-temps-galop" placeholder="ex: 19.4" step="0.1" style="font-family:'DM Mono',monospace;font-size:20px;text-align:center;" oninput="updateMAScore()"></div>
+          <div class="form-group"><label class="form-label">Score galop</label><div style="font-family:'DM Mono',monospace;font-size:28px;color:var(--accent);text-align:center;padding:10px 0;" id="ma-score-galop">—</div></div>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2);cursor:pointer;"><input type="checkbox" id="ma-galop-elim" onchange="updateMAScore()"> \u00c9limin\u00e9 (sortie couloir / rupture)</label>
+        <div class="section-label">\u00c9 le pas rapide — ${couloir}m</div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Temps (s)</label><input type="number" id="ma-temps-pas" placeholder="ex: 56.5" step="0.1" style="font-family:'DM Mono',monospace;font-size:20px;text-align:center;" oninput="updateMAScore()"></div>
+          <div class="form-group"><label class="form-label">Score pas</label><div style="font-family:'DM Mono',monospace;font-size:28px;color:var(--accent);text-align:center;padding:10px 0;" id="ma-score-pas">—</div></div>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2);cursor:pointer;"><input type="checkbox" id="ma-pas-elim" onchange="updateMAScore()"> \u00c9limin\u00e9 (sortie couloir / rupture)</label>
+        <div style="margin-top:16px;background:var(--bg3);border-radius:var(--radius);padding:12px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);">Total MA</span>
+          <span class="mono" style="font-size:28px;color:var(--accent);" id="ma-score-total">—</span>
+        </div>
+      </div></div>
+      <input type="hidden" id="ma-couloir" value="${couloir}">
+      ` : `
+      <div style="font-size:13px;color:var(--text2);margin-bottom:12px;">1 appui = valid\u00e9e ✓ · 2 appuis = manqu\u00e9e ✗ · 3 appuis = effacer</div>
       <div class="balise-grid">${Array.from({length:20},(_,i)=>`<button class="balise-btn" id="bal-${i}" onclick="toggleBalise(${i},this)">${i+1}</button>`).join('')}</div>
       <div style="margin-top:16px;display:flex;gap:12px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius2);padding:14px;">
-        <div style="flex:1;text-align:center;"><div class="mono" style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;">Validées</div><div class="mono" style="font-size:28px;color:var(--accent);" id="bal-count">0</div></div>
-        <div style="flex:1;text-align:center;"><div class="mono" style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;">Manquées</div><div class="mono" style="font-size:28px;color:var(--red);" id="bal-miss">0</div></div>
-        <div style="flex:1;text-align:center;"><div class="mono" style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;">Restantes</div><div class="mono" style="font-size:28px;color:var(--text3);" id="bal-pending">20</div></div>
+        <div style="flex:1;text-align:center;"><div class="mono" style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;">Valid\u00e9es</div><div class="mono" style="font-size:28px;color:var(--accent);" id="bal-count">0</div></div>
+        <div style="flex:1;text-align:center;"><div class="mono" style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;">Manqu\u00e9es</div><div class="mono" style="font-size:28px;color:var(--red);" id="bal-miss">0</div></div>
+        <div style="flex:1;text-align:center;"><div class="mono" style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;">Score</div><div class="mono" style="font-size:28px;color:var(--text);" id="bal-score">0</div></div>
       </div>
+      `}
+      <button class="btn-primary full-width mt16" onclick="saveMAEntry()">✓ Valider la saisie</button>
     </div>
-    <div id="ma-chrono" style="display:none;">
-      ${['Pas','Trot','Galop allongé','Galop rassemblé'].map(a=>`
-      <div class="por-control mb8"><div class="por-control-label">${a}</div>
-        <div class="time-grid">
-          <div class="form-group"><label class="form-label">Théorique (s)</label><input type="number" placeholder="60" style="font-family:'DM Mono',monospace;"></div>
-          <div class="form-group"><label class="form-label">Réel (s)</label><input type="number" placeholder="62" style="font-family:'DM Mono',monospace;"></div>
-        </div>
-      </div>`).join('')}
-    </div>
-    <button class="btn-primary full-width mt16" onclick="saveMAEntry()">✓ Valider la saisie</button>
   </div>`);
   APP._bal = {};
   APP._maEngId = null;
+  APP._maModeTemps = modeTemps;
+  APP._maCouloir = couloir;
 }
+
+function updateMAScore() {
+  const couloir = parseInt(document.getElementById('ma-couloir')?.value || '100');
+  const gBareme = couloir === 150 ? MA_BAREME.galop_150 : MA_BAREME.galop_100;
+  const pBareme = couloir === 150 ? MA_BAREME.pas_150 : MA_BAREME.pas_100;
+  const tGalop = parseFloat(document.getElementById('ma-temps-galop')?.value);
+  const tPas = parseFloat(document.getElementById('ma-temps-pas')?.value);
+  const elimGalop = document.getElementById('ma-galop-elim')?.checked;
+  const elimPas = document.getElementById('ma-pas-elim')?.checked;
+  const sGalop = elimGalop ? 0 : (isNaN(tGalop) ? null : scoreFromBareme(tGalop, gBareme));
+  const sPas = elimPas ? 0 : (isNaN(tPas) ? null : scoreFromBareme(tPas, pBareme));
+  const sgEl = document.getElementById('ma-score-galop');
+  const spEl = document.getElementById('ma-score-pas');
+  const stEl = document.getElementById('ma-score-total');
+  if (sgEl) sgEl.textContent = elimGalop ? '0 (\u00e9lim)' : (sGalop !== null ? sGalop : '—');
+  if (spEl) spEl.textContent = elimPas ? '0 (\u00e9lim)' : (sPas !== null ? sPas : '—');
+  if (stEl) stEl.textContent = (sGalop !== null && sPas !== null) ? (sGalop + sPas) : '—';
+}
+
+async function loadMAPart(id) {
+  APP._maEngId = id;
+  const content = document.getElementById('ma-content');
+  if (!id) { content.style.display = 'none'; return; }
+  content.style.display = 'block';
+  APP._bal = {};
+  document.querySelectorAll('.balise-btn').forEach(b => b.classList.remove('hit','miss'));
+  ['bal-count','bal-miss','bal-score'].forEach(id => { const el = document.getElementById(id); if(el) el.textContent='0'; });
+}
+
 function switchMAMode(mode, el) {
   document.querySelectorAll('.tabs .tab-btn').forEach(b => b.classList.remove('active')); el.classList.add('active');
   document.getElementById('ma-balises').style.display = mode==='balises' ? 'block' : 'none';
@@ -2172,15 +2556,38 @@ function toggleBalise(i, el) {
   else if (APP._bal[i]===true) { APP._bal[i]=false; el.classList.add('miss'); el.classList.remove('hit'); }
   else { delete APP._bal[i]; el.classList.remove('hit','miss'); }
   const hit=Object.values(APP._bal).filter(v=>v===true).length, miss=Object.values(APP._bal).filter(v=>v===false).length;
-  const ce=document.getElementById('bal-count'),me=document.getElementById('bal-miss'),pe=document.getElementById('bal-pending');
-  if(ce)ce.textContent=hit; if(me)me.textContent=miss; if(pe)pe.textContent=20-hit-miss;
+  const ce=document.getElementById('bal-count'), me=document.getElementById('bal-miss'), bs=document.getElementById('bal-score');
+  if(ce)ce.textContent=hit; if(me)me.textContent=miss; if(bs)bs.textContent=hit*10;
 }
 async function saveMAEntry() {
-  if (!APP._maEngId) { showToast('Sélectionner un participant', 'error'); return; }
-  const action = { type:'ma', engagement_id: APP._maEngId, mode:'balises', balises_data: APP._bal || {}, chrono_data: null };
+  if (!APP._maEngId) { showToast('S\u00e9lectionner un participant', 'error'); return; }
+  let action;
+  if (APP._maModeTemps) {
+    const couloir = APP._maCouloir || 100;
+    const chrono_data = {
+      couloir,
+      temps_galop: parseFloat(document.getElementById('ma-temps-galop')?.value) || null,
+      temps_pas: parseFloat(document.getElementById('ma-temps-pas')?.value) || null,
+      galop_elim: document.getElementById('ma-galop-elim')?.checked || false,
+      pas_elim: document.getElementById('ma-pas-elim')?.checked || false,
+    };
+    action = { type:'ma', engagement_id: APP._maEngId, mode:'temps', balises_data: null, chrono_data };
+  } else {
+    action = { type:'ma', engagement_id: APP._maEngId, mode:'balises', balises_data: APP._bal || {}, chrono_data: null };
+  }
   if (APP.isOnline) await processSyncAction(action);
   else addPendingSync(action);
-  showToast('Saisie MA validée ✓', 'success');
+  showToast('Saisie MA valid\u00e9e ✓', 'success');
+  // Passer au participant suivant
+  const sel = document.getElementById('ma-sel');
+  if (sel) {
+    const opts = Array.from(sel.options);
+    const idx = opts.findIndex(o => o.value === APP._maEngId);
+    if (idx >= 0 && idx < opts.length - 1) {
+      sel.value = opts[idx+1].value;
+      loadMAPart(opts[idx+1].value);
+    }
+  }
 }
 
 /* ================================================================
@@ -2230,50 +2637,95 @@ async function searchLicence() {
   const container = document.getElementById('participant-results');
   if (!lic) { container.innerHTML = ''; return; }
   container.innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
-  const { data: cavalier } = await sb.from('cavaliers').select('id').eq('licence', lic).maybeSingle();
+
+  const { data: cavalier } = await sb.from('cavaliers').select('id,prenom,nom').eq('licence', lic).maybeSingle();
   if (!cavalier) {
     container.innerHTML = `<div class="alert-banner warn"><div>ℹ️</div><div>Aucun résultat pour <strong>${lic}</strong>.</div></div>`;
     return;
   }
+
   const { data: engagements, error: engError } = await sb.from('engagements').select(`
-    statut,
-    concours:concours(id,nom,date,lieu),
-    scores_por(controle,penalites_hors_piste,penalites_autres),
-    scores_ma(mode,balises_data),
-    scores_ptv(obstacle_id,points),
-    categorie:categories(id,pts_por)
+    id, statut,
+    concours:concours(id,nom,date,lieu,results_visibility),
+    categorie:categories(id,label,pts_por,mode_ma)
   `).eq('cavalier_id', cavalier.id);
 
   if (engError) { container.innerHTML = `<div class="alert-banner warn"><div>ℹ️</div><div>Erreur : ${engError.message}</div></div>`; return; }
-
   if (!engagements || !engagements.length) {
     container.innerHTML = `<div class="alert-banner warn"><div>ℹ️</div><div>Aucune participation trouvée pour <strong>${lic}</strong>.</div></div>`;
     return;
   }
 
-  // Group by concours
+  // Stocker les engagements pour le détail
+  APP._licenceData = { cavalier, engagements };
+
+  // Afficher la liste des concours
   const byConc = {};
   engagements.forEach(e => {
-    const c = e.concours;
-    if (!c) return;
-    if (!byConc[c.id]) byConc[c.id] = { concours: c, eng: e };
+    if (!e.concours) return;
+    byConc[e.concours.id] = { concours: e.concours, engId: e.id };
   });
 
-  container.innerHTML = Object.values(byConc).map(({ concours: c, eng: e }) => {
-    const vis = APP.cache.results_visibility;
-    const porScore = vis.por ? calcPORScore(e.scores_por, e.categorie) : null;
-    const maScore = vis.ma ? calcMAScore(e.scores_ma) : null;
-    const ptvScore = vis.ptv ? calcPTVScore(e.scores_ptv) : null;
-    const total = (porScore||0)+(maScore||0)+(ptvScore||0);
-    const anyVisible = vis.por || vis.ma || vis.ptv;
-    return `<div class="concours-result-card">
-      <div class="concours-result-header"><div><div class="concours-result-name">${c.nom}</div><div class="concours-result-date">${formatDate(c.date)} · ${c.lieu||''}</div></div><div class="mono" style="font-size:22px;color:var(--accent);">${anyVisible?(total||'—'):'—'}</div></div>
-      ${vis.por&&porScore!==null?`<div class="epreuve-row"><div><div class="epreuve-name">POR</div></div><div class="epreuve-score">${porScore}</div></div>`:''}
-      ${vis.ma&&maScore!==null?`<div class="epreuve-row"><div><div class="epreuve-name">MA</div></div><div class="epreuve-score">${maScore}</div></div>`:''}
-      ${vis.ptv&&ptvScore!==null?`<div class="epreuve-row"><div><div class="epreuve-name">PTV</div></div><div class="epreuve-score">${ptvScore}</div></div>`:''}
-      ${!anyVisible?`<div style="padding:14px;color:var(--text3);font-size:13px;">Résultats non encore publiés.</div>`:''}
+  container.innerHTML = `
+    <div style="font-size:13px;color:var(--text2);margin-bottom:12px;">
+      ${cavalier.prenom} ${cavalier.nom} — ${Object.keys(byConc).length} concours
+    </div>
+    ${Object.values(byConc).map(({ concours: c, engId }) => `
+    <div class="list-item" onclick="showParticipantConcours('${engId}','${c.id}')" style="cursor:pointer;">
+      <div class="list-item-info">
+        <div class="list-item-name">${c.nom}</div>
+        <div class="list-item-sub">${formatDate(c.date)}${c.lieu ? ' · ' + c.lieu : ''}</div>
+      </div>
+      <div style="color:var(--text3);font-size:20px;">›</div>
+    </div>`).join('')}`;
+}
+
+async function showParticipantConcours(engId, concoursId) {
+  const container = document.getElementById('participant-results');
+  container.innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
+
+  const { data: e } = await sb.from('engagements').select(`
+    statut,
+    concours:concours(id,nom,date,lieu,results_visibility),
+    scores_por(controle,heure_theorique,heure_reelle,penalites_hors_piste,penalites_autres),
+    scores_ma(mode,balises_data,chrono_data),
+    scores_ptv(obstacle_id,points,temps_reel),
+    cat:categories(id,label,pts_por,mode_ma)
+  `).eq('id', engId).single();
+
+  if (!e) { container.innerHTML = `<div class="alert-banner warn"><div>ℹ️</div><div>Erreur de chargement.</div></div>`; return; }
+
+  const c = e.concours;
+  const cat = e.cat;
+  const vis = c?.results_visibility || { por:false, ma:false, ptv:false };
+
+  console.log('DEBUG scores_por:', e.scores_por, 'cat:', cat, 'vis:', vis);
+
+  const porScore = vis.por ? calcPORScore(e.scores_por, cat) : null;
+  const maScore = vis.ma ? calcMAScore(e.scores_ma) : null;
+  const ptvScore = vis.ptv ? calcPTVScore(e.scores_ptv, null, cat) : null;
+  const anyVisible = vis.por || vis.ma || vis.ptv;
+  const total = (porScore||0)+(maScore||0)+(ptvScore||0);
+
+  console.log('DEBUG scores calculés — POR:', porScore, 'MA:', maScore, 'PTV:', ptvScore);
+
+  container.innerHTML = `
+    <button onclick="searchLicence()" style="background:none;border:none;color:var(--accent);font-size:13px;cursor:pointer;margin-bottom:16px;display:flex;align-items:center;gap:6px;">‹ Retour aux concours</button>
+    <div class="concours-result-card">
+      <div class="concours-result-header">
+        <div>
+          <div class="concours-result-name">${c?.nom||'—'}</div>
+          <div class="concours-result-date">${formatDate(c?.date)} · ${c?.lieu||''}</div>
+          <div style="margin-top:4px;"><span class="cat-badge unofficial">${cat?.label||'—'}</span></div>
+        </div>
+        <div class="mono" style="font-size:28px;color:var(--accent);">${anyVisible?(total||'—'):'—'}</div>
+      </div>
+      ${anyVisible ? `
+        ${vis.por?`<div class="epreuve-row"><div><div class="epreuve-name">POR</div>${porScore!==null?`<div class="epreuve-detail">${(e.scores_por||[]).length} contrôle(s) enregistré(s)</div>`:''}</div><div class="epreuve-score">${porScore??'—'}</div></div>`:''}
+        ${vis.ma?`<div class="epreuve-row"><div><div class="epreuve-name">MA</div></div><div class="epreuve-score">${maScore??'—'}</div></div>`:''}
+        ${vis.ptv?`<div class="epreuve-row"><div><div class="epreuve-name">PTV</div></div><div class="epreuve-score">${ptvScore??'—'}</div></div>`:''}
+      ` : `<div style="padding:14px;color:var(--text3);font-size:13px;">Résultats non encore publiés.</div>`}
     </div>`;
-  }).join('');
 }
 function toggleEquipeField() { document.getElementById('eng-equipe-wrap').classList.toggle('hidden', document.getElementById('eng-type').value !== 'equ'); }
 async function validateEngagement() {
@@ -2330,28 +2782,46 @@ function openParticipantDetail(id) {
   const cat = p.categorie_obj;
   APP.editTarget = id;
   document.getElementById('modal-participant-name').textContent = `${p.prenom} ${p.nom}`;
+
+  // Alerte équipe : vérifier si moins de 3 membres partants
+  let teamAlert = '';
+  if (p.equipe_id) {
+    const teamMembers = APP.cache.participants.filter(x => x.equipe_id === p.equipe_id && x.statut === 'partant');
+    if (teamMembers.length < 3 && cat?.official) {
+      teamAlert = `<div class="alert-banner warn" style="margin-bottom:12px;">⚠️ Équipe ${p.equipe} : seulement ${teamMembers.length} partant(s) — minimum 3 requis pour le classement officiel</div>`;
+    }
+  }
+
   document.getElementById('modal-participant-body').innerHTML = `
+    ${teamAlert}
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
       <span class="cat-badge ${cat?.official?'official':'unofficial'}">${p.categorie}</span>
-      <span class="status-badge ${p.statut}">${{partant:'PARTANT',np:'NON PARTANT',elim:'ÉLIMINÉ'}[p.statut]}</span>
+      <span class="status-badge ${p.statut}">${{partant:'PARTANT',np:'NON PARTANT',elim:'ÉLIMINÉ'}[p.statut]||p.statut}</span>
     </div>
     <div class="card"><div class="card-body">
       <div class="judge-activity-row"><span style="color:var(--text3);">Licence</span><span class="mono">${p.licence}</span></div>
       <div class="judge-activity-row"><span style="color:var(--text3);">Dossard</span><span class="mono">${p.dossard||'—'}</span></div>
       <div class="judge-activity-row"><span style="color:var(--text3);">Cheval</span><span>${p.cheval_nom}</span></div>
       <div class="judge-activity-row"><span style="color:var(--text3);">SIRE</span><span class="mono">${p.cheval_sire}</span></div>
-      <div class="judge-activity-row"><span style="color:var(--text3);">Écurie</span><span>${p.ecurie}</span></div>
-      ${p.equipe?`<div class="judge-activity-row"><span style="color:var(--text3);">Équipe</span><span>${p.equipe}</span></div>`:''}
+      <div class="judge-activity-row"><span style="color:var(--text3);">\u00c9curie</span><span>${p.ecurie}</span></div>
+      ${p.equipe?`<div class="judge-activity-row"><span style="color:var(--text3);">\u00c9quipe</span><span>${p.equipe}</span></div>`:''}
     </div></div>
     <div class="section-label">Scores</div>
     <div class="stats-grid">
-      <div class="stat-card"><div class="stat-val mono">${p.scores.por??'—'}</div><div class="stat-label">POR</div></div>
-      <div class="stat-card"><div class="stat-val mono">${p.scores.ma??'—'}</div><div class="stat-label">MA</div></div>
-      <div class="stat-card"><div class="stat-val mono">${p.scores.ptv??'—'}</div><div class="stat-label">PTV</div></div>
+      <div class="stat-card ${p.elim_por?'alert':''}"><div class="stat-val mono">${p.elim_por?'ÉLIM':p.scores.por??'—'}</div><div class="stat-label">POR</div></div>
+      <div class="stat-card ${p.elim_ma?'alert':''}"><div class="stat-val mono">${p.elim_ma?'ÉLIM':p.scores.ma??'—'}</div><div class="stat-label">MA</div></div>
+      <div class="stat-card ${p.elim_ptv?'alert':''}"><div class="stat-val mono">${p.elim_ptv?'ÉLIM':p.scores.ptv??'—'}</div><div class="stat-label">PTV</div></div>
       <div class="stat-card accent"><div class="stat-val mono">${p.statut==='partant'?((p.scores.por||0)+(p.scores.ma||0)+(p.scores.ptv||0)):'—'}</div><div class="stat-label">Total</div></div>
-    </div>`;
+    </div>
+    <div class="section-label">\u00c9limination par test</div>
+    <div class="card"><div class="card-body">
+      <div class="toggle-wrap"><div class="toggle-info"><div class="toggle-label">Éliminé POR</div><div class="toggle-desc">Continue sur MA et PTV</div></div><label class="toggle"><input type="checkbox" id="elim-por-chk" ${p.elim_por?'checked':''}><span class="toggle-slider"></span></label></div>
+      <div class="toggle-wrap"><div class="toggle-info"><div class="toggle-label">Éliminé MA</div><div class="toggle-desc">Continue sur les autres tests</div></div><label class="toggle"><input type="checkbox" id="elim-ma-chk" ${p.elim_ma?'checked':''}><span class="toggle-slider"></span></label></div>
+      <div class="toggle-wrap"><div class="toggle-info"><div class="toggle-label">Éliminé PTV</div><div class="toggle-desc">Continue sur les autres tests</div></div><label class="toggle"><input type="checkbox" id="elim-ptv-chk" ${p.elim_ptv?'checked':''}><span class="toggle-slider"></span></label></div>
+    </div></div>`;
   openModal('modal-participant-detail');
 }
+
 async function setStatut(s) {
   const { error } = await sb.from('engagements').update({ statut: s }).eq('id', APP.editTarget);
   if (error) {
@@ -2360,7 +2830,20 @@ async function setStatut(s) {
   }
   const p = APP.cache.participants.find(x => x.id === APP.editTarget);
   if (p) p.statut = s;
-  showToast(`Statut : ${s==='np'?'Non Partant':'Éliminé'}`, 'success');
+  showToast(`Statut : ${s==='np'?'Non Partant':'Élimin\u00e9'}`, 'success');
+  closeModal('modal-participant-detail');
+  navigateTo('orga-participants');
+}
+
+async function saveElimTests() {
+  const elimPor = document.getElementById('elim-por-chk')?.checked || false;
+  const elimMa = document.getElementById('elim-ma-chk')?.checked || false;
+  const elimPtv = document.getElementById('elim-ptv-chk')?.checked || false;
+  const { error } = await sb.from('engagements').update({ elim_por: elimPor, elim_ma: elimMa, elim_ptv: elimPtv }).eq('id', APP.editTarget);
+  if (error) { showToast(error.message, 'error'); return; }
+  const p = APP.cache.participants.find(x => x.id === APP.editTarget);
+  if (p) { p.elim_por = elimPor; p.elim_ma = elimMa; p.elim_ptv = elimPtv; }
+  showToast('\u00c9liminations enregistr\u00e9es', 'success');
   closeModal('modal-participant-detail');
   navigateTo('orga-participants');
 }
@@ -2502,11 +2985,15 @@ window.addEventListener('load', async () => {
   if (session) {
     APP.user = session.user;
     await resolveRole();
+  } else {
+    // Default to participant screen
+    switchScreen('screen-participant');
+    initParticipantView();
   }
 
   // Listen for auth changes
   sb.auth.onAuthStateChange(async (event, session) => {
-    if (event === 'SIGNED_OUT') { APP.user = null; APP.role = null; switchScreen('screen-auth'); }
+    if (event === 'SIGNED_OUT') { APP.user = null; APP.role = null; switchScreen('screen-participant'); initParticipantView(); }
   });
 });
 </script>
