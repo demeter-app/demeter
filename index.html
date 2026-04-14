@@ -49,16 +49,16 @@ a{color:var(--accent);text-decoration:none}
 .pwa-step:last-child{border-bottom:none}
 .pwa-step-num{min-width:22px;height:22px;background:var(--accent);color:var(--bg);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
 .pwa-bypass{font-size:12px;color:var(--text3);border:1px solid var(--border);border-radius:var(--radius);padding:8px 16px;cursor:pointer}
-#conn-indicator{position:fixed;bottom:12px;left:12px;z-index:500;display:flex;align-items:center;gap:6px;font-family:'DM Mono',monospace;font-size:10px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;padding:4px 8px;border-radius:20px;transition:all .3s}
-#conn-indicator.online{background:rgba(122,173,90,.12);color:var(--accent);border:1px solid rgba(122,173,90,.3)}
-#conn-indicator.offline{background:rgba(212,90,90,.12);color:var(--red);border:1px solid rgba(212,90,90,.3)}
+#conn-indicator{display:flex;align-items:center;gap:4px;font-family:'DM Mono',monospace;font-size:10px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;padding:3px 6px;border-radius:20px;transition:all .3s;pointer-events:none;}
+#conn-indicator.online{background:transparent;color:var(--accent);border:none;}
+#conn-indicator.offline{background:rgba(212,90,90,.12);color:var(--red);border:1px solid rgba(212,90,90,.3);}
 .conn-dot{width:6px;height:6px;border-radius:50%;background:currentColor}
 .conn-dot.pulse{animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 #sync-badge{position:fixed;bottom:12px;left:100px;z-index:500;background:var(--orange-bg);color:var(--orange);border:1px solid rgba(212,149,90,.3);border-radius:20px;padding:4px 8px;font-family:'DM Mono',monospace;font-size:10px;font-weight:500;display:none}
 #sync-badge.show{display:flex;align-items:center;gap:4px}
 @media(min-width:900px){
-  #conn-indicator{left:calc(var(--sidebar-w) + 12px)}
+
   #sync-badge{left:calc(var(--sidebar-w) + 104px)}
 }
 #screen-auth{background:var(--bg);justify-content:center;align-items:center;padding:32px 24px;gap:0}
@@ -336,7 +336,7 @@ a{color:var(--accent);text-decoration:none}
   <button class="pwa-bypass" onclick="bypassPWAGate()">Continuer quand même (urgence)</button>
 </div>
 
-<div id="conn-indicator" class="online" style="position:fixed;bottom:72px;left:12px;z-index:500;"><div class="conn-dot pulse"></div><span id="conn-text">EN LIGNE</span></div>
+
 <div id="sync-badge"><span>⏳</span><span id="sync-count">0</span></div>
 <div id="toast" class="toast"></div>
 
@@ -379,6 +379,7 @@ a{color:var(--accent);text-decoration:none}
       <div id="app-header-sub" style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;letter-spacing:.06em;"></div>
     </div>
     <div style="display:flex;align-items:center;gap:8px;">
+      <div id="conn-indicator" class="online"><div class="conn-dot pulse"></div><span id="conn-text"></span></div>
       <div class="app-header-role" id="app-header-role">—</div>
       <button class="logout-btn" onclick="doLogout()">⏻</button>
     </div>
@@ -693,7 +694,8 @@ function initConn() {
 function updateConn() {
   const el = document.getElementById('conn-indicator'), t = document.getElementById('conn-text');
   el.className = APP.isOnline ? 'online' : 'offline';
-  t.textContent = APP.isOnline ? 'EN LIGNE' : 'HORS LIGNE';
+  t.textContent = APP.isOnline ? '' : 'HORS LIGNE';
+  t.style.display = APP.isOnline ? 'none' : 'inline';
 }
 function addPendingSync(a) {
   APP.pendingSync.push({ ...a, ts: Date.now() });
@@ -795,11 +797,13 @@ async function resolveRole() {
   }
 
   // Check juges table
-  const { data: jugeData } = await sb.from('juges').select('*, juge_assignations(*)').eq('user_id', APP.user.id).maybeSingle();
+  const { data: jugeData } = await sb.from('juges').select('*').eq('user_id', APP.user.id).maybeSingle();
   if (jugeData) {
     APP.role = 'juge';
     APP.jugeProfile = jugeData;
-    APP.jugeAssignations = jugeData.juge_assignations || [];
+    // Charger les assignations actives uniquement
+    const { data: assignations } = await sb.from('juge_assignations').select('*').eq('juge_id', jugeData.id);
+    APP.jugeAssignations = assignations || [];
     APP.jugeAssignation = APP.jugeAssignations[0] || null;
     APP.currentConcoursId = APP.jugeAssignation?.concours_id || null;
     await initApp();
@@ -949,10 +953,11 @@ async function initApp() {
 
   // Load concours name if orga/juge
   if (APP.currentConcoursId) {
-    const { data } = await sb.from('concours').select('nom, results_visibility').eq('id', APP.currentConcoursId).single();
+    const { data } = await sb.from('concours').select('nom, results_visibility, pen_por_enabled').eq('id', APP.currentConcoursId).single();
     if (data) {
       document.getElementById('app-header-sub').textContent = data.nom;
       if (data.results_visibility) APP.cache.results_visibility = data.results_visibility;
+      APP.cache.pen_por_enabled = data.pen_por_enabled !== false;
     }
   }
 
@@ -966,12 +971,15 @@ async function initApp() {
 async function loadBaseCache() {
   const [cats, obs] = await Promise.all([
     sb.from('categories').select('*').order('official', { ascending: false }),
-    sb.from('obstacles').select('*').order('id'),
+    sb.from('obstacles').select('*').order('groupe').order('code'),
   ]);
   APP.cache.categories = cats.data || [];
   APP.cache.obstacles = obs.data || [];
-  if (cats.error) console.error('loadBaseCache categories:', cats.error);
-  if (obs.error) console.error('loadBaseCache obstacles:', obs.error);
+  // Charger la config tronçons POR si juge
+  if (APP.role === 'juge' && APP.currentConcoursId) {
+    const { data: porCfgs } = await sb.from('por_configs').select('por_config_troncons(*)').eq('concours_id', APP.currentConcoursId).limit(1);
+    APP.cache.porConfigTroncons = porCfgs?.[0]?.por_config_troncons || [];
+  }
 }
 
 /* ================================================================
@@ -1463,16 +1471,24 @@ async function pageAdminObstacles() {
           </div>
         </div>
         <button class="btn-icon" onclick="openEditObstacle('${o.id}','${encodeURIComponent(JSON.stringify(o))}')">✎</button>
+        <button class="btn-danger btn-small" onclick="deleteObstacle('${o.id}')">✕</button>
       </div>`).join('')}
       ${!(byGroupe[g]||[]).length ? `<div style="color:var(--text3);font-size:13px;padding:8px;">Aucun obstacle. Cliquez "Import FFE".</div>` : ''}
     `).join('')}
   </div>`);
 }
 
+async function deleteObstacle(id) {
+  if (!confirm('Supprimer cet obstacle ?')) return;
+  const { error } = await sb.from('obstacles').delete().eq('id', id);
+  if (error) { showToast(error.message, 'error'); return; }
+  showToast('Obstacle supprimé', 'success');
+  navigateTo('admin-obstacles');
+}
 async function importObstaclesFFE() {
   const existing = APP.cache.obstacles.map(o => o.code);
-  const toInsert = FFE_OBSTACLES.filter(o => !existing.includes(o.code)).map(o => ({
-    ...o, pts_max: 10, id: undefined
+  const toInsert = FFE_OBSTACLES.filter(o => !existing.includes(o.code)).map(({ code, label, groupe, mode_exec }) => ({
+    code, label, groupe, mode_exec, pts_max: 10
   }));
   if (!toInsert.length) { showToast('Tous les obstacles FFE sont déjà présents', 'success'); return; }
   const { error } = await sb.from('obstacles').insert(toInsert);
@@ -1531,10 +1547,20 @@ async function pageAdminCavaliers() {
           <div class="list-item-sub"><span class="mono">${x.licence}</span> · ${x.ecurie||'—'}</div>
           ${x.observation?`<div style="font-size:12px;color:var(--orange);margin-top:2px;">📝 ${x.observation}</div>`:''}
         </div>
-        <button class="btn-icon" onclick="openEditCavalier('${x.id}','${encodeURIComponent(JSON.stringify(x))}')">✎</button>
+        <div class="flex-gap">
+          <button class="btn-icon" onclick="openEditCavalier('${x.id}','${encodeURIComponent(JSON.stringify(x))}')">✎</button>
+          <button class="btn-danger btn-small" onclick="deleteCavalier('${x.id}')">✕</button>
+        </div>
       </div>`).join('')}
     </div>
   </div>`);
+}
+async function deleteCavalier(id) {
+  if (!confirm('Supprimer ce cavalier ?')) return;
+  const { error } = await sb.from('cavaliers').delete().eq('id', id);
+  if (error) { showToast(error.message, 'error'); return; }
+  showToast('Cavalier supprimé', 'success');
+  navigateTo('admin-cavaliers');
 }
 function openEditCavalier(id, encoded) {
   APP.editTarget = id;
@@ -1578,10 +1604,20 @@ async function pageAdminChevaux() {
           <div class="list-item-name">${x.nom}</div>
           <div class="list-item-sub"><span class="mono">${x.sire||'—'}</span> · ${x.ecurie||'—'}</div>
         </div>
-        <button class="btn-icon" onclick="openEditCheval('${x.id}','${encodeURIComponent(JSON.stringify(x))}')">✎</button>
+        <div class="flex-gap">
+          <button class="btn-icon" onclick="openEditCheval('${x.id}','${encodeURIComponent(JSON.stringify(x))}')">✎</button>
+          <button class="btn-danger btn-small" onclick="deleteCheval('${x.id}')">✕</button>
+        </div>
       </div>`).join('')}
     </div>
   </div>`);
+}
+async function deleteCheval(id) {
+  if (!confirm('Supprimer ce cheval ?')) return;
+  const { error } = await sb.from('chevaux').delete().eq('id', id);
+  if (error) { showToast(error.message, 'error'); return; }
+  showToast('Cheval supprimé', 'success');
+  navigateTo('admin-chevaux');
 }
 function openEditCheval(id, encoded) {
   APP.editTarget = id;
@@ -2128,6 +2164,22 @@ async function pageOrgaParams() {
   const vis = APP.cache.results_visibility;
   const { data: cats } = await sb.from('categories').select('id,label,mode_ma').order('label');
   const { data: porConfigs } = await sb.from('por_configs').select('*, por_config_troncons(*), por_config_categories(categorie_id)').eq('concours_id', APP.currentConcoursId);
+  const { data: ptvParcours } = await sb.from('ptv_config_obstacles').select('*').eq('concours_id', APP.currentConcoursId).order('parcours_ref').order('ordre');
+  const { data: concours } = await sb.from('concours').select('pen_por_enabled').eq('id', APP.currentConcoursId).single();
+  const penPorEnabled = concours?.pen_por_enabled !== false;
+
+  // Grouper les obstacles PTV par parcours
+  const parcoursMap = {};
+  (ptvParcours||[]).forEach(row => {
+    const key = row.parcours_ref || row.id;
+    if (!parcoursMap[key]) parcoursMap[key] = { rows: [], nom: row.nom_parcours };
+    parcoursMap[key].rows.push(row);
+  });
+
+  if (!APP.cache.obstacles.length) {
+    const { data: obs } = await sb.from('obstacles').select('*').order('groupe').order('code');
+    APP.cache.obstacles = obs || [];
+  }
 
   setPageContent(`<div class="page active">
     <div class="page-header"><div><div class="page-title">Configuration</div></div></div>
@@ -2147,14 +2199,13 @@ async function pageOrgaParams() {
       ${!(porConfigs||[]).length ? `<div id="por-new-card">${renderPORConfigCard(null, 0, cats||[])}</div>` : ''}
     </div>
 
-    <div class="section-label">PTV — Obstacles</div>
-    <div class="card"><div class="card-body">
-      ${APP.cache.obstacles.map(o=>`
-      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-        <div><span class="mono" style="font-size:12px;color:var(--text3);">${o.code}</span><span style="font-size:14px;margin-left:8px;">${o.label}</span></div>
-        <span class="mono" style="font-size:13px;color:var(--accent);">${o.pts_max} pts</span>
-      </div>`).join('')}
-    </div></div>
+    <div class="section-label">PTV — Parcours</div>
+    <button class="btn-outline full-width mb16" onclick="addPTVParcours()">+ Ajouter un parcours PTV</button>
+    <div id="ptv-parcours-list">
+      ${Object.keys(parcoursMap).length ? Object.entries(parcoursMap).map(([pid, val], i) =>
+        renderPTVParcoursCard(pid, val.rows, i, val.nom)
+      ).join('') : `<div style="color:var(--text3);font-size:13px;padding:8px;">Aucun parcours. Cliquez "+ Ajouter un parcours PTV".</div>`}
+    </div>
   </div>`);
 }
 
@@ -2204,7 +2255,8 @@ function renderPORConfigCard(cfg, idx, cats) {
 
 function renderTronconRow(t, idx, cfgId) {
   const tpsIdeal = t.vitesse && t.distance ? ((t.distance / t.vitesse) * 60).toFixed(0) : '—';
-  return `<div class="form-row mb8" id="troncon-${cfgId}-${idx}" style="align-items:end;">
+  const penEnabled = t.pen_enabled !== false;
+  return `<div class="form-row mb8" id="troncon-${cfgId}-${idx}" style="align-items:end;flex-wrap:wrap;">
     <div class="form-group" style="margin-bottom:0;">
       <label class="form-label">Tronçon ${idx+1} — Vitesse</label>
       <div class="input-group"><input type="number" value="${t.vitesse||8}" step="0.1" id="v-${cfgId}-${idx}" oninput="updateTronconStats('${cfgId}')"><div class="input-group-append">km/h</div></div>
@@ -2215,6 +2267,12 @@ function renderTronconRow(t, idx, cfgId) {
         <div class="input-group" style="flex:1;"><input type="number" value="${t.distance||12}" step="0.1" id="d-${cfgId}-${idx}" oninput="updateTronconStats('${cfgId}')"><div class="input-group-append">km</div></div>
         ${idx>0?`<button class="btn-icon" onclick="removeTroncon('${cfgId}',${idx})" title="Supprimer">✕</button>`:''}
       </div>
+    </div>
+    <div style="width:100%;display:flex;align-items:center;gap:8px;margin-top:6px;padding:6px 0;border-top:1px solid var(--border);">
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text2);cursor:pointer;flex:1;">
+        <input type="checkbox" id="pen-${cfgId}-${idx}" ${penEnabled?'checked':''} style="accent-color:var(--accent);width:16px;height:16px;">
+        Autoriser pénalités (hors piste / contrôle manqué) pour ce tronçon
+      </label>
     </div>
   </div>`;
 }
@@ -2267,6 +2325,159 @@ function addPORConfig() {
   list.appendChild(div.firstElementChild);
 }
 
+async function savePenPorEnabled(val) {
+  await sb.from('concours').update({ pen_por_enabled: val }).eq('id', APP.currentConcoursId);
+  APP.cache.pen_por_enabled = val;
+  showToast(val ? 'Pénalités POR activées' : 'Pénalités POR désactivées', 'success');
+}
+
+/* ================================================================
+   ORGA — PTV PARCOURS
+   ================================================================ */
+function renderPTVParcoursCard(pid, rows, idx, nom) {
+  const obstacles = APP.cache.obstacles;
+  const selectedIds = rows.map(r => r.obstacle_id);
+  const parcoursNom = nom || `Parcours PTV ${idx+1}`;
+  return `<div class="card mb8" id="ptv-parcours-${pid}">
+    <div class="card-header">
+      <input type="text" id="ptv-nom-${pid}" value="${parcoursNom}" style="font-size:14px;font-weight:600;flex:1;margin-right:8px;" placeholder="Nom du parcours">
+      <button class="btn-danger btn-small" onclick="deletePTVParcours('${pid}')">Supprimer</button>
+    </div>
+    <div class="card-body">
+      <div class="section-label" style="margin-top:0;">Obstacles — glisser pour réordonner</div>
+      <div id="ptv-obs-list-${pid}" style="margin-bottom:12px;">
+        ${selectedIds.map((oid, i) => {
+          const o = obstacles.find(x => x.id === oid);
+          return o ? renderPTVObsRow(pid, oid, o, i) : '';
+        }).join('')}
+      </div>
+      <select onchange="addPTVObs('${pid}',this)" style="margin-bottom:12px;">
+        <option value="">+ Ajouter un obstacle...</option>
+        ${[1,2,3,4,5,6].map(g => `
+          <optgroup label="${GROUPE_LABELS[g]||'Groupe '+g}">
+            ${obstacles.filter(o=>o.groupe===g).map(o=>`<option value="${o.id}">${o.label} (${o.code})</option>`).join('')}
+          </optgroup>`).join('')}
+      </select>
+      <button class="btn-primary full-width" onclick="savePTVParcours('${pid}')">Enregistrer ce parcours</button>
+    </div>
+  </div>`;
+}
+
+function renderPTVObsRow(pid, oid, o, i) {
+  return `<div class="list-item" style="padding:8px 12px;cursor:grab;" draggable="true" data-oid="${oid}"
+    ondragstart="ptvDragStart(event,'${pid}')"
+    ondragover="ptvDragOver(event)"
+    ondragleave="ptvDragLeave(event)"
+    ondrop="ptvDrop(event,'${pid}')">
+    <span style="font-size:16px;color:var(--text3);min-width:24px;">☰</span>
+    <span class="mono" style="font-size:16px;color:var(--text3);min-width:28px;" data-num>${i+1}</span>
+    <div class="list-item-info"><div class="list-item-name" style="font-size:13px;">${o.label}</div><div class="list-item-sub">${o.code} · Gr.${o.groupe}</div></div>
+    <button class="btn-icon" onclick="removePTVObs('${pid}','${oid}')">✕</button>
+  </div>`;
+}
+
+function ptvDragStart(e, pid) {
+  APP._ptvDragOid = e.currentTarget.dataset.oid;
+  APP._ptvDragPid = pid;
+  e.currentTarget.style.opacity = '0.4';
+}
+function ptvDragOver(e) { e.preventDefault(); e.currentTarget.style.background = 'var(--accent-bg)'; }
+function ptvDragLeave(e) { e.currentTarget.style.background = ''; }
+function ptvDrop(e, pid) {
+  e.preventDefault();
+  e.currentTarget.style.background = '';
+  const srcOid = APP._ptvDragOid;
+  const tgtOid = e.currentTarget.dataset.oid;
+  if (srcOid === tgtOid || pid !== APP._ptvDragPid) return;
+  const container = document.getElementById(`ptv-obs-list-${pid}`);
+  const items = Array.from(container.children);
+  const srcEl = items.find(el => el.dataset.oid === srcOid);
+  const tgtEl = items.find(el => el.dataset.oid === tgtOid);
+  if (srcEl) srcEl.style.opacity = '';
+  if (srcEl && tgtEl) container.insertBefore(srcEl, tgtEl);
+  // Renumber
+  Array.from(container.children).forEach((row, i) => {
+    const num = row.querySelector('[data-num]');
+    if (num) num.textContent = i+1;
+  });
+}
+
+async function addPTVParcours() {
+  const pid = 'ptv-' + Date.now();
+  const list = document.getElementById('ptv-parcours-list');
+  const idx = list.children.length;
+  const div = document.createElement('div');
+  div.innerHTML = renderPTVParcoursCard(pid, [], idx);
+  list.appendChild(div.firstElementChild);
+  // Nettoyer le message vide
+  const empty = list.querySelector('[style*="Aucun parcours"]');
+  if (empty) empty.remove();
+}
+
+function addPTVObs(pid, sel) {
+  const oid = sel.value;
+  if (!oid) return;
+  sel.value = '';
+  const o = APP.cache.obstacles.find(x => x.id === oid);
+  if (!o) return;
+  const container = document.getElementById(`ptv-obs-list-${pid}`);
+  const idx = container.children.length;
+  const div = document.createElement('div');
+  div.innerHTML = renderPTVObsRow(pid, oid, o, idx);
+  container.appendChild(div.firstElementChild);
+}
+
+function removePTVObs(pid, oid) {
+  const container = document.getElementById(`ptv-obs-list-${pid}`);
+  const el = container.querySelector(`[data-oid="${oid}"]`);
+  if (el) el.remove();
+  // Renumber
+  Array.from(container.children).forEach((row, i) => {
+    const num = row.querySelector('.mono');
+    if (num) num.textContent = i+1;
+  });
+}
+
+async function savePTVParcours(pid) {
+  const container = document.getElementById(`ptv-obs-list-${pid}`);
+  const nom = document.getElementById(`ptv-nom-${pid}`)?.value || pid;
+  const rows = Array.from(container.children).map((el, i) => ({
+    concours_id: APP.currentConcoursId,
+    nom_parcours: nom,
+    parcours_ref: pid,
+    obstacle_id: el.dataset.oid,
+    ordre: i+1,
+  }));
+
+  // Supprimer les anciennes lignes de ce parcours
+  await sb.from('ptv_config_obstacles').delete().eq('concours_id', APP.currentConcoursId).eq('parcours_ref', pid);
+
+  if (rows.length) {
+    const { error } = await sb.from('ptv_config_obstacles').insert(rows);
+    if (error) { showToast(error.message, 'error'); return; }
+  }
+
+  await syncJugeAssignationsPTV();
+  showToast('Parcours PTV enregistré ✓', 'success');
+}
+
+async function deletePTVParcours(pid) {
+  await sb.from('ptv_config_obstacles').delete().eq('concours_id', APP.currentConcoursId).eq('parcours_ref', pid);
+  await syncJugeAssignationsPTV();
+  document.getElementById(`ptv-parcours-${pid}`)?.remove();
+  showToast('Parcours supprimé', 'success');
+}
+
+async function syncJugeAssignationsPTV() {
+  // Récupérer tous les obstacles encore dans des parcours actifs
+  const { data: active } = await sb.from('ptv_config_obstacles').select('obstacle_id').eq('concours_id', APP.currentConcoursId);
+  const activeIds = new Set((active||[]).map(r => r.obstacle_id));
+  // Supprimer les assignations PTV dont l'obstacle n'est plus dans aucun parcours
+  const { data: assigns } = await sb.from('juge_assignations').select('id,poste').eq('concours_id', APP.currentConcoursId).eq('type_epreuve', 'PTV');
+  const toDelete = (assigns||[]).filter(a => !activeIds.has(a.poste)).map(a => a.id);
+  if (toDelete.length) await sb.from('juge_assignations').delete().in('id', toDelete);
+}
+
 async function savePORConfig(cfgId) {
   // Read categories from checkboxes
   const checksContainer = document.getElementById(`por-cats-checks-${cfgId}`);
@@ -2281,7 +2492,8 @@ async function savePORConfig(cfgId) {
     Array.from(container.children).forEach((_, i) => {
       const v = parseFloat(document.getElementById(`v-${cfgId}-${i}`)?.value) || 8;
       const d = parseFloat(document.getElementById(`d-${cfgId}-${i}`)?.value) || 12;
-      troncons.push({ vitesse:v, distance:d, ordre:i+1 });
+      const pen = document.getElementById(`pen-${cfgId}-${i}`)?.checked !== false;
+      troncons.push({ vitesse:v, distance:d, ordre:i+1, pen_enabled:pen });
     });
   }
 
@@ -2518,12 +2730,13 @@ function saveScheduleEdit() {
    ORGA — JUGES
    ================================================================ */
 async function pageOrgaJuges() {
-  const [{ data: juges }, { data: assignations }, { data: porConfigs }] = await Promise.all([
+  const [{ data: juges }, { data: assignations }, { data: porConfigs }, { data: ptvObs }] = await Promise.all([
     sb.from('juges').select('id,prenom,nom,email,code_invitation,code_used,code_actif,user_id').order('created_at'),
     sb.from('juge_assignations').select('*').eq('concours_id', APP.currentConcoursId),
     sb.from('por_configs').select('id,nom,por_config_troncons(ordre)').eq('concours_id', APP.currentConcoursId),
-  ]);
+    sb.from('ptv_config_obstacles').select('obstacle_id').eq('concours_id', APP.currentConcoursId),  ]);
   APP.cache.juges = juges || [];
+  APP._jugeAssignations = assignations || [];
 
   // Construire la liste des postes
   const postes = [];
@@ -2536,8 +2749,12 @@ async function pageOrgaJuges() {
   // MA : seulement deux postes
   postes.push({ type:'MA', poste:'portes', label:'MA — Portes (balises)' });
   postes.push({ type:'MA', poste:'temps', label:'MA — Chrono allures' });
-  // PTV par obstacle
-  APP.cache.obstacles.forEach(o => postes.push({ type:'PTV', poste:o.id, label:`PTV — ${o.label}` }));
+  // PTV : obstacles des parcours configurés (dédoublonnés)
+  const ptvObsIds = [...new Set((ptvObs||[]).map(r => r.obstacle_id))];
+  ptvObsIds.forEach(oid => {
+    const o = APP.cache.obstacles.find(x => x.id === oid);
+    if (o) postes.push({ type:'PTV', poste:o.id, label:`PTV — ${o.label} (${o.code})` });
+  });
 
   // Map poste -> juge assigné
   const assignMap = {};
@@ -2557,46 +2774,8 @@ async function pageOrgaJuges() {
     </div>
 
     <div class="section-label">Comptes juges</div>
-    ${(() => {
-      // Séparer lignes template (sans user_id) et juges inscrits (avec user_id)
-      const templates = (juges||[]).filter(j => !j.user_id);
-      const inscrits = (juges||[]).filter(j => !!j.user_id);
-
-      // Grouper par code_invitation
-      const codeMap = {};
-      templates.forEach(j => {
-        const code = j.code_invitation || 'sans-code';
-        codeMap[code] = { code, actif: j.code_actif !== false, juges: [] };
-      });
-      // Ajouter les juges inscrits sous leur code
-      inscrits.forEach(j => {
-        const code = j.code_invitation || 'sans-code';
-        if (!codeMap[code]) codeMap[code] = { code, actif: j.code_actif !== false, juges: [] };
-        codeMap[code].juges.push(j);
-      });
-
-      return Object.values(codeMap).map(({ code, actif, juges: jlist }) => `
-        <div class="card mb8"><div class="card-body">
-          <div class="flex-between mb8">
-            <div>
-              <span class="mono" style="font-size:16px;color:${actif?'var(--accent)':'var(--red)'};">${code}</span>
-              <span class="status-badge ${actif?'partant':'elim'}" style="margin-left:8px;">${actif?'ACTIF':'DÉSACTIVÉ'}</span>
-            </div>
-            <button class="btn-outline btn-small" onclick="toggleCodeJuge('${code}',${!actif})">${actif?'Désactiver':'Activer'}</button>
-          </div>
-          ${jlist.length ? jlist.map(j => {
-            const jugeAssigns = (assignations||[]).filter(a => a.juge_id === j.id);
-            return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--border);">
-              <div style="flex:1;">
-                <div style="font-size:13px;font-weight:600;">${j.prenom||'—'} ${j.nom||'—'}</div>
-                <div style="font-size:11px;color:var(--text3);">${j.email||''}</div>
-                ${jugeAssigns.length ? `<div style="margin-top:4px;">${jugeAssigns.map(a=>`<span class="status-badge pending" style="margin-right:2px;">${a.type_epreuve} — ${a.poste}</span>`).join('')}</div>` : '<div style="font-size:11px;color:var(--text3);margin-top:2px;">Non assign\u00e9</div>'}
-              </div>
-              <button class="btn-danger btn-small" onclick="revokeJuge('${j.id}')">Révoquer</button>
-            </div>`;
-          }).join('') : `<div style="font-size:12px;color:var(--text3);padding-top:6px;border-top:1px solid var(--border);">Aucun juge inscrit avec ce code.</div>`}
-        </div></div>`).join('');
-    })()}
+    <input type="search" placeholder="Rechercher un juge..." style="margin-bottom:12px;" oninput="filterJuges(this.value)">
+    <div id="juges-list">${renderJugesList(juges, assignations)}</div>
 
     <div class="section-label">Attribution des postes</div>
     <div id="juge-attribution-list">
@@ -2625,6 +2804,53 @@ async function pageOrgaJuges() {
       selects.forEach(sel => { sel.value = assigned[0]; });
     }
   });
+}
+
+function renderJugesList(juges, assignations, filtre) {
+  const templates = (juges||[]).filter(j => !j.user_id);
+  const inscrits = (juges||[]).filter(j => !!j.user_id);
+  const codeMap = {};
+  templates.forEach(j => {
+    const code = j.code_invitation || 'sans-code';
+    codeMap[code] = { code, actif: j.code_actif !== false, juges: [] };
+  });
+  inscrits.forEach(j => {
+    const code = j.code_invitation || 'sans-code';
+    if (!codeMap[code]) codeMap[code] = { code, actif: j.code_actif !== false, juges: [] };
+    codeMap[code].juges.push(j);
+  });
+  return Object.values(codeMap).map(({ code, actif, juges: jlist }) => {
+    const filteredJuges = filtre
+      ? jlist.filter(j => `${j.prenom||''} ${j.nom||''} ${j.email||''}`.toLowerCase().includes(filtre.toLowerCase()))
+      : jlist;
+    if (filtre && !filteredJuges.length && !code.toLowerCase().includes(filtre.toLowerCase())) return '';
+    return `<div class="card mb8"><div class="card-body">
+      <div class="flex-between mb8">
+        <div>
+          <span class="mono" style="font-size:16px;color:${actif?'var(--accent)':'var(--red)'};">${code}</span>
+          <span class="status-badge ${actif?'partant':'elim'}" style="margin-left:8px;">${actif?'ACTIF':'DÉSACTIVÉ'}</span>
+        </div>
+        <button class="btn-outline btn-small" onclick="toggleCodeJuge('${code}',${!actif})">${actif?'Désactiver':'Activer'}</button>
+      </div>
+      ${filteredJuges.length ? filteredJuges.map(j => {
+        const jugeAssigns = (assignations||[]).filter(a => a.juge_id === j.id);
+        return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--border);">
+          <div style="flex:1;">
+            <div style="font-size:13px;font-weight:600;">${j.prenom||'—'} ${j.nom||'—'}</div>
+            <div style="font-size:11px;color:var(--text3);">${j.email||''}</div>
+            ${jugeAssigns.length ? `<div style="margin-top:4px;">${jugeAssigns.map(a=>`<span class="status-badge pending" style="margin-right:2px;">${a.type_epreuve} — ${a.poste}</span>`).join('')}</div>` : '<div style="font-size:11px;color:var(--text3);margin-top:2px;">Non assign\u00e9</div>'}
+          </div>
+          <button class="btn-danger btn-small" onclick="revokeJuge('${j.id}')">R\u00e9voquer</button>
+        </div>`;
+      }).join('') : `<div style="font-size:12px;color:var(--text3);padding-top:6px;border-top:1px solid var(--border);">Aucun juge inscrit avec ce code.</div>`}
+    </div></div>`;
+  }).join('');
+}
+
+function filterJuges(val) {
+  const list = document.getElementById('juges-list');
+  if (!list) return;
+  list.innerHTML = renderJugesList(APP.cache.juges, APP._jugeAssignations, val);
 }
 
 async function assignJugePoste(type, poste, jugeId) {
@@ -3060,25 +3286,10 @@ function renderJugePOR() {
     <div id="por-entry" style="display:none;">
       <div class="por-control"><div class="por-control-label">Passage — ${poste}</div>
         <div class="time-grid">
-          ${isDepart ? `
-          <div class="form-group">
-            <label class="form-label">Heure théorique</label>
-            <div style="display:flex;gap:6px;align-items:center;">
-              <input type="number" id="por-theo-mm" placeholder="mm" min="0" max="59" style="font-family:'DM Mono',monospace;font-size:20px;text-align:center;width:70px;">
-              <span style="font-size:20px;color:var(--text3);">:</span>
-              <input type="number" id="por-theo-ss" placeholder="ss" min="0" max="59" style="font-family:'DM Mono',monospace;font-size:20px;text-align:center;width:70px;">
-            </div>
-          </div>` : ''}
-          <div class="form-group">
-            <label class="form-label">Heure réelle</label>
-            <div style="display:flex;gap:6px;align-items:center;">
-              <input type="number" id="por-reel-mm" placeholder="mm" min="0" max="59" style="font-family:'DM Mono',monospace;font-size:20px;text-align:center;width:70px;">
-              <span style="font-size:20px;color:var(--text3);">:</span>
-              <input type="number" id="por-reel-ss" placeholder="ss" min="0" max="59" style="font-family:'DM Mono',monospace;font-size:20px;text-align:center;width:70px;">
-            </div>
-          </div>
+          ${isDepart ? `<div class="form-group"><label class="form-label">Heure théorique</label><div id="por-theorique-display" style="font-family:'DM Mono',monospace;font-size:20px;color:var(--text3);padding:10px 0;">—</div></div>` : ''}
+          <div class="form-group"><label class="form-label">Heure réelle</label><input type="time" id="por-reel" style="font-family:'DM Mono',monospace;font-size:20px;text-align:center;"></div>
         </div>
-        <div class="penalty-grid">
+        <div class="penalty-grid" id="por-penalties">
           <div class="penalty-item"><div class="penalty-label">Hors piste (×30pts)</div><div class="penalty-counter"><button class="penalty-btn" onclick="adjPen('hp',-1)">−</button><div class="penalty-val" id="pen-hp">0</div><button class="penalty-btn" onclick="adjPen('hp',1)">+</button></div></div>
           <div class="penalty-item"><div class="penalty-label">Contrôle manqué (×50pts)</div><div class="penalty-counter"><button class="penalty-btn" onclick="adjPen('au',-1)">−</button><div class="penalty-val" id="pen-au">0</div><button class="penalty-btn" onclick="adjPen('au',1)">+</button></div></div>
         </div>
@@ -3093,7 +3304,6 @@ function showPOREntry(id) {
   const entry = document.getElementById('por-entry');
   if (!id) { entry.style.display = 'none'; return; }
   entry.style.display = 'block';
-  // Pré-remplir heure courante
   const now = new Date();
   const hh = String(now.getHours()).padStart(2,'0');
   const mm = String(now.getMinutes()).padStart(2,'0');
@@ -3102,6 +3312,23 @@ function showPOREntry(id) {
   APP._pen = { hp:0, au:0 };
   document.getElementById('pen-hp').textContent = '0';
   document.getElementById('pen-au').textContent = '0';
+  // Afficher heure théorique depuis les horaires
+  const theoriqueEl = document.getElementById('por-theorique-display');
+  if (theoriqueEl) {
+    const sched = (APP.cache.schedules?.por || []).find(s => s.id === id);
+    theoriqueEl.textContent = sched?.time || '—';
+    APP._por_theorique = sched?.time || null;
+  }
+  // Afficher/masquer pénalités selon config du tronçon
+  const poste = APP.jugeAssignation?.poste || 'depart';
+  const porCfg = APP.cache.porConfigTroncons || [];
+  const troncon = porCfg.find(t => {
+    const posteMap = { depart: 1, controle1: 2, controle2: 3, controle3: 4, arrivee: 5 };
+    return t.ordre === (posteMap[poste] || 1);
+  });
+  const penEnabled = troncon ? troncon.pen_enabled !== false : true;
+  const penGrid = document.getElementById('por-penalties');
+  if (penGrid) penGrid.style.display = penEnabled ? '' : 'none';
 }
 function adjPen(t, d) { APP._pen[t] = Math.max(0, APP._pen[t]+d); document.getElementById('pen-'+t).textContent = APP._pen[t]; }
 async function savePOREntry(engId) {
@@ -3109,15 +3336,8 @@ async function savePOREntry(engId) {
   const poste = APP.jugeAssignation?.poste || 'depart';
   const isDepart = poste === 'depart';
 
-  const fmtTime = (mm, ss) => {
-    const m = parseInt(mm)||0, s = parseInt(ss)||0;
-    return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-  };
-
-  const theoriqueVal = isDepart
-    ? fmtTime(document.getElementById('por-theo-mm')?.value, document.getElementById('por-theo-ss')?.value)
-    : null;
-  const reelVal = fmtTime(document.getElementById('por-reel-mm')?.value, document.getElementById('por-reel-ss')?.value);
+  const theoriqueVal = isDepart ? (APP._por_theorique || null) : null;
+  const reelVal = document.getElementById('por-reel')?.value || null;
 
   const action = {
     type: 'por',
@@ -3148,14 +3368,21 @@ async function savePOREntry(engId) {
 
 function renderJugeMA() {
   const parts = APP.cache.participants.filter(p => p.statut === 'partant');
-  const firstCat = parts[0] ? APP.cache.categories.find(c => c.id === parts[0].categorie) : null;
-  const modeTemps = firstCat?.mode_ma === 'temps';
-  const couloir = (firstCat?.id || '').match(/A1|AE/) ? 150 : 100;
+  const poste = APP.jugeAssignation?.poste || 'portes';
+  const modeTemps = poste === 'temps';
+  const couloir = (APP.cache.categories.find(c => c.id === parts[0]?.categorie)?.id || '').match(/A1|AE/) ? 150 : 100;
+  const multiPoste = (APP.jugeAssignations||[]).length > 1;
 
   setPageContent(`<div class="page active">
-    <div class="page-header"><div><div class="page-title">MA</div><div class="page-subtitle">Mode : ${modeTemps ? 'Chrono allures' : 'Portes'}</div></div></div>
+    <div class="page-header">
+      <div>
+        <div class="page-title">MA : ${modeTemps ? 'Temps' : 'Portes'}</div>
+        <div class="page-subtitle">${modeTemps ? 'Chrono allures' : '5 portes — 10 pts chacune'}</div>
+      </div>
+      ${multiPoste ? `<button class="btn-outline btn-small" onclick="pageJugeEntry()">← Postes</button>` : ''}
+    </div>
     <select id="ma-sel" style="margin-bottom:16px;" onchange="loadMAPart(this.value)">
-      <option value="">— S\u00e9lectionner un participant —</option>
+      <option value="">— Sélectionner un participant —</option>
       ${parts.map(p=>`<option value="${p.id}">Doss. ${p.dossard||'—'} — ${p.prenom} ${p.nom}</option>`).join('')}
     </select>
     <div id="ma-content" style="display:none;">
@@ -3166,13 +3393,13 @@ function renderJugeMA() {
           <div class="form-group"><label class="form-label">Temps (s)</label><input type="number" id="ma-temps-galop" placeholder="ex: 19.4" step="0.1" style="font-family:'DM Mono',monospace;font-size:20px;text-align:center;" oninput="updateMAScore()"></div>
           <div class="form-group"><label class="form-label">Score galop</label><div style="font-family:'DM Mono',monospace;font-size:28px;color:var(--accent);text-align:center;padding:10px 0;" id="ma-score-galop">—</div></div>
         </div>
-        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2);cursor:pointer;"><input type="checkbox" id="ma-galop-elim" onchange="updateMAScore()"> \u00c9limin\u00e9 (sortie couloir / rupture)</label>
-        <div class="section-label">\u00c9 le pas rapide — ${couloir}m</div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2);cursor:pointer;"><input type="checkbox" id="ma-galop-elim" onchange="updateMAScore()"> Éliminé (sortie couloir / rupture)</label>
+        <div class="section-label">Pas rapide — ${couloir}m</div>
         <div class="form-row">
           <div class="form-group"><label class="form-label">Temps (s)</label><input type="number" id="ma-temps-pas" placeholder="ex: 56.5" step="0.1" style="font-family:'DM Mono',monospace;font-size:20px;text-align:center;" oninput="updateMAScore()"></div>
           <div class="form-group"><label class="form-label">Score pas</label><div style="font-family:'DM Mono',monospace;font-size:28px;color:var(--accent);text-align:center;padding:10px 0;" id="ma-score-pas">—</div></div>
         </div>
-        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2);cursor:pointer;"><input type="checkbox" id="ma-pas-elim" onchange="updateMAScore()"> \u00c9limin\u00e9 (sortie couloir / rupture)</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2);cursor:pointer;"><input type="checkbox" id="ma-pas-elim" onchange="updateMAScore()"> Éliminé (sortie couloir / rupture)</label>
         <div style="margin-top:16px;background:var(--bg3);border-radius:var(--radius);padding:12px;display:flex;justify-content:space-between;align-items:center;">
           <span style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);">Total MA</span>
           <span class="mono" style="font-size:28px;color:var(--accent);" id="ma-score-total">—</span>
@@ -3180,13 +3407,19 @@ function renderJugeMA() {
       </div></div>
       <input type="hidden" id="ma-couloir" value="${couloir}">
       ` : `
-      <div style="font-size:13px;color:var(--text2);margin-bottom:12px;">1 appui = valid\u00e9e ✓ · 2 appuis = manqu\u00e9e ✗ · 3 appuis = effacer</div>
-      <div class="balise-grid">${Array.from({length:20},(_,i)=>`<button class="balise-btn" id="bal-${i}" onclick="toggleBalise(${i},this)">${i+1}</button>`).join('')}</div>
-      <div style="margin-top:16px;display:flex;gap:12px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius2);padding:14px;">
-        <div style="flex:1;text-align:center;"><div class="mono" style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;">Valid\u00e9es</div><div class="mono" style="font-size:28px;color:var(--accent);" id="bal-count">0</div></div>
-        <div style="flex:1;text-align:center;"><div class="mono" style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;">Manqu\u00e9es</div><div class="mono" style="font-size:28px;color:var(--red);" id="bal-miss">0</div></div>
-        <div style="flex:1;text-align:center;"><div class="mono" style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;">Score</div><div class="mono" style="font-size:28px;color:var(--text);" id="bal-score">0</div></div>
-      </div>
+      <div class="card mb12"><div class="card-body">
+        <div class="section-label" style="margin-top:0;">Portes réussies</div>
+        ${[1,2,3,4,5].map(i => `
+        <label style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--bg3);border-radius:var(--radius);margin-bottom:8px;cursor:pointer;font-size:15px;">
+          <input type="checkbox" id="porte-${i}" onchange="updateMAPortesScore()" style="width:22px;height:22px;accent-color:var(--accent);flex-shrink:0;">
+          <span>Porte ${i}</span>
+          <span style="margin-left:auto;font-family:'DM Mono',monospace;color:var(--accent);">+10 pts</span>
+        </label>`).join('')}
+        <div style="margin-top:8px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius2);padding:14px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);">Score MA</span>
+          <span class="mono" style="font-size:32px;color:var(--accent);" id="ma-portes-score">0</span>
+        </div>
+      </div></div>
       `}
       <button class="btn-primary full-width mt16" onclick="saveMAEntry()">✓ Valider la saisie</button>
     </div>
@@ -3195,6 +3428,15 @@ function renderJugeMA() {
   APP._maEngId = null;
   APP._maModeTemps = modeTemps;
   APP._maCouloir = couloir;
+}
+
+function updateMAPortesScore() {
+  let score = 0;
+  for (let i = 1; i <= 5; i++) {
+    if (document.getElementById(`porte-${i}`)?.checked) score += 10;
+  }
+  const el = document.getElementById('ma-portes-score');
+  if (el) el.textContent = score;
 }
 
 function updateMAScore() {
@@ -3252,7 +3494,13 @@ async function saveMAEntry() {
     };
     action = { type:'ma', engagement_id: APP._maEngId, mode:'temps', balises_data: null, chrono_data };
   } else {
-    action = { type:'ma', engagement_id: APP._maEngId, mode:'balises', balises_data: APP._bal || {}, chrono_data: null };
+    // Mode portes : 5 portes, 10 pts chacune
+    const portes = {};
+    for (let i = 1; i <= 5; i++) {
+      portes[i] = document.getElementById(`porte-${i}`)?.checked || false;
+    }
+    const balises_data = Object.fromEntries(Object.entries(portes).map(([k,v]) => [k, v ? true : false]));
+    action = { type:'ma', engagement_id: APP._maEngId, mode:'balises', balises_data, chrono_data: null };
   }
   if (APP.isOnline) await processSyncAction(action);
   else addPendingSync(action);
@@ -3274,15 +3522,40 @@ async function saveMAEntry() {
    ================================================================ */
 async function pageJugeRecap() {
   if (!APP.cache.participants.length) await loadEngagements();
-  // Load today's logs for this juge
-  const { data: logs } = await sb.from('log_saisies')
-    .select('engagement_id, type_action, created_at')
-    .eq('juge_id', APP.jugeProfile?.id || '')
-    .gte('created_at', new Date().toISOString().split('T')[0]);
-  const saisedIds = new Set((logs||[]).map(l => l.engagement_id));
+  const jugeId = APP.jugeProfile?.id;
+  if (!jugeId) {
+    setPageContent(`<div class="page active"><div class="alert-banner warn"><div>⚠️</div><div>Profil juge non chargé.</div></div></div>`);
+    return;
+  }
+
+  const type = APP.jugeAssignation?.type_epreuve || 'PTV';
+  const poste = APP.jugeAssignation?.poste || '';
+
+  // Charger les scores selon le type d'épreuve
+  let saisedIds = new Set();
+  if (type === 'PTV' && poste) {
+    const { data: scores } = await sb.from('scores_ptv').select('engagement_id').eq('obstacle_id', poste);
+    saisedIds = new Set((scores||[]).map(s => s.engagement_id));
+  } else if (type === 'POR') {
+    const { data: scores } = await sb.from('scores_por').select('engagement_id').eq('controle', poste);
+    saisedIds = new Set((scores||[]).map(s => s.engagement_id));
+  } else if (type === 'MA') {
+    const { data: scores } = await sb.from('scores_ma').select('engagement_id');
+    saisedIds = new Set((scores||[]).map(s => s.engagement_id));
+  }
+
+  const partants = APP.cache.participants.filter(p => p.statut === 'partant');
   setPageContent(`<div class="page active">
-    <div class="page-header"><div><div class="page-title">Récap</div><div class="page-subtitle">Mes saisies du jour</div></div></div>
-    ${APP.cache.participants.filter(p => p.statut==='partant').map(p=>`
+    <div class="page-header">
+      <div><div class="page-title">Récap</div><div class="page-subtitle">${type} — ${poste}</div></div>
+      <button class="btn-outline btn-small" onclick="pageJugeRecap()">⟳</button>
+    </div>
+    <div style="display:flex;gap:12px;padding:12px;background:var(--bg2);border-radius:var(--radius2);margin-bottom:16px;">
+      <div style="flex:1;text-align:center;"><div class="mono" style="font-size:28px;color:var(--accent);">${[...saisedIds].filter(id => partants.find(p=>p.id===id)).length}</div><div style="font-size:11px;color:var(--text3);">SAISIS</div></div>
+      <div style="flex:1;text-align:center;"><div class="mono" style="font-size:28px;color:var(--orange);">${partants.length - [...saisedIds].filter(id => partants.find(p=>p.id===id)).length}</div><div style="font-size:11px;color:var(--text3);">EN ATTENTE</div></div>
+      <div style="flex:1;text-align:center;"><div class="mono" style="font-size:28px;">${partants.length}</div><div style="font-size:11px;color:var(--text3);">TOTAL</div></div>
+    </div>
+    ${partants.map(p=>`
     <div class="list-item">
       <div class="list-item-dossard">${p.dossard||'—'}</div>
       <div class="list-item-info"><div class="list-item-name">${p.prenom} ${p.nom}</div><div class="list-item-sub">${p.cheval_nom}</div></div>
@@ -3690,4 +3963,4 @@ window.addEventListener('load', async () => {
 });
 </script>
 </body>
-</html>a
+</html>
