@@ -147,7 +147,7 @@ a{color:var(--accent);text-decoration:none}
 .alert-banner.warn{background:var(--orange-bg);border:1px solid rgba(212,149,90,.3);color:var(--orange)}
 .alert-banner.ok{background:var(--accent-bg);border:1px solid rgba(122,173,90,.3);color:var(--accent)}
 .alert-banner.info{background:var(--blue-bg);border:1px solid rgba(90,143,212,.3);color:var(--blue)}
-.list-item{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius2);padding:14px 16px;margin-bottom:8px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:border-color var(--transition),background var(--transition);position:relative;overflow:hidden}
+.list-item{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius2);padding:14px 16px;margin-bottom:8px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:border-color var(--transition),background var(--transition);position:relative;}
 .list-item:hover{background:var(--bg3)}
 .list-item::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px}
 .list-item.official::before{background:var(--official)}
@@ -503,6 +503,41 @@ a{color:var(--accent);text-decoration:none}
     </div>
   </div>
   <div class="modal-actions"><button class="btn-primary" onclick="validateEngagement()">Confirmer</button><button class="btn-secondary" onclick="closeModal('modal-engagement')">Annuler</button></div></div>
+</div>
+
+<div class="modal-overlay" id="modal-add-partant">
+  <div class="modal"><div class="modal-handle"></div><div class="modal-title">Ajouter un partant</div>
+  <div class="modal-body">
+    <div class="section-label" style="margin-top:0;">Cavalier</div>
+    <div class="form-group"><label class="form-label">N° Licence</label><input type="text" id="ap-licence" placeholder="ex: 12345A" oninput="this.value=this.value.toUpperCase();prefillCavalierOrga(this.value)"></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">Prénom</label><input type="text" id="ap-prenom"></div>
+      <div class="form-group"><label class="form-label">Nom</label><input type="text" id="ap-nom"></div>
+    </div>
+    <div class="form-group"><label class="form-label">Écurie / Club</label><input type="text" id="ap-ecurie"></div>
+    <div class="section-label">Cheval</div>
+    <div class="form-group"><label class="form-label">N° SIRE</label><input type="text" id="ap-sire" style="font-family:'DM Mono',monospace;" oninput="this.value=this.value.toUpperCase();prefillChevalOrga(this.value)"></div>
+    <div class="form-group"><label class="form-label">Nom du cheval</label><input type="text" id="ap-cheval"></div>
+    <div class="section-label">Engagement</div>
+    <div class="form-group"><label class="form-label">Catégorie</label>
+      <select id="ap-categorie"><option value="">— Choisir —</option></select>
+    </div>
+    <div class="form-group"><label class="form-label">Type</label>
+      <select id="ap-type" onchange="document.getElementById('ap-equipe-wrap').style.display=this.value==='equ'?'block':'none'">
+        <option value="ind">Individuel</option>
+        <option value="equ">Équipe</option>
+      </select>
+    </div>
+    <div class="form-group" id="ap-equipe-wrap" style="display:none;">
+      <label class="form-label">Nom de l'équipe</label>
+      <input type="text" id="ap-equipe" list="ap-equipe-list">
+      <datalist id="ap-equipe-list"></datalist>
+    </div>
+  </div>
+  <div class="modal-actions">
+    <button class="btn-primary" onclick="saveAddPartant()">Ajouter</button>
+    <button class="btn-secondary" onclick="closeModal('modal-add-partant')">Annuler</button>
+  </div></div>
 </div>
 
 <div class="modal-overlay" id="modal-participant-detail">
@@ -1116,14 +1151,16 @@ async function saveAssignOrga() {
    ADMIN — CATÉGORIES
    ================================================================ */
 async function pageAdminParam() {
-  const { data: cats } = await sb.from('categories').select('*').order('official', { ascending: false });
+  const { data: cats } = await sb.from('categories').select('*').order('official', { ascending: false }).order('label');
   APP.cache.categories = cats || [];
+  const officielles = (cats||[]).filter(c=>c.official).sort((a,b)=>a.label.localeCompare(b.label));
+  const nonOfficielles = (cats||[]).filter(c=>!c.official).sort((a,b)=>a.label.localeCompare(b.label));
   setPageContent(`<div class="page active">
     <div class="page-header"><div><div class="page-title">Catégories</div><div class="page-subtitle">Paramétrage</div></div><button class="btn-outline btn-small" onclick="openEditCat(null)">+ Catégorie</button></div>
     <div class="section-label">Officielles</div>
-    ${(cats||[]).filter(c=>c.official).map(renderCatRow).join('')}
+    ${officielles.map(renderCatRow).join('')}
     <div class="section-label">Club / Non officielles</div>
-    ${(cats||[]).filter(c=>!c.official).map(renderCatRow).join('')}
+    ${nonOfficielles.map(renderCatRow).join('')}
   </div>`);
 }
 function renderCatRow(c) {
@@ -1144,8 +1181,19 @@ function renderCatRow(c) {
         <div style="font-family:'DM Mono',monospace;font-size:13px;color:var(--text3);margin-top:2px;">PTV max: ${c.max_ptv||120}</div>
       </div>
       <button class="btn-icon" onclick="openEditCat('${c.id}')">✎</button>
+      <button class="btn-icon" style="color:var(--red);" onclick="deleteCat('${c.id}','${c.label.replace(/'/g,"\\'")}')">🗑</button>
     </div>
   </div>`;
+}
+async function deleteCat(id, label) {
+  if (!confirm(`Supprimer la catégorie "${label}" ? Cette action est irréversible.`)) return;
+  // Cascade manuelle : nettoyer toutes les FK avant de supprimer
+  await sb.from('por_config_categories').delete().eq('categorie_id', id);
+  await sb.from('ptv_config_categories').delete().eq('categorie_id', id);
+  const { error } = await sb.from('categories').delete().eq('id', id);
+  if (error) { showToast(error.message, 'error'); return; }
+  showToast('Catégorie supprimée', 'success');
+  navigateTo('admin-param');
 }
 function openEditCat(id) {
   APP.editTarget = id;
@@ -1683,7 +1731,7 @@ async function loadEngagements() {
     },
     raw_scores_ptv: e.scores_ptv || [],
     raw_scores_por: e.scores_por || [],
-    raw_scores_ma: e.scores_ma || [],
+    raw_scores_ma: Array.isArray(e.scores_ma) ? e.scores_ma : (e.scores_ma ? [e.scores_ma] : []),
     elim_por: e.elim_por || false,
     elim_ma: e.elim_ma || false,
     elim_ptv: e.elim_ptv || false,
@@ -1695,12 +1743,6 @@ function calcPORScore(rows, cat) {
   const ptsDep = cat.pts_por || 230;
   let pen = 0;
   rows.forEach(r => {
-    // Penalites temps : ecart en minutes entre heure reelle et theorique
-    if (r.heure_theorique && r.heure_reelle) {
-      const toMin = t => { const [h,m] = t.split(':').map(Number); return h*60+m; };
-      pen += Math.abs(toMin(r.heure_reelle) - toMin(r.heure_theorique));
-    }
-    // Penalites parcours : 30 ou 50 pts
     pen += (r.penalites_hors_piste || 0) * 30;
     pen += (r.penalites_autres || 0) * 50;
   });
@@ -1744,10 +1786,11 @@ function scoreFromBareme(temps, bareme) {
 }
 
 function calcMAScore(rows) {
-  if (!rows || !rows.length) return null;
-  const r = rows[0];
+  if (!rows) return null;
+  // Supabase peut retourner un objet direct ou un tableau
+  const r = Array.isArray(rows) ? rows[0] : rows;
+  if (!r) return null;
   if (r.mode === 'balises' && r.balises_data) {
-    // Club mode : 5 zones * 10 pts
     const b = r.balises_data;
     return Object.values(b).filter(v => v === true).length * 10;
   }
@@ -1818,76 +1861,91 @@ async function pageOrgaDashboard() {
 async function pageOrgaParticipants() {
   await loadEngagements();
   const parts = APP.cache.participants;
+  APP._dossardMode = false;
   setPageContent(`<div class="page active">
     <div class="page-header">
       <div><div class="page-title">Participants</div><div class="page-subtitle">${parts.length} engagés</div></div>
       <div class="flex-gap">
-        <button class="btn-outline btn-small" onclick="toggleDossardMode()">⇅ Dossards</button>
+        <button class="btn-outline btn-small" id="btn-dossard-mode" onclick="toggleDossardMode()">⇅ Dossards</button>
+        <button class="btn-primary btn-small" onclick="openAddPartant()">+ Partant</button>
       </div>
     </div>
     <button class="btn-secondary full-width mb16" onclick="generateTempSheet()">📋 Fiche température (PDF)</button>
-    <div id="dossard-mode-banner" style="display:none;background:var(--orange-bg);border:1px solid rgba(212,149,90,.3);border-radius:var(--radius);padding:10px 14px;margin-bottom:12px;display:none;font-size:13px;color:var(--orange);">
-      Mode réorganisation dossards — glissez les participants pour changer l'ordre
+    <div id="dossard-mode-banner" style="display:none;background:var(--orange-bg);border:1px solid rgba(212,149,90,.3);border-radius:var(--radius);padding:10px 14px;margin-bottom:12px;font-size:13px;color:var(--orange);align-items:center;">
+      Glissez les lignes pour réordonner les dossards
       <button class="btn-primary btn-small" style="margin-left:12px;" onclick="saveDossardsInline()">Enregistrer</button>
+      <button class="btn-secondary btn-small" style="margin-left:6px;" onclick="toggleDossardMode()">Annuler</button>
     </div>
     <input type="search" placeholder="Rechercher..." style="margin-bottom:12px;" oninput="filterList(this.value,'part-list')">
     <div id="part-list">
-      ${parts.map((p,i) => {
-        const cat = p.categorie_obj;
-        const total = (p.scores.por||0)+(p.scores.ma||0)+(p.scores.ptv||0);
-        return `<div class="list-item ${cat?.official?'official':'unofficial'}" data-id="${p.id}" data-index="${i}" draggable="false" onclick="openParticipantDetail('${p.id}')">
-          <div class="list-item-dossard drag-handle-inline" style="cursor:default;">${p.dossard||'—'}</div>
-          <div class="list-item-info">
-            <div class="list-item-name">${p.prenom} ${p.nom}</div>
-            <div class="list-item-sub">${p.cheval_nom} · ${p.ecurie}</div>
-            <div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;">
-              <span class="cat-badge ${cat?.official?'official':'unofficial'}">${p.categorie}</span>
-              <span class="status-badge ${p.statut}">${{partant:'PARTANT',np:'NP',elim:'ÉLIM'}[p.statut]||p.statut}</span>
-            </div>
-          </div>
-          <div class="list-item-right"><div class="list-item-score ${p.statut!=='partant'?'text-muted':''}">${p.statut==='partant'?(total||'—'):'—'}</div><div class="list-item-rank">pts</div></div>
-        </div>`;
-      }).join('')}
+      ${parts.map((p,i) => renderPartantRow(p, i, false)).join('')}
     </div>
   </div>`);
-  APP._dossardMode = false;
   initDragDropData();
+}
+
+function renderPartantRow(p, i, dragMode) {
+  const cat = p.categorie_obj;
+  const total = (p.scores.por||0)+(p.scores.ma||0)+(p.scores.ptv||0);
+  if (dragMode) {
+    return `<div class="list-item ${cat?.official?'official':'unofficial'}" data-id="${p.id}" draggable="true"
+      ondragstart="partDragStart(event)"
+      ondragover="partDragOver(event)"
+      ondragleave="partDragLeave(event)"
+      ondrop="partDrop(event)"
+      ondragend="partDragEnd(event)">
+      <span style="font-size:20px;color:var(--text3);min-width:24px;cursor:grab;">☰</span>
+      <div class="list-item-dossard" style="color:var(--accent);">${p.dossard||'—'}</div>
+      <div class="list-item-info">
+        <div class="list-item-name">${p.prenom} ${p.nom}</div>
+        <div class="list-item-sub">${p.cheval_nom}</div>
+      </div>
+    </div>`;
+  }
+  return `<div class="list-item ${cat?.official?'official':'unofficial'}" data-id="${p.id}" onclick="openParticipantDetail('${p.id}')">
+    <div class="list-item-dossard">${p.dossard||'—'}</div>
+    <div class="list-item-info">
+      <div class="list-item-name">${p.prenom} ${p.nom}</div>
+      <div class="list-item-sub">${p.cheval_nom} · ${p.ecurie}</div>
+      <div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;">
+        <span class="cat-badge ${cat?.official?'official':'unofficial'}">${p.categorie}</span>
+        <span class="status-badge ${p.statut}">${{partant:'PARTANT',np:'NP',elim:'ÉLIM'}[p.statut]||p.statut}</span>
+      </div>
+    </div>
+    <div class="list-item-right"><div class="list-item-score ${p.statut!=='partant'?'text-muted':''}">${p.statut==='partant'?(total||'—'):'—'}</div><div class="list-item-rank">pts</div></div>
+  </div>`;
+}
+
+function partDragStart(e) {
+  APP._partDragSrc = e.currentTarget.dataset.id;
+  e.currentTarget.style.opacity = '0.4';
+}
+function partDragOver(e) { e.preventDefault(); e.currentTarget.style.background = 'var(--accent-bg)'; }
+function partDragLeave(e) { e.currentTarget.style.background = ''; }
+function partDragEnd(e) { e.currentTarget.style.opacity = ''; e.currentTarget.style.background = ''; }
+function partDrop(e) {
+  e.preventDefault();
+  e.currentTarget.style.background = '';
+  const srcId = APP._partDragSrc;
+  const tgtId = e.currentTarget.dataset.id;
+  if (!srcId || srcId === tgtId) return;
+  const arr = APP.cache.participants;
+  const srcIdx = arr.findIndex(p => p.id === srcId);
+  const tgtIdx = arr.findIndex(p => p.id === tgtId);
+  if (srcIdx < 0 || tgtIdx < 0) return;
+  const item = arr.splice(srcIdx, 1)[0];
+  arr.splice(tgtIdx, 0, item);
+  arr.forEach((p, i) => { p.dossard = i + 1; });
+  // Rerender en mode drag
+  document.getElementById('part-list').innerHTML = arr.map((p, i) => renderPartantRow(p, i, true)).join('');
 }
 
 function toggleDossardMode() {
   APP._dossardMode = !APP._dossardMode;
   const banner = document.getElementById('dossard-mode-banner');
-  const items = document.querySelectorAll('#part-list .list-item');
-  if (APP._dossardMode) {
-    banner.style.display = 'flex';
-    banner.style.alignItems = 'center';
-    items.forEach((el, i) => {
-      el.draggable = true;
-      el.style.cursor = 'grab';
-      el.setAttribute('onclick','');
-      el.addEventListener('dragstart', e => { APP._dragSrcIdx = i; el.style.opacity='.4'; });
-      el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('over'); });
-      el.addEventListener('dragleave', () => el.classList.remove('over'));
-      el.addEventListener('drop', e => {
-        e.preventDefault(); el.classList.remove('over');
-        const src = APP._dragSrcIdx;
-        const tgt = parseInt(el.dataset.index);
-        if (src === tgt) return;
-        const arr = APP.cache.participants;
-        const item = arr.splice(src, 1)[0];
-        arr.splice(tgt, 0, item);
-        // Réassigner les dossards
-        arr.forEach((p, idx) => { p.dossard = idx + 1; });
-        pageOrgaParticipants();
-        // Réactiver le mode après re-render
-        setTimeout(() => { APP._dossardMode = false; toggleDossardMode(); }, 50);
-      });
-      el.addEventListener('dragend', () => { el.style.opacity=''; items.forEach(i => i.classList.remove('over')); });
-    });
-  } else {
-    banner.style.display = 'none';
-    items.forEach(el => { el.draggable = false; el.style.cursor = ''; });
-  }
+  const list = document.getElementById('part-list');
+  banner.style.display = APP._dossardMode ? 'flex' : 'none';
+  list.innerHTML = APP.cache.participants.map((p, i) => renderPartantRow(p, i, APP._dossardMode)).join('');
 }
 
 async function saveDossardsInline() {
@@ -1904,7 +1962,18 @@ async function saveDossardsInline() {
    ORGA — RÉCAPITULATIF
    ================================================================ */
 async function pageOrgaRecap() {
+  // Forcer rechargement frais (pas de cache)
+  APP.cache.participants = [];
   await loadEngagements();
+  // Charger les configs PTV et POR pour le récap
+  const [{ data: ptvObs }, { data: ptvCats }, { data: porConfigs }] = await Promise.all([
+    sb.from('ptv_config_obstacles').select('*').eq('concours_id', APP.currentConcoursId).order('parcours_ref').order('ordre'),
+    sb.from('ptv_config_categories').select('parcours_ref,categorie_id').eq('concours_id', APP.currentConcoursId),
+    sb.from('por_configs').select('*, por_config_troncons(*), por_config_categories(categorie_id)').eq('concours_id', APP.currentConcoursId),
+  ]);
+  APP.cache.ptvObsConfig = ptvObs || [];
+  APP.cache.ptvCatLinks = ptvCats || [];
+  APP.cache.porConfigs = porConfigs || [];
   setPageContent(`<div class="page active">
     <div class="page-header">
       <div><div class="page-title">Récapitulatif</div><div class="page-subtitle">Saisies des juges</div></div>
@@ -1930,104 +1999,168 @@ function renderRecapPOR() {
   const parts = APP.cache.participants.filter(p => p.statut === 'partant');
   if (!parts.length) return `<div style="color:var(--text3);padding:16px;">Aucun partant.</div>`;
 
-  // Récupérer la config POR pour les temps idéaux
-  const porConfig = APP.cache.porConfig || null;
-
   const toMin = t => {
     if (!t) return null;
-    const [h,m] = t.split(':').map(Number);
-    return h*60+m;
+    const p2 = t.split(':').map(Number);
+    return p2[0]*60 + p2[1] + (p2[2]||0)/60;
+  };
+  const fmtTime = m => {
+    if (m === null) return '—';
+    const h = Math.floor(m/60), mn = Math.floor(m%60);
+    return `${String(h).padStart(2,'0')}:${String(mn).padStart(2,'0')}`;
   };
   const fmtDiff = d => {
-    if (d === null) return '—';
+    if (d === null) return '';
     const sign = d >= 0 ? '+' : '';
-    return `${sign}${d}min`;
+    return `${sign}${Math.round(d)}min`;
   };
 
-  // Grouper par équipe pour les non-officiels, individuel pour les officiels
-  const rows = [];
-  const equipesSeen = new Set();
+  // Config POR tronçons
+  const porConfigs = APP.cache.porConfigs || [];
+  const ordreControles = ['depart','controle1','controle2','controle3','controle4','controle5','arrivee'];
 
+  // Calcule les heures théoriques pour un partant depuis son heure de départ réelle + config tronçons
+  const calcTheoriques = (rawScores, catId) => {
+    const cfg = porConfigs.find(c => (c.por_config_categories||[]).some(x => x.categorie_id === catId));
+    if (!cfg) return {};
+    const troncons = (cfg.por_config_troncons||[]).sort((a,b) => a.ordre - b.ordre);
+    const departScore = rawScores.find(s => s.controle === 'depart');
+    const departMin = toMin(departScore?.heure_reelle);
+    if (departMin === null) return {};
+    const theoriques = { depart: departMin };
+    let cumul = departMin;
+    troncons.forEach((t, i) => {
+      const tpsMin = t.vitesse > 0 ? (t.distance / t.vitesse) * 60 : 0;
+      cumul += tpsMin;
+      const key = i === troncons.length - 1 ? 'arrivee' : `controle${i+1}`;
+      theoriques[key] = cumul;
+    });
+    return theoriques;
+  };
+
+  // Détermine les contrôles réels depuis les scores
+  const allControles = new Set();
+  parts.forEach(p => (p.raw_scores_por||[]).forEach(s => { if(s.controle) allControles.add(s.controle); }));
+  const controles = ordreControles.filter(c => allControles.has(c));
+  if (!controles.length) controles.push('depart','controle1','controle2','arrivee');
+
+  const labelControle = c => {
+    if (c === 'depart') return 'Départ';
+    if (c === 'arrivee') return 'Arrivée';
+    return `Ctrl ${c.replace('controle','')}`;
+  };
+
+  const renderCell = (scores, c, theoriques) => {
+    const s = scores.find(x => x.controle === c);
+    if (!s?.heure_reelle) return `<td style="text-align:center;color:var(--text3);">—</td>`;
+    const reel = toMin(s.heure_reelle);
+    const theo = theoriques[c] ?? null;
+    const diff = (reel !== null && theo !== null) ? (reel - theo) : null;
+    const color = diff === null ? 'var(--text)' : Math.abs(diff) < 1 ? 'var(--accent)' : 'var(--orange)';
+    return `<td style="text-align:center;">
+      <span class="mono" style="font-size:12px;">${fmtTime(reel)}</span>
+      ${diff !== null ? `<div style="font-size:10px;color:${color};">${fmtDiff(diff)}</div>` : ''}
+    </td>`;
+  };
+
+  const calcPen = (rawScores, theoriques) => {
+    return rawScores.reduce((acc, s) => {
+      let v = (s.penalites_hors_piste||0)*30 + (s.penalites_autres||0)*50;
+      const theo = theoriques[s.controle] ?? null;
+      const reel = toMin(s.heure_reelle);
+      if (theo !== null && reel !== null) v += Math.abs(reel - theo);
+      return acc + v;
+    }, 0);
+  };
+
+  const renderIndivRow = (p, indent=false) => {
+    const scores = p.raw_scores_por || [];
+    const theoriques = calcTheoriques(scores, p.categorie);
+    const ptsDep = p.categorie_obj?.pts_por || 230;
+    const pen = calcPen(scores, theoriques);
+    const score = Math.max(0, ptsDep - Math.round(pen));
+    const pad = indent ? 'padding-left:20px;' : '';
+    return `<tr>
+      <td class="mono" style="${pad}">${p.dossard||'—'}</td>
+      <td style="${pad}">${p.prenom} ${p.nom}</td>
+      ${controles.map(c => renderCell(scores, c, theoriques)).join('')}
+      <td class="score-cell" style="color:${Math.round(pen)>0?'var(--red)':'var(--text3)'};">${Math.round(pen)||'—'}</td>
+      <td class="score-cell">${score}</td>
+    </tr>`;
+  };
+
+  // Grouper
+  const equipesSeen = new Set();
+  const equipeOfficielRows = [], equipeChallengeRows = [], indivByCat = {};
   parts.forEach(p => {
-    const cat = p.categorie_obj;
-    const isOfficial = cat?.official;
-    if (!isOfficial && p.equipe_id) {
+    if (p.equipe_id) {
       if (equipesSeen.has(p.equipe_id)) return;
       equipesSeen.add(p.equipe_id);
       const membres = parts.filter(m => m.equipe_id === p.equipe_id);
-      rows.push({ type:'equipe', membres, equipe: p.equipe, p });
+      if (p.categorie_obj?.official) equipeOfficielRows.push({ membres, equipe: p.equipe });
+      else equipeChallengeRows.push({ membres, equipe: p.equipe });
     } else {
-      rows.push({ type:'indiv', p });
+      const catId = p.categorie || 'Sans catégorie';
+      if (!indivByCat[catId]) indivByCat[catId] = [];
+      indivByCat[catId].push(p);
     }
   });
 
-  const controles = ['depart','controle1','controle2','controle3'];
-
-  return `<div class="scrollable-x"><table class="results-table" style="min-width:700px;">
+  const minWidth = 200 + controles.length * 90;
+  let html = `<div class="scrollable-x"><table class="results-table" style="min-width:${minWidth}px;">
     <thead><tr>
       <th>Doss.</th><th>Cavalier / Équipe</th>
-      ${controles.map((c,i) => `<th style="text-align:right">T${i+1}</th>`).join('')}
+      ${controles.map(c => `<th style="text-align:center;font-size:11px;">${labelControle(c)}</th>`).join('')}
       <th style="text-align:right">Pén.</th><th style="text-align:right">Score</th>
-    </tr></thead>
-    <tbody>
-      ${rows.map(row => {
-        if (row.type === 'equipe') {
-          const { membres, equipe } = row;
-          const dossards = membres.map(m => m.dossard||'—').join(', ');
-          const prenomRef = membres[0]?.prenom || '—';
-          // Prendre les scores du premier membre qui a des scores
-          const refP = membres.find(m => m.raw_scores_por?.length) || membres[0];
-          const scores = refP.raw_scores_por || [];
-          const pen = membres.reduce((a,m) => a + (m.raw_scores_por||[]).reduce((b,s) => b+(s.penalites_hors_piste||0)+(s.penalites_autres||0),0), 0);
-          const scoreTotal = membres.reduce((a,m) => a+(m.scores.por||0), 0);
-          const tronconsCells = controles.map(c => {
-            const s = scores.find(x => x.controle === c);
-            if (!s?.heure_reelle) return `<td style="text-align:right;color:var(--text3);">—</td>`;
-            const reel = toMin(s.heure_reelle);
-            const theo = toMin(s.heure_theorique);
-            const diff = (reel !== null && theo !== null) ? (reel - theo) : null;
-            const color = diff === null ? 'var(--text)' : diff === 0 ? 'var(--accent)' : 'var(--orange)';
-            return `<td style="text-align:right;">
-              <span class="mono" style="font-size:12px;">${s.heure_reelle}</span>
-              ${theo !== null ? `<div style="font-size:10px;color:${color};">(${s.heure_theorique} | ${fmtDiff(diff)})</div>` : ''}
-            </td>`;
-          });
-          return `<tr>
-            <td class="mono" style="font-size:11px;">${dossards}</td>
-            <td><div style="font-weight:600;">${prenomRef} — ${equipe}</div><div style="font-size:11px;color:var(--text3);">${membres.map(m=>m.nom).join(', ')}</div></td>
-            ${tronconsCells.join('')}
-            <td class="score-cell" style="color:${pen>0?'var(--red)':'var(--text3)'};">${pen||'—'}</td>
-            <td class="score-cell">${scoreTotal||'—'}</td>
-          </tr>`;
-        } else {
-          const { p } = row;
-          const scores = p.raw_scores_por || [];
-          const pen = scores.reduce((a,s) => a+(s.penalites_hors_piste||0)+(s.penalites_autres||0), 0);
-          const tronconsCells = controles.map(c => {
-            const s = scores.find(x => x.controle === c);
-            if (!s?.heure_reelle) return `<td style="text-align:right;color:var(--text3);">—</td>`;
-            const reel = toMin(s.heure_reelle);
-            const theo = toMin(s.heure_theorique);
-            const diff = (reel !== null && theo !== null) ? (reel - theo) : null;
-            const color = diff === null ? 'var(--text)' : diff === 0 ? 'var(--accent)' : 'var(--orange)';
-            return `<td style="text-align:right;">
-              <span class="mono" style="font-size:12px;">${s.heure_reelle}</span>
-              ${theo !== null ? `<div style="font-size:10px;color:${color};">(${s.heure_theorique} | ${fmtDiff(diff)})</div>` : ''}
-            </td>`;
-          });
-          return `<tr>
-            <td class="mono">${p.dossard||'—'}</td>
-            <td>${p.prenom} ${p.nom}</td>
-            ${tronconsCells.join('')}
-            <td class="score-cell" style="color:${pen>0?'var(--red)':'var(--text3)'};">${pen||'—'}</td>
-            <td class="score-cell">${p.scores.por??'—'}</td>
-          </tr>`;
-        }
-      }).join('')}
-    </tbody>
-  </table></div>`;
-}
+    </tr></thead><tbody>`;
 
+  if (equipeOfficielRows.length) {
+    html += `<tr><td colspan="${3+controles.length}" style="background:var(--bg3);font-size:11px;font-weight:700;color:var(--official);padding:6px 12px;">ÉQUIPES OFFICIELLES</td></tr>`;
+    equipeOfficielRows.forEach(({ membres, equipe }) => {
+      const refP = membres.find(m => m.raw_scores_por?.length) || membres[0];
+      const scores = refP.raw_scores_por || [];
+      const theoriques = calcTheoriques(scores, refP.categorie);
+      const pen = membres.reduce((a,m) => a + calcPen(m.raw_scores_por||[], calcTheoriques(m.raw_scores_por||[], m.categorie)), 0);
+      const scoreTotal = membres.reduce((a,m) => {
+        const s = m.raw_scores_por||[];
+        const th = calcTheoriques(s, m.categorie);
+        return a + Math.max(0, (m.categorie_obj?.pts_por||230) - Math.round(calcPen(s,th)));
+      }, 0);
+      html += `<tr>
+        <td class="mono" style="font-size:11px;">${membres.map(m=>m.dossard||'—').join(', ')}</td>
+        <td><div style="font-weight:600;">${equipe}</div><div style="font-size:11px;color:var(--text3);">${membres.map(m=>m.prenom+' '+m.nom).join(', ')}</div></td>
+        ${controles.map(c => renderCell(scores, c, theoriques)).join('')}
+        <td class="score-cell" style="color:${Math.round(pen)>0?'var(--red)':'var(--text3)'};">${Math.round(pen)||'—'}</td>
+        <td class="score-cell">${scoreTotal}</td>
+      </tr>`;
+    });
+  }
+
+  if (equipeChallengeRows.length) {
+    html += `<tr><td colspan="${3+controles.length}" style="background:var(--bg3);font-size:11px;font-weight:700;color:var(--unofficial);padding:6px 12px;">ÉQUIPES CHALLENGE</td></tr>`;
+    equipeChallengeRows.forEach(({ membres, equipe }) => {
+      const refP = membres.find(m => m.raw_scores_por?.length) || membres[0];
+      const schedScores = refP.raw_scores_por || [];
+      const theoriques = calcTheoriques(schedScores, refP.categorie);
+      html += `<tr style="background:var(--bg3);">
+        <td class="mono" style="font-size:11px;">${membres.map(m=>m.dossard||'—').join(', ')}</td>
+        <td><div style="font-weight:600;color:var(--unofficial);">⚑ ${equipe}</div></td>
+        ${controles.map(c => renderCell(schedScores, c, theoriques)).join('')}
+        <td></td><td></td>
+      </tr>`;
+      membres.forEach(p => { html += renderIndivRow(p, true); });
+    });
+  }
+
+  Object.entries(indivByCat).forEach(([catId, catParts]) => {
+    const catObj = APP.cache.categories.find(c => c.id === catId);
+    html += `<tr><td colspan="${3+controles.length}" style="background:var(--bg3);font-size:11px;font-weight:700;color:var(--text3);padding:6px 12px;">INDIVIDUEL — ${(catObj?.label||catId).toUpperCase()}</td></tr>`;
+    catParts.forEach(p => { html += renderIndivRow(p); });
+  });
+
+  html += `</tbody></table></div>`;
+  return html;
+}
 function renderRecapMA() {
   const parts = APP.cache.participants.filter(p => p.statut === 'partant');
   if (!parts.length) return `<div style="color:var(--text3);padding:16px;">Aucun partant.</div>`;
@@ -2036,48 +2169,108 @@ function renderRecapMA() {
     if (!ma) return `<div class="list-item"><div class="list-item-dossard">${p.dossard||'—'}</div><div class="list-item-info"><div class="list-item-name">${p.prenom} ${p.nom}</div><div class="list-item-sub">Non saisi</div></div><span class="status-badge pending">EN ATTENTE</span></div>`;
     if (ma.mode === 'balises' && ma.balises_data) {
       const b = ma.balises_data;
-      const hit = Object.values(b).filter(v=>v===true).length;
-      const miss = Object.values(b).filter(v=>v===false).length;
-      const total = Object.keys(b).length;
-      const grid = Array.from({length:20},(_,i)=>{
-        const v = b[i];
-        const color = v===true?'var(--accent)':v===false?'var(--red)':'var(--text3)';
-        const bg = v===true?'var(--accent-bg)':v===false?'var(--red-bg)':'var(--bg3)';
-        return `<div style="width:28px;height:28px;background:${bg};border-radius:4px;display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-size:11px;color:${color};">${i+1}</div>`;
+      const keys = Object.keys(b).sort((a,b2) => parseInt(a)-parseInt(b2));
+      const hit = keys.filter(k => b[k] === true).length;
+      const total = keys.length;
+      const grid = keys.map(k => {
+        const ok = b[k] === true;
+        const color = ok ? 'var(--accent)' : 'var(--red)';
+        const bg = ok ? 'var(--accent-bg)' : 'var(--red-bg)';
+        return `<div style="min-width:60px;padding:6px 10px;background:${bg};border-radius:var(--radius);display:flex;align-items:center;gap:6px;font-size:12px;color:${color};">
+          <span>${ok?'✓':'✗'}</span><span>${parseInt(k)+1}</span>
+        </div>`;
       }).join('');
-      return `<div class="card mb8"><div class="card-header"><div><div style="font-weight:600;">${p.prenom} ${p.nom} · Doss. ${p.dossard||'—'}</div><div style="font-size:12px;color:var(--text3);">Balises : ${hit}✓ ${miss}✗ sur ${total}</div></div><div class="score-cell">${p.scores.ma??'—'}</div></div><div class="card-body"><div style="display:flex;flex-wrap:wrap;gap:4px;">${grid}</div></div></div>`;
+      return `<div class="card mb8"><div class="card-header"><div><div style="font-weight:600;">${p.prenom} ${p.nom} · Doss. ${p.dossard||'—'}</div><div style="font-size:12px;color:var(--text3);">${hit}/${total} balises réussies</div></div><div class="score-cell">${p.scores.ma??'—'}</div></div><div class="card-body"><div style="display:flex;flex-wrap:wrap;gap:4px;">${grid}</div></div></div>`;
     }
-    return `<div class="list-item"><div class="list-item-dossard">${p.dossard||'—'}</div><div class="list-item-info"><div class="list-item-name">${p.prenom} ${p.nom}</div><div class="list-item-sub">Mode chrono</div></div><div class="list-item-score">${p.scores.ma??'—'}</div></div>`;
+    if (ma.mode === 'temps' && ma.chrono_data) {
+      const d = ma.chrono_data;
+      return `<div class="list-item"><div class="list-item-dossard">${p.dossard||'—'}</div><div class="list-item-info"><div class="list-item-name">${p.prenom} ${p.nom}</div><div class="list-item-sub">Galop: ${d.temps_galop??'—'}s · Pas: ${d.temps_pas??'—'}s${d.galop_elim?' · Galop ÉLIM':''}${d.pas_elim?' · Pas ÉLIM':''}</div></div><div class="list-item-score">${p.scores.ma??'—'}</div></div>`;
+    }
+    return `<div class="list-item"><div class="list-item-dossard">${p.dossard||'—'}</div><div class="list-item-info"><div class="list-item-name">${p.prenom} ${p.nom}</div><div class="list-item-sub">Données incomplètes</div></div><span class="status-badge pending">EN ATTENTE</span></div>`;
   }).join('');
 }
 
 function renderRecapPTV() {
   const parts = APP.cache.participants.filter(p => p.statut === 'partant');
   if (!parts.length) return `<div style="color:var(--text3);padding:16px;">Aucun partant.</div>`;
+
+  // Charger les liens parcours <-> catégorie depuis APP.cache.ptvCatLinks
+  const catLinks = APP.cache.ptvCatLinks || [];
+  const ptvObsConfig = APP.cache.ptvObsConfig || [];
+
+  // Construire un map parcours_ref -> liste d'obstacle_ids ordonnés
+  const parcoursObsMap = {};
+  ptvObsConfig.forEach(row => {
+    const pid = row.parcours_ref || row.id;
+    if (!parcoursObsMap[pid]) parcoursObsMap[pid] = [];
+    parcoursObsMap[pid].push(row);
+  });
+  Object.values(parcoursObsMap).forEach(rows => rows.sort((a,b)=>a.ordre-b.ordre));
+
+  // Map catégorie -> parcours_ref
+  const catToParcours = {};
+  catLinks.forEach(lnk => { catToParcours[lnk.categorie_id] = lnk.parcours_ref; });
+
+  // Grouper les partants par parcours
+  const parcoursParts = {};
+  const noParcoursP = [];
+  parts.forEach(p => {
+    const pid = catToParcours[p.categorie];
+    if (pid) {
+      if (!parcoursParts[pid]) parcoursParts[pid] = [];
+      parcoursParts[pid].push(p);
+    } else {
+      noParcoursP.push(p);
+    }
+  });
+
   const obstacles = APP.cache.obstacles;
-  return `<div class="scrollable-x"><table class="results-table" style="min-width:${200+obstacles.length*60}px;">
-    <thead><tr>
-      <th>Doss.</th><th>Cavalier</th>
-      ${obstacles.map(o=>`<th style="text-align:right;font-size:9px;">${o.code}</th>`).join('')}
-      <th style="text-align:right">Total</th>
-    </tr></thead>
-    <tbody>
-      ${parts.map(p => {
-        const scores = p.raw_scores_ptv || [];
-        return `<tr>
-          <td class="mono">${p.dossard||'—'}</td>
-          <td>${p.prenom} ${p.nom}</td>
-          ${obstacles.map(o => {
-            const s = scores.find(x => x.obstacle_id === o.id);
-            const pts = s?.points;
-            const color = pts===undefined?'var(--text3)':pts===0?'var(--red)':pts===o.pts_max?'var(--accent)':'var(--text)';
-            return `<td style="text-align:right;color:${color};" class="mono">${pts??'—'}</td>`;
+
+  const renderParcoursTable = (pid, parcParts) => {
+    const obsRows = parcoursObsMap[pid] || [];
+    const obsObjects = obsRows.map(r => obstacles.find(o => o.id === r.obstacle_id)).filter(Boolean);
+    const nomParcours = ptvObsConfig.find(r => r.parcours_ref === pid)?.nom_parcours || pid;
+    if (!obsObjects.length) return '';
+    return `
+      <div class="section-label">${nomParcours}</div>
+      <div class="scrollable-x"><table class="results-table" style="min-width:${200+obsObjects.length*55}px;">
+        <thead><tr>
+          <th>Doss.</th><th>Cavalier</th>
+          ${obsObjects.map(o=>`<th style="text-align:right;font-size:9px;">${o.code}</th>`).join('')}
+          <th style="text-align:right">Total</th>
+        </tr></thead>
+        <tbody>
+          ${parcParts.map(p => {
+            const scores = p.raw_scores_ptv || [];
+            return `<tr>
+              <td class="mono">${p.dossard||'—'}</td>
+              <td>${p.prenom} ${p.nom}</td>
+              ${obsObjects.map(o => {
+                const s = scores.find(x => x.obstacle_id === o.id);
+                const pts = s?.points;
+                const color = pts===undefined?'var(--text3)':pts===0?'var(--red)':pts===o.pts_max?'var(--accent)':'var(--text)';
+                return `<td style="text-align:right;color:${color};" class="mono">${pts??'—'}</td>`;
+              }).join('')}
+              <td class="score-cell">${p.scores.ptv??'—'}</td>
+            </tr>`;
           }).join('')}
-          <td class="score-cell">${p.scores.ptv??'—'}</td>
-        </tr>`;
-      }).join('')}
-    </tbody>
-  </table></div>`;
+        </tbody>
+      </table></div>`;
+  };
+
+  let html = '';
+  Object.entries(parcoursParts).forEach(([pid, pp]) => { html += renderParcoursTable(pid, pp); });
+
+  if (noParcoursP.length) {
+    html += `<div class="section-label" style="color:var(--orange);">Sans parcours assigné</div>`;
+    html += `<div class="scrollable-x"><table class="results-table"><thead><tr><th>Doss.</th><th>Cavalier</th><th>Catégorie</th><th style="text-align:right">Score</th></tr></thead><tbody>`;
+    noParcoursP.forEach(p => {
+      html += `<tr><td class="mono">${p.dossard||'—'}</td><td>${p.prenom} ${p.nom}</td><td style="font-size:11px;color:var(--text3);">${p.categorie_obj?.label||p.categorie}</td><td class="score-cell">${p.scores.ptv??'—'}</td></tr>`;
+    });
+    html += `</tbody></table></div>`;
+  }
+
+  return html || `<div style="color:var(--text3);padding:16px;">Aucun parcours PTV configuré.</div>`;
 }
 
 /* ================================================================
@@ -2108,9 +2301,14 @@ function renderResultsByCategory(type) {
   cats.forEach(catId => {
     const cat = APP.cache.categories.find(c => c.id === catId);
     const catParts = partants.filter(p => p.categorie === catId);
-    const indivs = catParts.filter(p => !p.equipe);
+    const isOfficial = cat?.official;
+    // Challenge = équipe non-officielle = classement individuel uniquement
+    // Officiel = équipe officielle = score équipe calculé
+    const indivs = isOfficial ? catParts.filter(p => !p.equipe_id) : catParts;
     const equipeMap = {};
-    catParts.filter(p => p.equipe).forEach(p => { if (!equipeMap[p.equipe]) equipeMap[p.equipe] = []; equipeMap[p.equipe].push(p); });
+    if (isOfficial) {
+      catParts.filter(p => p.equipe_id).forEach(p => { if (!equipeMap[p.equipe]) equipeMap[p.equipe] = []; equipeMap[p.equipe].push(p); });
+    }
     html += `<div class="cat-section">
       <div class="cat-section-header">
         <span class="cat-section-title">${cat?cat.label:catId}</span>
@@ -2125,12 +2323,26 @@ function renderResultsByCategory(type) {
     if (equipes.length) {
       const eqScores = equipes.map(([name,members]) => {
         const globals = members.map(m=>(m.scores.por||0)+(m.scores.ma||0)+(m.scores.ptv||0)).sort((a,b)=>b-a);
-        const score = cat?.official ? globals.slice(0,3).reduce((a,b)=>a+b,0) : globals.reduce((a,b)=>a+b,0);
+        const score = globals.slice(0,3).reduce((a,b)=>a+b,0);
         return { name, members, score };
       }).sort((a,b)=>b.score-a.score);
-      html += `<div class="cat-sub-label">Équipes${cat?.official?' (3 meilleurs)':''}</div><div class="scrollable-x"><table class="results-table" style="min-width:100%;"><thead><tr><th>#</th><th>Équipe</th><th>Membres</th><th style="text-align:right">Score</th></tr></thead><tbody>`;
-      eqScores.forEach(({name,members,score},i) => { html += `<tr class="rank-${i+1}"><td class="rank-cell">${i+1}</td><td style="font-weight:600;">${name}</td><td style="font-size:12px;color:var(--text3);">${members.map(m=>m.prenom+' '+m.nom).join(', ')}</td><td class="score-cell">${score}</td></tr>`; });
-      html += `</tbody></table></div>`;
+
+      if (type === 'global' || type === 'por') {
+        // Score équipe uniquement
+        html += `<div class="cat-sub-label">Équipes (3 meilleurs)</div><div class="scrollable-x"><table class="results-table" style="min-width:100%;"><thead><tr><th>#</th><th>Équipe</th><th>Membres</th><th style="text-align:right">Score</th></tr></thead><tbody>`;
+        eqScores.forEach(({name,members,score},i) => { html += `<tr class="rank-${i+1}"><td class="rank-cell">${i+1}</td><td style="font-weight:600;">${name}</td><td style="font-size:12px;color:var(--text3);">${members.map(m=>m.prenom+' '+m.nom).join(', ')}</td><td class="score-cell">${score}</td></tr>`; });
+        html += `</tbody></table></div>`;
+      } else {
+        // MA et PTV : individuel groupé sous équipe
+        html += `<div class="cat-sub-label">Équipes — résultats individuels</div>`;
+        eqScores.forEach(({name,members}) => {
+          const sorted = sortWithTiebreak(members);
+          html += `<div style="margin-bottom:12px;">
+            <div style="padding:6px 12px;background:var(--bg3);border-radius:var(--radius);font-size:12px;font-weight:700;color:var(--text3);margin-bottom:4px;">🏇 ${name}</div>
+            <div class="scrollable-x">${buildTable(sorted, type)}</div>
+          </div>`;
+        });
+      }
     }
     html += `</div></div>`;
   });
@@ -2153,7 +2365,10 @@ function sortWithTiebreak(parts) {
 }
 function buildTable(sorted, type) {
   return `<table class="results-table" style="min-width:100%;"><thead><tr><th>#</th><th>Doss.</th><th>Cavalier</th>${type==='global'?'<th style="text-align:right">POR</th><th style="text-align:right">MA</th><th style="text-align:right">PTV</th>':''}<th style="text-align:right">Score</th></tr></thead><tbody>
-  ${sorted.map((p,i)=>`<tr class="rank-${i+1}"><td class="rank-cell">${i+1}</td><td class="mono">${p.dossard||'—'}</td><td>${p.prenom} ${p.nom}</td>${type==='global'?`<td class="score-cell" style="color:var(--text2);">${p.scores.por??'—'}</td><td class="score-cell" style="color:var(--text2);">${p.scores.ma??'—'}</td><td class="score-cell" style="color:var(--text2);">${p.scores.ptv??'—'}</td>`:''}<td class="score-cell">${getScore(p,type)||'—'}</td></tr>`).join('')}
+  ${sorted.map((p,i)=>{
+    const equipeLabel = p.equipe && !p.categorie_obj?.official ? `<div style="font-size:11px;color:var(--unofficial);">⚑ ${p.equipe}</div>` : '';
+    return `<tr class="rank-${i+1}"><td class="rank-cell">${i+1}</td><td class="mono">${p.dossard||'—'}</td><td>${p.prenom} ${p.nom}${equipeLabel}</td>${type==='global'?`<td class="score-cell" style="color:var(--text2);">${p.scores.por??'—'}</td><td class="score-cell" style="color:var(--text2);">${p.scores.ma??'—'}</td><td class="score-cell" style="color:var(--text2);">${p.scores.ptv??'—'}</td>`:''}<td class="score-cell">${getScore(p,type)||'—'}</td></tr>`;
+  }).join('')}
   </tbody></table>`;
 }
 
@@ -2165,6 +2380,7 @@ async function pageOrgaParams() {
   const { data: cats } = await sb.from('categories').select('id,label,mode_ma').order('label');
   const { data: porConfigs } = await sb.from('por_configs').select('*, por_config_troncons(*), por_config_categories(categorie_id)').eq('concours_id', APP.currentConcoursId);
   const { data: ptvParcours } = await sb.from('ptv_config_obstacles').select('*').eq('concours_id', APP.currentConcoursId).order('parcours_ref').order('ordre');
+  const { data: ptvCatLinks } = await sb.from('ptv_config_categories').select('parcours_ref,categorie_id').eq('concours_id', APP.currentConcoursId);
   const { data: concours } = await sb.from('concours').select('pen_por_enabled').eq('id', APP.currentConcoursId).single();
   const penPorEnabled = concours?.pen_por_enabled !== false;
 
@@ -2172,9 +2388,14 @@ async function pageOrgaParams() {
   const parcoursMap = {};
   (ptvParcours||[]).forEach(row => {
     const key = row.parcours_ref || row.id;
-    if (!parcoursMap[key]) parcoursMap[key] = { rows: [], nom: row.nom_parcours };
+    if (!parcoursMap[key]) parcoursMap[key] = { rows: [], nom: row.nom_parcours, cats: [] };
     parcoursMap[key].rows.push(row);
   });
+  // Rattacher les catégories à chaque parcours
+  (ptvCatLinks||[]).forEach(lnk => {
+    if (parcoursMap[lnk.parcours_ref]) parcoursMap[lnk.parcours_ref].cats.push(lnk.categorie_id);
+  });
+  APP.cache.categories = cats || [];
 
   if (!APP.cache.obstacles.length) {
     const { data: obs } = await sb.from('obstacles').select('*').order('groupe').order('code');
@@ -2203,7 +2424,7 @@ async function pageOrgaParams() {
     <button class="btn-outline full-width mb16" onclick="addPTVParcours()">+ Ajouter un parcours PTV</button>
     <div id="ptv-parcours-list">
       ${Object.keys(parcoursMap).length ? Object.entries(parcoursMap).map(([pid, val], i) =>
-        renderPTVParcoursCard(pid, val.rows, i, val.nom)
+        renderPTVParcoursCard(pid, val.rows, i, val.nom, val.cats, cats||[])
       ).join('') : `<div style="color:var(--text3);font-size:13px;padding:8px;">Aucun parcours. Cliquez "+ Ajouter un parcours PTV".</div>`}
     </div>
   </div>`);
@@ -2334,10 +2555,12 @@ async function savePenPorEnabled(val) {
 /* ================================================================
    ORGA — PTV PARCOURS
    ================================================================ */
-function renderPTVParcoursCard(pid, rows, idx, nom) {
+function renderPTVParcoursCard(pid, rows, idx, nom, selectedCats, allCats) {
   const obstacles = APP.cache.obstacles;
   const selectedIds = rows.map(r => r.obstacle_id);
   const parcoursNom = nom || `Parcours PTV ${idx+1}`;
+  const cats = allCats || APP.cache.categories || [];
+  const selCats = selectedCats || [];
   return `<div class="card mb8" id="ptv-parcours-${pid}">
     <div class="card-header">
       <input type="text" id="ptv-nom-${pid}" value="${parcoursNom}" style="font-size:14px;font-weight:600;flex:1;margin-right:8px;" placeholder="Nom du parcours">
@@ -2358,7 +2581,15 @@ function renderPTVParcoursCard(pid, rows, idx, nom) {
             ${obstacles.filter(o=>o.groupe===g).map(o=>`<option value="${o.id}">${o.label} (${o.code})</option>`).join('')}
           </optgroup>`).join('')}
       </select>
-      <button class="btn-primary full-width" onclick="savePTVParcours('${pid}')">Enregistrer ce parcours</button>
+      <div class="section-label">Catégories rattachées</div>
+      <div style="display:flex;flex-direction:column;gap:6px;" id="ptv-cats-checks-${pid}">
+        ${cats.map(c => `
+        <label style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg3);border-radius:var(--radius);cursor:pointer;">
+          <input type="checkbox" value="${c.id}" ${selCats.includes(c.id)?'checked':''} style="width:16px;height:16px;accent-color:var(--accent);flex-shrink:0;">
+          <span style="font-size:13px;">${c.label}</span>
+        </label>`).join('')}
+      </div>
+      <button class="btn-primary full-width mt16" onclick="savePTVParcours('${pid}')">Enregistrer ce parcours</button>
     </div>
   </div>`;
 }
@@ -2407,7 +2638,7 @@ async function addPTVParcours() {
   const list = document.getElementById('ptv-parcours-list');
   const idx = list.children.length;
   const div = document.createElement('div');
-  div.innerHTML = renderPTVParcoursCard(pid, [], idx);
+  div.innerHTML = renderPTVParcoursCard(pid, [], idx, null, [], APP.cache.categories || []);
   list.appendChild(div.firstElementChild);
   // Nettoyer le message vide
   const empty = list.querySelector('[style*="Aucun parcours"]');
@@ -2457,12 +2688,23 @@ async function savePTVParcours(pid) {
     if (error) { showToast(error.message, 'error'); return; }
   }
 
+  // Sauvegarder les catégories rattachées
+  const catsContainer = document.getElementById(`ptv-cats-checks-${pid}`);
+  const cats = catsContainer
+    ? Array.from(catsContainer.querySelectorAll('input[type=checkbox]:checked')).map(cb => cb.value)
+    : [];
+  await sb.from('ptv_config_categories').delete().eq('concours_id', APP.currentConcoursId).eq('parcours_ref', pid);
+  if (cats.length) {
+    await sb.from('ptv_config_categories').insert(cats.map(c => ({ concours_id: APP.currentConcoursId, parcours_ref: pid, categorie_id: c })));
+  }
+
   await syncJugeAssignationsPTV();
   showToast('Parcours PTV enregistré ✓', 'success');
 }
 
 async function deletePTVParcours(pid) {
   await sb.from('ptv_config_obstacles').delete().eq('concours_id', APP.currentConcoursId).eq('parcours_ref', pid);
+  await sb.from('ptv_config_categories').delete().eq('concours_id', APP.currentConcoursId).eq('parcours_ref', pid);
   await syncJugeAssignationsPTV();
   document.getElementById(`ptv-parcours-${pid}`)?.remove();
   showToast('Parcours supprimé', 'success');
@@ -2622,7 +2864,13 @@ function renderSchedSection(type) {
     <div class="form-row mt8">
       ${type==='por'?`
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Intervalle entre partants</label><div class="input-group"><input type="number" id="sched-interval" value="5"><div class="input-group-append">min</div></div></div>
+        <div class="form-group"><label class="form-label">Intervalle entre partants</label>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <input type="number" id="sched-interval-mm" value="5" min="0" max="59" style="font-family:'DM Mono',monospace;font-size:18px;text-align:center;" placeholder="mm">
+            <span style="color:var(--text3);">:</span>
+            <input type="number" id="sched-interval-ss" value="0" min="0" max="59" style="font-family:'DM Mono',monospace;font-size:18px;text-align:center;" placeholder="ss">
+          </div>
+        </div>
         <div class="form-group"><label class="form-label">1ère salle des cartes</label><input type="time" id="sched-first" value="09:00" style="font-family:'DM Mono',monospace;font-size:16px;"></div>
       </div>
       <div class="form-row">
@@ -2631,7 +2879,13 @@ function renderSchedSection(type) {
       </div>
       `:`
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Intervalle entre passages</label><div class="input-group"><input type="number" id="sched-interval" value="10"><div class="input-group-append">min</div></div></div>
+        <div class="form-group"><label class="form-label">Intervalle entre passages</label>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <input type="number" id="sched-interval-mm" value="10" min="0" max="59" style="font-family:'DM Mono',monospace;font-size:18px;text-align:center;" placeholder="mm">
+            <span style="color:var(--text3);">:</span>
+            <input type="number" id="sched-interval-ss" value="0" min="0" max="59" style="font-family:'DM Mono',monospace;font-size:18px;text-align:center;" placeholder="ss">
+          </div>
+        </div>
         <div class="form-group"><label class="form-label">Premier départ</label><input type="time" id="sched-first" value="09:00" style="font-family:'DM Mono',monospace;font-size:16px;"></div>
       </div>`}
     </div>
@@ -2653,9 +2907,13 @@ function renderSchedSection(type) {
 function generateScheduleData(type) {
   const partants = APP.cache.participants.filter(p => p.statut === 'partant');
   const firstEl = document.getElementById('sched-first');
-  const intervalEl = document.getElementById('sched-interval');
+  const intervalMmEl = document.getElementById('sched-interval-mm');
+  const intervalSsEl = document.getElementById('sched-interval-ss');
   const firstTime = firstEl ? firstEl.value : '09:00';
-  const interval = intervalEl ? parseInt(intervalEl.value)||10 : 10;
+  // Intervalle en secondes totales
+  const intervalMm = parseInt(intervalMmEl?.value || '5') || 0;
+  const intervalSs = parseInt(intervalSsEl?.value || '0') || 0;
+  const intervalSecs = intervalMm * 60 + intervalSs;
   const [fh, fm] = firstTime.split(':').map(Number);
 
   let entries = [];
@@ -2679,13 +2937,13 @@ function generateScheduleData(type) {
     });
 
     APP.cache.schedules[type] = entries.map((e, i) => {
-      const sdcStart = fh*60+fm + i*interval;
-      const departMin = sdcStart + sdc + delay;
-      const fmt = m => String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+      const sdcStartSecs = (fh*60+fm)*60 + i*intervalSecs;
+      const departSecs = sdcStartSecs + sdc*60 + delay*60;
+      const fmt = s => String(Math.floor(s/3600)).padStart(2,'0') + ':' + String(Math.floor((s%3600)/60)).padStart(2,'0');
       return {
         id: e.id,
-        time: fmt(departMin),
-        sdc_time: fmt(sdcStart),
+        time: fmt(departSecs),
+        sdc_time: fmt(sdcStartSecs),
         name: e.name,
         dossard: e.dossard,
         modified: false
@@ -2694,8 +2952,10 @@ function generateScheduleData(type) {
   } else {
     entries = partants.map(p => ({ id: p.id, name: p.prenom+' '+p.nom, dossard: p.dossard }));
     APP.cache.schedules[type] = entries.map((e, i) => {
-      const tot = fh*60+fm+i*interval;
-      return { id: e.id, time: String(Math.floor(tot/60)).padStart(2,'0')+':'+String(tot%60).padStart(2,'0'), name: e.name, dossard: e.dossard, modified: false };
+      const totalSecs = (fh*60+fm)*60 + i*intervalSecs;
+      const hh = String(Math.floor(totalSecs/3600)).padStart(2,'0');
+      const mm = String(Math.floor((totalSecs%3600)/60)).padStart(2,'0');
+      return { id: e.id, time: `${hh}:${mm}`, name: e.name, dossard: e.dossard, modified: false };
     });
   }
 }
@@ -2926,20 +3186,62 @@ function copyCode() { navigator.clipboard.writeText(document.getElementById('gen
    ================================================================ */
 async function pageJugeEntry() {
   if (!APP.cache.participants.length) await loadEngagements();
+  if (!APP.cache.obstacles.length) {
+    const { data: obs } = await sb.from('obstacles').select('*').order('groupe').order('code');
+    APP.cache.obstacles = obs || [];
+  }
   const assignations = APP.jugeAssignations || [];
 
-  // Si plusieurs postes, afficher un sélecteur
+  // Si plusieurs postes, afficher un sélecteur trié et groupé par type
   if (assignations.length > 1) {
+    // Construire labels
+    const withLabels = assignations.map((a, i) => {
+      let posteLabel = a.poste;
+      if (a.type_epreuve === 'PTV') {
+        const obs = APP.cache.obstacles.find(o => o.id === a.poste);
+        if (obs) posteLabel = `${obs.label} (${obs.code})`;
+      } else if (a.type_epreuve === 'POR') {
+        const labels = { depart:'Départ', arrivee:'Arrivée' };
+        posteLabel = labels[a.poste] || a.poste.replace('controle', 'Contrôle ');
+      }
+      return { a, i, posteLabel };
+    });
+
+    // Trier par type puis par label alpha
+    const typeOrder = { POR:0, MA:1, PTV:2 };
+    withLabels.sort((x,y) => {
+      const td = (typeOrder[x.a.type_epreuve]??9) - (typeOrder[y.a.type_epreuve]??9);
+      if (td !== 0) return td;
+      return x.posteLabel.localeCompare(y.posteLabel, 'fr');
+    });
+
+    // Grouper par type
+    const groups = {};
+    withLabels.forEach(item => {
+      const t = item.a.type_epreuve;
+      if (!groups[t]) groups[t] = [];
+      groups[t].push(item);
+    });
+
+    const typeIcons = { POR:'🏇', MA:'🔄', PTV:'🚧' };
+    const typeDescs = { POR:'Contrôle de passage', MA:'Maîtrise des allures', PTV:'Obstacle PTV' };
+
+    const groupsHtml = Object.entries(groups).map(([type, items]) => `
+      <div style="margin-bottom:8px;">
+        <div style="font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--text3);padding:6px 12px;background:var(--bg3);border-radius:var(--radius);">${typeIcons[type]||''} ${type}</div>
+        ${items.map(({ a, i, posteLabel }) => `
+        <div class="list-item" onclick="selectJugePoste(${i})">
+          <div class="list-item-info">
+            <div class="list-item-name">${posteLabel}</div>
+            <div class="list-item-sub">${typeDescs[type]||type}</div>
+          </div>
+          <div style="color:var(--text3);font-size:20px;">›</div>
+        </div>`).join('')}
+      </div>`).join('');
+
     setPageContent(`<div class="page active">
       <div class="page-header"><div><div class="page-title">Saisie</div><div class="page-subtitle">Choisir un poste</div></div></div>
-      ${assignations.map((a,i) => `
-      <div class="list-item" onclick="selectJugePoste(${i})">
-        <div class="list-item-info">
-          <div class="list-item-name">${a.type_epreuve} — ${a.poste}</div>
-          <div class="list-item-sub">${a.type_epreuve === 'POR' ? 'Contrôle de passage' : a.type_epreuve === 'MA' ? 'Maîtrise des allures' : 'Obstacle PTV'}</div>
-        </div>
-        <div style="color:var(--text3);font-size:20px;">›</div>
-      </div>`).join('')}
+      ${groupsHtml}
     </div>`);
     return;
   }
@@ -2966,24 +3268,62 @@ function renderJugePTV() {
   const obstacle = obstacleId ? APP.cache.obstacles.find(o => o.id === obstacleId) : null;
   const multiPoste = (APP.jugeAssignations||[]).length > 1;
 
+  APP._ptvSaisedIds = new Set();
+  if (obstacleId && APP.isOnline) {
+    sb.from('scores_ptv').select('engagement_id').eq('obstacle_id', obstacleId).then(({ data }) => {
+      APP._ptvSaisedIds = new Set((data||[]).map(r => r.engagement_id));
+      const sel = document.getElementById('ptv-sel');
+      if (sel) Array.from(sel.options).forEach(opt => {
+        if (APP._ptvSaisedIds.has(opt.value)) opt.text = '✓ ' + opt.text.replace(/^✓ /,'');
+      });
+    });
+  }
+
   setPageContent(`<div class="page active">
     <div class="page-header">
       <div>
         <div class="page-title">PTV</div>
-        <div class="page-subtitle">${obstacle ? `${obstacle.code} — ${obstacle.label}` : 'Obstacle non assigné'}</div>
+        <div class="page-subtitle">${obstacle ? `${obstacle.code} — ${obstacle.label}` : obstacleId ? obstacleId : 'Obstacle non assigné'}</div>
       </div>
       ${multiPoste ? `<button class="btn-outline btn-small" onclick="pageJugeEntry()">← Postes</button>` : ''}
     </div>
-    <select id="ptv-sel" onchange="loadPTVPart(this.value)" style="margin-bottom:16px;">
+    <select id="ptv-sel" onchange="loadPTVPart(this.value)" style="margin-bottom:12px;">
       <option value="">— Sélectionner un participant —</option>
       ${parts.map(p=>`<option value="${p.id}">Doss. ${p.dossard||'—'} — ${p.prenom} ${p.nom}</option>`).join('')}
     </select>
+    <div id="ptv-participant-banner" style="display:none;background:var(--accent-bg2);border:1px solid rgba(122,173,90,.3);border-radius:var(--radius);padding:10px 14px;margin-bottom:12px;font-size:15px;font-weight:600;color:var(--accent);"></div>
     <div id="ptv-content" style="display:none;">
-      <div class="card mb12"><div class="card-body"><div id="ptv-info" style="font-size:14px;font-weight:600;"></div></div></div>
       ${obstacle ? renderPTVGrille(obstacle) : `<div class="alert-banner warn"><div>⚠️</div><div>Aucun obstacle assigné.</div></div>`}
     </div>
   </div>`);
   APP._ptv_grille = {};
+}
+
+async function loadPTVPart(id) {
+  const div = document.getElementById('ptv-content');
+  const banner = document.getElementById('ptv-participant-banner');
+  if (!id) { div.style.display='none'; if(banner) banner.style.display='none'; return; }
+  const p = APP.cache.participants.find(x => x.id === id);
+  APP.jugeCtx.participantId = id;
+  if (banner) { banner.style.display='block'; banner.textContent=`${p.prenom} ${p.nom} · Doss. ${p.dossard||'—'} · ${p.cheval_nom}`; }
+  resetPTVGrille();
+  div.style.display = 'block';
+  const obstacleId = APP.jugeAssignation?.poste;
+  if (obstacleId) {
+    const { data: existing } = await sb.from('scores_ptv').select('points').eq('engagement_id', id).eq('obstacle_id', obstacleId).maybeSingle();
+    if (existing) {
+      const scoreEl = document.getElementById('ptv-score-display');
+      if (scoreEl) { scoreEl.textContent = existing.points; scoreEl.style.color = existing.points >= 7 ? 'var(--accent)' : existing.points >= 4 ? 'var(--orange)' : 'var(--red)'; }
+      APP._ptv_grille.score = existing.points;
+      const btn = document.getElementById('btn-save-ptv');
+      if (btn) btn.disabled = false;
+      // Afficher badge score précédent
+      const badge = document.getElementById('ptv-existing-badge');
+      const badgeScore = document.getElementById('ptv-existing-score');
+      if (badge) badge.style.display = 'block';
+      if (badgeScore) badgeScore.textContent = existing.points;
+    }
+  }
 }
 
 function renderPTVGrille(obstacle) {
@@ -2994,10 +3334,10 @@ function renderPTVGrille(obstacle) {
   const contratSection = `
     <div class="section-label" style="margin-top:0;">Contrat</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
-      ${[['0','0 faute → 7 pts'],['1','1 faute → 4 pts'],['2','2 fautes → 1 pt'],['3','3 fautes/non réalisé → -10 pts']].map(([v,l]) =>
-        `<label style="display:flex;align-items:center;gap:8px;padding:10px;background:var(--bg3);border-radius:var(--radius);cursor:pointer;border:2px solid transparent;" id="contrat-lbl-${v}">
+      ${[['0','0 faute\n→ 7 pts'],['1','1 faute\n→ 4 pts'],['2','2 fautes\n→ 1 pt'],['3','3 fautes\n→ -10 pts']].map(([v,l]) =>
+        `<label style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 6px;background:var(--bg3);border-radius:var(--radius);cursor:pointer;text-align:center;border:2px solid transparent;">
           <input type="radio" name="ptv-contrat" value="${v}" onchange="updatePTVScore()" style="accent-color:var(--accent);">
-          <span style="font-size:13px;">${l}</span>
+          <span style="font-size:12px;line-height:1.3;">${l.replace('\n','<br>')}</span>
         </label>`).join('')}
     </div>`;
 
@@ -3073,6 +3413,7 @@ function renderPTVGrille(obstacle) {
 
   return `
     <div class="card mb12"><div class="card-body">
+      <div id="ptv-existing-badge" style="display:none;background:var(--orange-bg);border:1px solid rgba(212,149,90,.3);border-radius:var(--radius);padding:8px 12px;margin-bottom:12px;font-size:13px;color:var(--orange);">Score précédent : <span id="ptv-existing-score"></span> pts — re-saisir pour modifier</div>
       ${contratSection}
       ${allureSection}
       ${styleSection}
@@ -3165,6 +3506,8 @@ async function savePTVGrille() {
   if (APP.isOnline) await processSyncAction(action);
   else addPendingSync(action);
 
+  // Réinitialiser la grille d'abord
+  resetPTVGrille();
   // Passer au participant suivant
   const sel = document.getElementById('ptv-sel');
   if (sel) {
@@ -3175,26 +3518,15 @@ async function savePTVGrille() {
       await loadPTVPart(opts[idx+1].value);
       showToast('Enregistré — participant suivant', 'success');
     } else {
+      sel.value = '';
+      document.getElementById('ptv-content').style.display = 'none';
       showToast('Score enregistré ✓', 'success');
     }
   }
-  // Réinitialiser la grille
-  document.querySelectorAll('input[name="ptv-contrat"], input[name="ptv-allure"], input[name="ptv-temps"]').forEach(el => el.checked = false);
-  document.querySelectorAll('input[type="checkbox"]').forEach(el => el.checked = false);
-  document.getElementById('ptv-score-display').textContent = '—';
-  const btn = document.getElementById('btn-save-ptv');
-  if (btn) btn.disabled = true;
-  APP._ptv_grille = {};
 }
-async function loadPTVPart(id) {
-  const div = document.getElementById('ptv-content');
-  if (!id) { div.style.display='none'; return; }
-  const p = APP.cache.participants.find(x => x.id === id);
-  APP.jugeCtx.participantId = id;
-  div.style.display = 'block';
-  document.getElementById('ptv-info').textContent = `${p.prenom} ${p.nom} · Doss. ${p.dossard||'—'} · ${p.cheval_nom}`;
-  // Réinitialiser la grille pour le nouveau participant
-  document.querySelectorAll('input[name="ptv-contrat"], input[name="ptv-allure"], input[name="ptv-temps"]').forEach(el => el.checked = false);
+
+function resetPTVGrille() {
+  document.querySelectorAll('#ptv-content input[name="ptv-contrat"], #ptv-content input[name="ptv-allure"], #ptv-content input[name="ptv-temps"]').forEach(el => el.checked = false);
   document.querySelectorAll('#ptv-content input[type="checkbox"]').forEach(el => el.checked = false);
   const scoreEl = document.getElementById('ptv-score-display');
   if (scoreEl) { scoreEl.textContent = '—'; scoreEl.style.color = 'var(--text3)'; }
@@ -3286,8 +3618,15 @@ function renderJugePOR() {
     <div id="por-entry" style="display:none;">
       <div class="por-control"><div class="por-control-label">Passage — ${poste}</div>
         <div class="time-grid">
-          ${isDepart ? `<div class="form-group"><label class="form-label">Heure théorique</label><div id="por-theorique-display" style="font-family:'DM Mono',monospace;font-size:20px;color:var(--text3);padding:10px 0;">—</div></div>` : ''}
-          <div class="form-group"><label class="form-label">Heure réelle</label><input type="time" id="por-reel" style="font-family:'DM Mono',monospace;font-size:20px;text-align:center;"></div>
+          <div class="form-group"><label class="form-label">Heure théorique</label><div id="por-theorique-display" style="font-family:'DM Mono',monospace;font-size:20px;color:var(--text3);padding:10px 0;">—</div><input type="time" id="por-theorique-input" style="font-family:'DM Mono',monospace;font-size:16px;margin-top:4px;" placeholder="Optionnel"></div>
+          <div class="form-group"><label class="form-label">Heure réelle</label>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <button onclick="adjPORTime(-1)" style="background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);padding:8px 12px;font-size:16px;color:var(--text2);flex-shrink:0;">−1min</button>
+              <input type="time" id="por-reel" style="font-family:'DM Mono',monospace;font-size:20px;text-align:center;flex:1;">
+              <button onclick="adjPORTime(1)" style="background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);padding:8px 12px;font-size:16px;color:var(--text2);flex-shrink:0;">+1min</button>
+              <button onclick="setCurrentTime()" style="background:var(--accent-bg);border:1px solid rgba(122,173,90,.3);border-radius:var(--radius);padding:8px 10px;font-size:18px;flex-shrink:0;" title="Heure actuelle">⏱</button>
+            </div>
+          </div>
         </div>
         <div class="penalty-grid" id="por-penalties">
           <div class="penalty-item"><div class="penalty-label">Hors piste (×30pts)</div><div class="penalty-counter"><button class="penalty-btn" onclick="adjPen('hp',-1)">−</button><div class="penalty-val" id="pen-hp">0</div><button class="penalty-btn" onclick="adjPen('hp',1)">+</button></div></div>
@@ -3300,7 +3639,22 @@ function renderJugePOR() {
   APP._pen = { hp:0, au:0 };
 }
 
-function showPOREntry(id) {
+function setCurrentTime() {
+  const now = new Date();
+  const el = document.getElementById('por-reel');
+  if (el) el.value = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+}
+
+function adjPORTime(delta) {
+  const el = document.getElementById('por-reel');
+  if (!el || !el.value) return;
+  const [h,m] = el.value.split(':').map(Number);
+  const tot = h*60+m+delta;
+  if (tot < 0 || tot >= 24*60) return;
+  el.value = String(Math.floor(tot/60)).padStart(2,'0')+':'+String(tot%60).padStart(2,'0');
+}
+
+async function showPOREntry(id) {
   const entry = document.getElementById('por-entry');
   if (!id) { entry.style.display = 'none'; return; }
   entry.style.display = 'block';
@@ -3312,15 +3666,29 @@ function showPOREntry(id) {
   APP._pen = { hp:0, au:0 };
   document.getElementById('pen-hp').textContent = '0';
   document.getElementById('pen-au').textContent = '0';
-  // Afficher heure théorique depuis les horaires
+  // Heure théorique depuis les horaires
   const theoriqueEl = document.getElementById('por-theorique-display');
+  const theoriqueInput = document.getElementById('por-theorique-input');
   if (theoriqueEl) {
     const sched = (APP.cache.schedules?.por || []).find(s => s.id === id);
     theoriqueEl.textContent = sched?.time || '—';
     APP._por_theorique = sched?.time || null;
+    if (theoriqueInput && sched?.time) theoriqueInput.value = sched.time;
+  }
+  // Pré-remplir depuis score existant
+  const poste = APP.jugeAssignation?.poste || 'depart';
+  if (APP.isOnline) {
+    const { data: existing } = await sb.from('scores_por').select('heure_theorique,heure_reelle,penalites_hors_piste,penalites_autres').eq('engagement_id', id).eq('controle', poste).maybeSingle();
+    if (existing) {
+      if (reel && existing.heure_reelle) reel.value = existing.heure_reelle;
+      if (theoriqueInput && existing.heure_theorique) theoriqueInput.value = existing.heure_theorique;
+      APP._pen.hp = existing.penalites_hors_piste || 0;
+      APP._pen.au = existing.penalites_autres || 0;
+      document.getElementById('pen-hp').textContent = APP._pen.hp;
+      document.getElementById('pen-au').textContent = APP._pen.au;
+    }
   }
   // Afficher/masquer pénalités selon config du tronçon
-  const poste = APP.jugeAssignation?.poste || 'depart';
   const porCfg = APP.cache.porConfigTroncons || [];
   const troncon = porCfg.find(t => {
     const posteMap = { depart: 1, controle1: 2, controle2: 3, controle3: 4, arrivee: 5 };
@@ -3336,7 +3704,7 @@ async function savePOREntry(engId) {
   const poste = APP.jugeAssignation?.poste || 'depart';
   const isDepart = poste === 'depart';
 
-  const theoriqueVal = isDepart ? (APP._por_theorique || null) : null;
+  const theoriqueVal = document.getElementById('por-theorique-input')?.value || APP._por_theorique || null;
   const reelVal = document.getElementById('por-reel')?.value || null;
 
   const action = {
@@ -3367,9 +3735,16 @@ async function savePOREntry(engId) {
 }
 
 function renderJugeMA() {
-  const parts = APP.cache.participants.filter(p => p.statut === 'partant');
   const poste = APP.jugeAssignation?.poste || 'portes';
   const modeTemps = poste === 'temps';
+  // Filtrer uniquement les partants dont la catégorie correspond au mode du poste
+  const allParts = APP.cache.participants.filter(p => p.statut === 'partant');
+  const parts = allParts.filter(p => {
+    const cat = APP.cache.categories.find(c => c.id === p.categorie);
+    const modeCat = cat?.mode_ma || 'portes';
+    return modeTemps ? modeCat === 'temps' : modeCat !== 'temps';
+  });
+  // Couloir basé sur la première catégorie trouvée
   const couloir = (APP.cache.categories.find(c => c.id === parts[0]?.categorie)?.id || '').match(/A1|AE/) ? 150 : 100;
   const multiPoste = (APP.jugeAssignations||[]).length > 1;
 
@@ -3389,18 +3764,18 @@ function renderJugeMA() {
       ${modeTemps ? `
       <div class="card mb12"><div class="card-body">
         <div class="section-label" style="margin-top:0;">Galop lent — ${couloir}m</div>
-        <div class="form-row">
-          <div class="form-group"><label class="form-label">Temps (s)</label><input type="number" id="ma-temps-galop" placeholder="ex: 19.4" step="0.1" style="font-family:'DM Mono',monospace;font-size:20px;text-align:center;" oninput="updateMAScore()"></div>
-          <div class="form-group"><label class="form-label">Score galop</label><div style="font-family:'DM Mono',monospace;font-size:28px;color:var(--accent);text-align:center;padding:10px 0;" id="ma-score-galop">—</div></div>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+          <input type="number" id="ma-temps-galop" placeholder="Temps (s) ex: 19.4" step="0.1" style="font-family:'DM Mono',monospace;font-size:20px;text-align:center;flex:1;" oninput="updateMAScore()">
+          <div class="mono" style="font-size:28px;color:var(--accent);min-width:52px;text-align:right;" id="ma-score-galop">—</div>
         </div>
-        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2);cursor:pointer;"><input type="checkbox" id="ma-galop-elim" onchange="updateMAScore()"> Éliminé (sortie couloir / rupture)</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2);cursor:pointer;margin-bottom:16px;"><input type="checkbox" id="ma-galop-elim" onchange="updateMAScore()" style="width:18px;height:18px;accent-color:var(--red);flex-shrink:0;"> Éliminé (sortie couloir / rupture)</label>
         <div class="section-label">Pas rapide — ${couloir}m</div>
-        <div class="form-row">
-          <div class="form-group"><label class="form-label">Temps (s)</label><input type="number" id="ma-temps-pas" placeholder="ex: 56.5" step="0.1" style="font-family:'DM Mono',monospace;font-size:20px;text-align:center;" oninput="updateMAScore()"></div>
-          <div class="form-group"><label class="form-label">Score pas</label><div style="font-family:'DM Mono',monospace;font-size:28px;color:var(--accent);text-align:center;padding:10px 0;" id="ma-score-pas">—</div></div>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+          <input type="number" id="ma-temps-pas" placeholder="Temps (s) ex: 56.5" step="0.1" style="font-family:'DM Mono',monospace;font-size:20px;text-align:center;flex:1;" oninput="updateMAScore()">
+          <div class="mono" style="font-size:28px;color:var(--accent);min-width:52px;text-align:right;" id="ma-score-pas">—</div>
         </div>
-        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2);cursor:pointer;"><input type="checkbox" id="ma-pas-elim" onchange="updateMAScore()"> Éliminé (sortie couloir / rupture)</label>
-        <div style="margin-top:16px;background:var(--bg3);border-radius:var(--radius);padding:12px;display:flex;justify-content:space-between;align-items:center;">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2);cursor:pointer;margin-bottom:16px;"><input type="checkbox" id="ma-pas-elim" onchange="updateMAScore()" style="width:18px;height:18px;accent-color:var(--red);flex-shrink:0;"> Éliminé (sortie couloir / rupture)</label>
+        <div style="background:var(--bg3);border-radius:var(--radius);padding:12px;display:flex;justify-content:space-between;align-items:center;">
           <span style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);">Total MA</span>
           <span class="mono" style="font-size:28px;color:var(--accent);" id="ma-score-total">—</span>
         </div>
@@ -3410,7 +3785,7 @@ function renderJugeMA() {
       <div class="card mb12"><div class="card-body">
         <div class="section-label" style="margin-top:0;">Portes réussies</div>
         ${[1,2,3,4,5].map(i => `
-        <label style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--bg3);border-radius:var(--radius);margin-bottom:8px;cursor:pointer;font-size:15px;">
+        <label id="porte-lbl-${i}" style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--bg3);border-radius:var(--radius);margin-bottom:8px;cursor:pointer;font-size:15px;transition:background .15s;">
           <input type="checkbox" id="porte-${i}" onchange="updateMAPortesScore()" style="width:22px;height:22px;accent-color:var(--accent);flex-shrink:0;">
           <span>Porte ${i}</span>
           <span style="margin-left:auto;font-family:'DM Mono',monospace;color:var(--accent);">+10 pts</span>
@@ -3433,7 +3808,14 @@ function renderJugeMA() {
 function updateMAPortesScore() {
   let score = 0;
   for (let i = 1; i <= 5; i++) {
-    if (document.getElementById(`porte-${i}`)?.checked) score += 10;
+    const cb = document.getElementById(`porte-${i}`);
+    const lbl = document.getElementById(`porte-lbl-${i}`);
+    if (cb?.checked) {
+      score += 10;
+      if (lbl) lbl.style.background = 'rgba(122,173,90,0.18)';
+    } else {
+      if (lbl) lbl.style.background = 'var(--bg3)';
+    }
   }
   const el = document.getElementById('ma-portes-score');
   if (el) el.textContent = score;
@@ -3462,9 +3844,41 @@ async function loadMAPart(id) {
   const content = document.getElementById('ma-content');
   if (!id) { content.style.display = 'none'; return; }
   content.style.display = 'block';
+  // Réinitialiser
   APP._bal = {};
-  document.querySelectorAll('.balise-btn').forEach(b => b.classList.remove('hit','miss'));
-  ['bal-count','bal-miss','bal-score'].forEach(id => { const el = document.getElementById(id); if(el) el.textContent='0'; });
+  ['ma-temps-galop','ma-temps-pas'].forEach(fieldId => { const el = document.getElementById(fieldId); if(el) el.value = ''; });
+  ['ma-galop-elim','ma-pas-elim'].forEach(fieldId => { const el = document.getElementById(fieldId); if(el) el.checked = false; });
+  ['ma-score-galop','ma-score-pas','ma-score-total'].forEach(fieldId => { const el = document.getElementById(fieldId); if(el) el.textContent = '—'; });
+  for (let i = 1; i <= 5; i++) { const el = document.getElementById(`porte-${i}`); if(el) el.checked = false; }
+  const portesScore = document.getElementById('ma-portes-score');
+  if (portesScore) portesScore.textContent = '0';
+
+  // Pré-remplir depuis score existant
+  if (APP.isOnline) {
+    const { data: existing } = await sb.from('scores_ma').select('mode,balises_data,chrono_data').eq('engagement_id', id).maybeSingle();
+    if (existing) {
+      if (existing.mode === 'balises' && existing.balises_data) {
+        // Mode portes — cocher les portes réussies
+        Object.entries(existing.balises_data).forEach(([k, v]) => {
+          const cb = document.getElementById(`porte-${k}`);
+          if (cb && v === true) cb.checked = true;
+        });
+        updateMAPortesScore();
+      } else if (existing.mode === 'temps' && existing.chrono_data) {
+        const d = existing.chrono_data;
+        const tg = document.getElementById('ma-temps-galop');
+        const tp = document.getElementById('ma-temps-pas');
+        const ge = document.getElementById('ma-galop-elim');
+        const pe = document.getElementById('ma-pas-elim');
+        if (tg && d.temps_galop) tg.value = d.temps_galop;
+        if (tp && d.temps_pas) tp.value = d.temps_pas;
+        if (ge) ge.checked = d.galop_elim || false;
+        if (pe) pe.checked = d.pas_elim || false;
+        updateMAScore();
+      }
+    }
+  }
+  updateMAPortesScore();
 }
 
 function switchMAMode(mode, el) {
@@ -3528,8 +3942,18 @@ async function pageJugeRecap() {
     return;
   }
 
+  if (!APP.cache.obstacles.length) {
+    const { data: obs } = await sb.from('obstacles').select('*').order('groupe').order('code');
+    APP.cache.obstacles = obs || [];
+  }
+
   const type = APP.jugeAssignation?.type_epreuve || 'PTV';
   const poste = APP.jugeAssignation?.poste || '';
+  let posteLabel = poste;
+  if (type === 'PTV') {
+    const obs = APP.cache.obstacles.find(o => o.id === poste);
+    if (obs) posteLabel = `${obs.label} (${obs.code})`;
+  }
 
   // Charger les scores selon le type d'épreuve
   let saisedIds = new Set();
@@ -3547,7 +3971,7 @@ async function pageJugeRecap() {
   const partants = APP.cache.participants.filter(p => p.statut === 'partant');
   setPageContent(`<div class="page active">
     <div class="page-header">
-      <div><div class="page-title">Récap</div><div class="page-subtitle">${type} — ${poste}</div></div>
+      <div><div class="page-title">Récap</div><div class="page-subtitle">${type} — ${posteLabel}</div></div>
       <button class="btn-outline btn-small" onclick="pageJugeRecap()">⟳</button>
     </div>
     <div style="display:flex;gap:12px;padding:12px;background:var(--bg2);border-radius:var(--radius2);margin-bottom:16px;">
@@ -3782,6 +4206,7 @@ function openParticipantDetail(id) {
            <button class="btn-danger btn-small" onclick="setStatut('elim')">Élimin\u00e9</button>`
         : `<button class="btn-secondary btn-small" onclick="setStatut('partant')">Remettre partant</button>`
       }
+      <button class="btn-danger btn-small" onclick="deletePartant()">🗑 Supprimer</button>
       <button class="btn-secondary" onclick="closeModal('modal-participant-detail')">Fermer</button>
     `;
   }
@@ -3795,9 +4220,126 @@ async function setStatut(s) {
   }
   const p = APP.cache.participants.find(x => x.id === APP.editTarget);
   if (p) p.statut = s;
-  showToast(`Statut : ${s==='np'?'Non Partant':'Élimin\u00e9'}`, 'success');
+  showToast(`Statut : ${s==='np'?'Non Partant':'Éliminé'}`, 'success');
   closeModal('modal-participant-detail');
   navigateTo('orga-participants');
+}
+
+async function deletePartant() {
+  if (!confirm('Supprimer définitivement ce participant ?')) return;
+  const id = APP.editTarget;
+  await sb.from('scores_por').delete().eq('engagement_id', id);
+  await sb.from('scores_ma').delete().eq('engagement_id', id);
+  await sb.from('scores_ptv').delete().eq('engagement_id', id);
+  await sb.from('log_saisies').delete().eq('engagement_id', id);
+  const { error } = await sb.from('engagements').delete().eq('id', id);
+  if (error) { showToast(error.message, 'error'); return; }
+  APP.cache.participants = APP.cache.participants.filter(p => p.id !== id);
+  closeModal('modal-participant-detail');
+  navigateTo('orga-participants');
+  showToast('Participant supprimé', 'success');
+}
+
+async function openAddPartant() {
+  // Remplir le select catégories
+  const cats = APP.cache.categories || [];
+  const sel = document.getElementById('ap-categorie');
+  sel.innerHTML = `<option value="">— Choisir —</option>` +
+    cats.map(c => `<option value="${c.id}">${c.label}</option>`).join('');
+
+  // Remplir la datalist équipes existantes
+  const equipes = [...new Set(APP.cache.participants.filter(p=>p.equipe).map(p=>p.equipe))];
+  document.getElementById('ap-equipe-list').innerHTML = equipes.map(e=>`<option value="${e}">`).join('');
+
+  // Reset champs
+  ['ap-licence','ap-prenom','ap-nom','ap-ecurie','ap-sire','ap-cheval','ap-equipe'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  document.getElementById('ap-type').value = 'ind';
+  document.getElementById('ap-equipe-wrap').style.display = 'none';
+
+  openModal('modal-add-partant');
+}
+
+async function prefillCavalierOrga(licence) {
+  if (licence.length < 4) return;
+  const { data } = await sb.from('cavaliers').select('prenom,nom,ecurie').eq('licence', licence).maybeSingle();
+  if (data) {
+    document.getElementById('ap-prenom').value = data.prenom || '';
+    document.getElementById('ap-nom').value = data.nom || '';
+    document.getElementById('ap-ecurie').value = data.ecurie || '';
+  }
+}
+
+async function prefillChevalOrga(sire) {
+  if (sire.length < 4) return;
+  const { data } = await sb.from('chevaux').select('nom').eq('sire', sire).maybeSingle();
+  if (data) {
+    document.getElementById('ap-cheval').value = data.nom || '';
+  }
+}
+
+async function saveAddPartant() {
+  const licence = document.getElementById('ap-licence').value.trim().toUpperCase();
+  const prenom = document.getElementById('ap-prenom').value.trim();
+  const nom = document.getElementById('ap-nom').value.trim();
+  const ecurie = document.getElementById('ap-ecurie').value.trim();
+  const sire = document.getElementById('ap-sire').value.trim().toUpperCase();
+  const chevNom = document.getElementById('ap-cheval').value.trim();
+  const catId = document.getElementById('ap-categorie').value;
+  const type = document.getElementById('ap-type').value;
+  const equipeNom = document.getElementById('ap-equipe').value.trim();
+
+  if (!licence || !prenom || !nom || !chevNom || !catId) {
+    showToast('Licence, prénom, nom, cheval et catégorie sont obligatoires', 'error'); return;
+  }
+
+  // Upsert cavalier
+  let { data: cav } = await sb.from('cavaliers').select('id').eq('licence', licence).maybeSingle();
+  if (!cav) {
+    const { data, error } = await sb.from('cavaliers').insert({ licence, prenom, nom, ecurie }).select().single();
+    if (error) { showToast(error.message, 'error'); return; }
+    cav = data;
+  }
+
+  // Upsert cheval
+  let { data: chev } = sire ? await sb.from('chevaux').select('id').eq('sire', sire).maybeSingle() : { data: null };
+  if (!chev) {
+    const { data, error } = await sb.from('chevaux').insert({ sire: sire||null, nom: chevNom, ecurie }).select().single();
+    if (error) { showToast(error.message, 'error'); return; }
+    chev = data;
+  }
+
+  // Équipe
+  let equipeId = null;
+  if (type === 'equ' && equipeNom) {
+    const { data: eq } = await sb.from('equipes').upsert(
+      { concours_id: APP.currentConcoursId, categorie_id: catId, nom: equipeNom },
+      { onConflict: 'concours_id,categorie_id,nom' }
+    ).select().single();
+    equipeId = eq?.id;
+  }
+
+  // Prochain dossard
+  const maxDossard = APP.cache.participants.reduce((max, p) => Math.max(max, p.dossard||0), 0);
+
+  const { error } = await sb.from('engagements').insert({
+    concours_id: APP.currentConcoursId,
+    cavalier_id: cav.id,
+    cheval_id: chev.id,
+    categorie_id: catId,
+    equipe_id: equipeId,
+    type_participation: type,
+    statut: 'partant',
+    dossard: maxDossard + 1,
+  });
+  if (error) { showToast(error.message, 'error'); return; }
+
+  showToast('Partant ajouté ✓', 'success');
+  closeModal('modal-add-partant');
+  await loadEngagements();
+  pageOrgaParticipants();
 }
 
 async function saveElimTests() {
