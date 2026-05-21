@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#b4893c">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -401,7 +401,8 @@ a{color:var(--accent);text-decoration:none}
       <img id="app-logo-header" src="" alt="" style="width:32px;height:32px;border-radius:50%;opacity:0.9;">
       <div>
         <div id="app-header-title" class="app-header-title">DEMETER</div>
-        <div id="app-header-sub" style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;letter-spacing:.06em;">v${APP_VERSION}</div>
+        <div id="app-header-sub" style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;letter-spacing:.06em;"></div>
+        <div id="app-version-display" style="font-size:10px;color:var(--text3);opacity:0.5;font-family:'DM Mono',monospace;"></div>
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:8px;">
@@ -451,9 +452,13 @@ a{color:var(--accent);text-decoration:none}
       </button>
     </div>
   </div>
+  <!-- Footer public -->
+  <div style="padding:24px 20px 40px;text-align:center;border-top:1px solid var(--border);margin-top:32px;">
+    <div style="font-size:12px;color:var(--text3);">Questions, demandes ou problèmes ?</div>
+    <a href="mailto:software.demeter@gmail.com" style="font-size:13px;color:var(--accent);text-decoration:none;font-family:'DM Mono',monospace;">software.demeter@gmail.com</a>
+    <div style="font-size:10px;color:var(--text3);margin-top:8px;opacity:0.5;">DEMETER · Gestion équestre</div>
+  </div>
 </div>
-
-<!-- BANNIÈRE INSTALLATION PWA -->
 <div id="pwa-install-banner" style="display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.85);align-items:flex-end;justify-content:center;">
   <div style="background:var(--bg2);border-radius:var(--radius2) var(--radius2) 0 0;padding:28px 24px 40px;max-width:480px;width:100%;border-top:1px solid var(--border2);">
     <div style="text-align:center;margin-bottom:20px;">
@@ -711,6 +716,11 @@ a{color:var(--accent);text-decoration:none}
       <label class="form-label">Nom de l'équipe</label>
       <input type="text" id="ap-equipe" list="ap-equipe-list">
       <datalist id="ap-equipe-list"></datalist>
+    </div>
+    <div class="form-group" id="ap-speciale-wrap" style="display:none;">
+      <label class="form-label">Catégorie spéciale (optionnel)</label>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">Pour un cavalier classé aussi dans une catégorie spéciale POR ou PTV (même parcours, double classement)</div>
+      <select id="ap-categorie-speciale"><option value="">— Aucune —</option></select>
     </div>
   </div>
   <div class="modal-actions">
@@ -995,7 +1005,7 @@ const APP = {
 /* ================================================================
    SERVICE WORKER — Cache assets + MAJ automatique
    ================================================================ */
-const APP_VERSION = '1.0.119'; // Incrémenté à chaque push
+const APP_VERSION = '1.0.125'; // Incrémenté à chaque push
 
 // ================================================================
 // SÉCURITÉ — Échapper les données utilisateur (prévention XSS)
@@ -1252,7 +1262,7 @@ async function fullSync() {
       id, dossard, statut, type_participation, elim_por, elim_ma, elim_ptv, hors_classement,
       cavalier:cavaliers(id,prenom,nom,licence,ecurie),
       cheval:chevaux(id,nom,sire,ecurie),
-      categorie:categories(id,label,official,pts_por,special,mode_ma,max_ptv,participation_type),
+      categorie:categories!categorie_id(id,label,official,pts_por,special,mode_ma,max_ptv,participation_type),
       equipe:equipes(id,nom),
       scores_por(*), scores_ma(*), scores_ptv(*)
     `).eq('concours_id', APP.currentConcoursId);
@@ -1356,6 +1366,8 @@ function buildParticipantsFromEngagements(engagements) {
     cheval_id: e.cheval?.id,
     categorie: e.categorie?.id || '—',
     categorie_obj: e.categorie,
+    categorie_speciale_id: e.categorie_speciale_id || null,
+    categorie_speciale_obj: e.categorie_speciale || null,
     equipe: e.equipe?.nom || null,
     equipe_id: e.equipe?.id || null,
     scores: {
@@ -1522,52 +1534,64 @@ async function pushOneScore(action, attempt=1) {
 // ================================================================
 // MISES À JOUR — Vérification de version
 // ================================================================
+// Afficher la version au chargement
+function initVersionDisplay() {
+  const el = document.getElementById('app-version-display');
+  if (el) el.textContent = `v${APP_VERSION}`;
+}
+
 async function checkAppVersion() {
   try {
+    // Ne pas vérifier l'ETag en local (file://)
+    if (window.location.protocol !== 'file:') {
+      const resp = await fetch(window.location.pathname + '?_=' + Date.now(), { method: 'HEAD', cache: 'no-store' });
+      const etag = resp.headers.get('etag') || resp.headers.get('last-modified') || '';
+      const stored = localStorage.getItem('demeter_etag');
+      if (stored && etag && stored !== etag) {
+        showUpdateBanner();
+      } else if (etag) {
+        localStorage.setItem('demeter_etag', etag);
+      }
+    }
+    // Vérifier la table BDD
     const { data } = await sb.from('app_versions').select('version').eq('id', 'current').single();
-    if (!data) return;
-    if (data.version !== APP_VERSION) showUpdateBanner(data.version);
+    if (data && data.version !== APP_VERSION) showUpdateBanner();
   } catch(e) {}
 }
 
-function showUpdateBanner(newVersion) {
+function showUpdateBanner() {
   if (document.getElementById('update-banner')) return;
   const banner = document.createElement('div');
   banner.id = 'update-banner';
-  banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:8000;background:var(--accent);color:#000;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px;box-shadow:0 -2px 12px rgba(0,0,0,.3);';
-  banner.innerHTML = `<div><strong>🆕 Mise à jour disponible</strong> — v${newVersion}<div style="font-size:11px;opacity:0.75;margin-top:2px;">Terminez vos saisies en cours avant de mettre à jour.</div></div><div style="display:flex;gap:8px;flex-shrink:0;"><button onclick="doAppUpdate()" style="background:#000;color:var(--accent);border:none;padding:6px 14px;border-radius:4px;cursor:pointer;font-weight:700;font-size:12px;">Mettre à jour</button><button onclick="this.closest('#update-banner').remove()" style="background:none;border:1px solid rgba(0,0,0,.3);padding:6px 10px;border-radius:4px;cursor:pointer;font-size:12px;">Plus tard</button></div>`;
+  banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#181818;color:#fff;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px;z-index:9999;border-top:2px solid var(--accent);font-size:13px;';
+  banner.innerHTML = `<div><strong>🆕 Mise à jour disponible</strong><div style="font-size:11px;opacity:0.7;margin-top:2px;">Terminez vos saisies en cours avant de mettre à jour.</div></div><div style="display:flex;gap:8px;flex-shrink:0;"><button onclick="doAppUpdate()" style="background:var(--accent);color:#000;border:none;padding:8px 16px;border-radius:4px;cursor:pointer;font-weight:700;font-size:12px;">Mettre à jour</button><button onclick="this.closest('#update-banner').remove()" style="background:none;border:1px solid rgba(255,255,255,.3);color:#fff;padding:8px 10px;border-radius:4px;cursor:pointer;font-size:12px;">Plus tard</button></div>`;
   document.body.appendChild(banner);
 }
 
 async function doAppUpdate() {
   const pending = await dbGetAllPending();
   if (pending.length > 0) {
-    if (!confirm(`⚠️ ${pending.length} score(s) en attente de sync.\nIls seront envoyés automatiquement après la mise à jour si vous êtes connecté.\n\nMettre à jour maintenant ?`)) return;
+    if (!confirm(`⚠️ Vous avez ${pending.length} score(s) en attente.\n\nSynchronisez d'abord vos données.\n\nForcer quand même ?`)) return;
   }
   if ('serviceWorker' in navigator) {
-    const reg = await navigator.serviceWorker.getRegistration();
-    if (reg) { await reg.unregister(); }
+    const regs = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(regs.map(r => r.unregister()));
   }
-  window.location.reload(true);
+  if ('caches' in window) {
+    const keys = await caches.keys();
+    await Promise.all(keys.map(k => caches.delete(k)));
+  }
+  localStorage.setItem('demeter_etag', '');
+  window.location.href = window.location.pathname + '?reload=' + Date.now();
 }
 
-// AUDIT LOG — Traçabilité des actions
-// ================================================================
-async function logAction(type, details) {
+async function logAction(type, detail) {
   try {
-    const actor = APP.jugeProfile
-      ? `${APP.jugeProfile.prenom||''} ${APP.jugeProfile.nom||''} (juge)`
-      : APP.role || 'unknown';
-    await sb.from('log_saisies').insert({
-      concours_id: APP.currentConcoursId,
-      type_action: type,
-      details: typeof details === 'object' ? JSON.stringify(details) : String(details),
-      actor: actor,
-      created_at: new Date().toISOString(),
-    });
-  } catch(e) { /* Log silencieux - ne pas bloquer l'app */ }
+    if (APP.jugeProfile?.id && APP.jugeProfile.id !== 'orga') {
+      await sb.from('log_saisies').insert({ juge_id: APP.jugeProfile.id, type_action: type, detail });
+    }
+  } catch(e) { /* non bloquant */ }
 }
-
 
 async function checkConflict(action) { return null; }
 
@@ -2869,7 +2893,7 @@ async function showCavalierFiche(id) {
     sb.from('engagements').select(`
       id, dossard, statut, elim_por, elim_ma, elim_ptv, hors_classement,
       concours:concours(id, nom, date),
-      categorie:categories(id, label, pts_por),
+      categorie:categories!categorie_id(id, label, pts_por),
       cheval:chevaux(id, nom),
       equipe:equipes(id, nom),
       scores_por(controle, heure_reelle, penalites_hors_piste, penalites_autres),
@@ -2922,7 +2946,7 @@ async function showChevalFiche(id) {
     sb.from('engagements').select(`
       id, dossard, statut, elim_por, elim_ma, elim_ptv, hors_classement,
       concours:concours(id, nom, date),
-      categorie:categories(id, label, official, pts_por),
+      categorie:categories!categorie_id(id, label, official, pts_por),
       cavalier:cavaliers(id, prenom, nom),
       equipe:equipes(id, nom),
       scores_por(controle, heure_reelle, penalites_hors_piste, penalites_autres),
@@ -3069,10 +3093,11 @@ async function loadEngagements() {
   }
 
   let q = sb.from('engagements').select(`
-    id, dossard, statut, type_participation, elim_por, elim_ma, elim_ptv, hors_classement,
+    id, dossard, statut, type_participation, elim_por, elim_ma, elim_ptv, hors_classement, categorie_speciale_id,
     cavalier:cavaliers(id, licence, prenom, nom, ecurie),
     cheval:chevaux(id, sire, nom),
-    categorie:categories(id, label, official, pts_por, special, mode_ma, max_ptv, participation_type),
+    categorie:categories!categorie_id(id, label, official, pts_por, special, mode_ma, max_ptv, participation_type),
+    categorie_speciale:categories!categorie_speciale_id(id, label, official, pts_por, special, mode_ma, max_ptv, participation_type),
     equipe:equipes(id, nom),
     scores_por(controle, heure_theorique, heure_reelle, penalites_hors_piste, penalites_autres),
     scores_ma(mode, balises_data, chrono_data),
@@ -3096,6 +3121,8 @@ async function loadEngagements() {
     cheval_id: e.cheval?.id,
     categorie: e.categorie?.id || '—',
     categorie_obj: e.categorie,
+    categorie_speciale_id: e.categorie_speciale_id || null,
+    categorie_speciale_obj: e.categorie_speciale || null,
     equipe: e.equipe?.nom || null,
     equipe_id: e.equipe?.id || null,
     scores: {
@@ -4265,12 +4292,19 @@ async function exportResultatsPDF() {
   const concours = APP.cache.concours.find(c => c.id === APP.currentConcoursId);
   const parts = APP.cache.participants.filter(p => p.statut === 'partant');
 
-  // Regrouper par catégorie
+  // Regrouper par catégorie (principale + spéciale)
   const byCat = {};
   parts.forEach(p => {
     const catId = p.categorie;
     if (!byCat[catId]) byCat[catId] = { cat: p.categorie_obj, parts: [] };
     byCat[catId].parts.push(p);
+    // Ajouter aussi dans la catégorie spéciale si définie
+    if (p.categorie_speciale_id && p.categorie_speciale_obj) {
+      const spId = p.categorie_speciale_id;
+      if (!byCat[spId]) byCat[spId] = { cat: p.categorie_speciale_obj, parts: [] };
+      // Ajouter une copie du participant avec scores filtrés selon la catégorie spéciale
+      byCat[spId].parts.push({ ...p, _isSpeciale: true });
+    }
   });
 
   // Charger jsPDF depuis CDN
@@ -4425,16 +4459,17 @@ function showExportExcelModal() {
 }
 
 async function exportResultatsExcel() {
-  document.querySelector('.modal-overlay.active')?.remove();
-  showLoading();
-  await loadEngagements();
-  const concours = APP.cache.concours.find(c => c.id === APP.currentConcoursId);
-  const parts = APP.cache.participants.filter(p => p.statut === 'partant');
-
+  // Lire les options AVANT de fermer le modal
   const expPor = document.getElementById('exp-por')?.checked ?? true;
   const expMa = document.getElementById('exp-ma')?.checked ?? true;
   const expPtv = document.getElementById('exp-ptv')?.checked ?? true;
   const expClass = document.getElementById('exp-classement')?.checked ?? true;
+  // Fermer tous les modaux ouverts
+  document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
+  showLoading();
+  await loadEngagements();
+  const concours = APP.cache.concours.find(c => c.id === APP.currentConcoursId);
+  const parts = APP.cache.participants.filter(p => p.statut === 'partant');
 
   // Charger SheetJS si pas déjà chargé
   if (!window.XLSX) {
@@ -4523,7 +4558,19 @@ async function exportResultatsExcel() {
   }
 
   const nom = concours?.nom?.replace(/\s+/g, '_') || 'demeter';
-  XLSX.writeFile(wb, `resultats_${nom}.xlsx`);
+  const filename = `resultats_${nom}.xlsx`;
+  try {
+    // Méthode compatible mobile (blob + lien)
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([wbout], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+  } catch(e) {
+    XLSX.writeFile(wb, filename); // fallback desktop
+  }
   hideLoading();
   showToast('Excel généré ✓', 'success');
 }
@@ -4571,24 +4618,40 @@ function getScoreIndiv(p, epreuve) {
 
 function renderResultsByCategory(type) {
   const partants = APP.cache.participants.filter(p => p.statut === 'partant');
+  
+  // Collecter toutes les catégories (normales + spéciales)
+  const catIds = new Set([
+    ...partants.map(p => p.categorie),
+    ...partants.filter(p => p.categorie_speciale_id).map(p => p.categorie_speciale_id)
+  ]);
+  
   const catMinDossard = {};
   partants.forEach(p => {
     const d = p.dossard || 9999;
     if (!catMinDossard[p.categorie] || d < catMinDossard[p.categorie]) catMinDossard[p.categorie] = d;
+    if (p.categorie_speciale_id && (!catMinDossard[p.categorie_speciale_id] || d < catMinDossard[p.categorie_speciale_id])) catMinDossard[p.categorie_speciale_id] = d;
   });
-  const cats = [...new Set(partants.map(p => p.categorie))].sort((a,b) => (catMinDossard[a]||9999)-(catMinDossard[b]||9999));
+  
+  const cats = [...catIds].sort((a,b) => (catMinDossard[a]||9999)-(catMinDossard[b]||9999));
   const porConfigs = APP.cache.porConfigs || [];
   const catsAvecPOR = new Set(porConfigs.flatMap(c => (c.por_config_categories||[]).map(x => x.categorie_id)));
 
   let html = '';
   cats.forEach(catId => {
-    // Utiliser categorie_obj du premier participant (plus fiable que APP.cache.categories)
-    const firstPart = partants.find(p => p.categorie === catId);
-    const cat = firstPart?.categorie_obj || APP.cache.categories.find(c => c.id === catId);
+    // Participants dans cette catégorie (normale ou spéciale)
+    const inCatNormale = partants.filter(p => p.categorie === catId);
+    const inCatSpeciale = partants.filter(p => p.categorie_speciale_id === catId && p.categorie !== catId);
+    const catParts = [...inCatNormale, ...inCatSpeciale].sort((a,b) => (a.dossard||9999)-(b.dossard||9999));
+    
+    if (!catParts.length) return;
+    
+    const firstPart = catParts.find(p => p.categorie === catId) || catParts[0];
+    const cat = firstPart?.categorie_obj?.id === catId ? firstPart.categorie_obj 
+      : (firstPart?.categorie_speciale_obj?.id === catId ? firstPart.categorie_speciale_obj 
+      : APP.cache.categories.find(c => c.id === catId));
     const isOfficial = cat?.official === true;
     const isChallenge = cat?.official === false;
     const catParticipationType = cat?.participation_type || 'ind';
-    const catParts = partants.filter(p => p.categorie === catId).sort((a,b) => (a.dossard||9999)-(b.dossard||9999));
     const elimParts = catParts.filter(p => p.statut === 'elim');
     const hcParts = catParts.filter(p => p.hors_classement && p.statut !== 'elim');
     const classedParts = catParts.filter(p => !p.hors_classement && p.statut !== 'elim');
@@ -7164,7 +7227,7 @@ async function searchLicence() {
   const { data: engagements, error: engError } = await sb.from('engagements').select(`
     id, statut,
     concours:concours(id,nom,date,lieu,results_visibility,resultats_publies,resultats_publies_at),
-    categorie:categories(id,label,pts_por,mode_ma)
+    categorie:categories!categorie_id(id,label,pts_por,mode_ma)
   `).eq('cavalier_id', cavalier.id);
 
   if (engError) { container.innerHTML = `<div class="alert-banner warn"><div>ℹ️</div><div>Erreur : ${engError.message}</div></div>`; return; }
@@ -7984,6 +8047,18 @@ async function openParticipantDetail(id) {
           <button class="btn-outline btn-small" style="font-size:10px;padding:2px 8px;" onclick="openEditField('categorie','${id}')">✎</button>
         </div>
       </div>
+      ${p.categorie_speciale_id ? `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);">
+        <span style="font-size:12px;color:var(--text3);">Catég. spéciale</span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="cat-badge unofficial">${esc(p.categorie_speciale_obj?.label||'—')}</span>
+          <button class="btn-outline btn-small" style="font-size:10px;padding:2px 8px;" onclick="openEditField('categorie_speciale','${id}')">✎</button>
+          <button class="btn-outline btn-small" style="font-size:10px;padding:2px 8px;color:var(--red);" onclick="clearCategorieSpeciale('${id}')">✕</button>
+        </div>
+      </div>` : `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);">
+        <span style="font-size:12px;color:var(--text3);">Catég. spéciale</span>
+        <button class="btn-outline btn-small" style="font-size:10px;padding:2px 8px;" onclick="openEditField('categorie_speciale','${id}')">+ Assigner</button>
+      </div>`}
+
       ${(p.equipe || catNeedsEquipe(cat?.participation_type)) ? `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);">
         <span style="font-size:12px;color:var(--text3);">Équipe</span>
         <div style="display:flex;align-items:center;gap:8px;">
@@ -8039,7 +8114,16 @@ async function openParticipantDetail(id) {
 // ================================================================
 const _EF = { field: null, engId: null, selectedId: null, selectedLabel: null, isCreating: false };
 
-async function openEditField(field, engId) {
+async function clearCategorieSpeciale(engId) {
+  if (!confirm('Supprimer la catégorie spéciale ?')) return;
+  const { error } = await sb.from('engagements').update({ categorie_speciale_id: null }).eq('id', engId);
+  if (error) { showToast(error.message, 'error'); return; }
+  showToast('Catégorie spéciale supprimée ✓', 'success');
+  APP._cacheStale = true;
+  await openParticipantDetail(engId);
+}
+
+function openEditField(field, engId) {
   // Demander le PIN pour cavalier, cheval, équipe
   if (['cavalier', 'cheval', 'equipe'].includes(field)) {
     APP._pinEditCtx = { field, engagementId: engId, currentVal: null, _pendingEditField: true };
@@ -8054,7 +8138,7 @@ async function openEditField(field, engId) {
 
 async function _openEditFieldModal(field, engId) {
   _EF.field = field; _EF.engId = engId; _EF.selectedId = null; _EF.selectedLabel = null; _EF.isCreating = false;
-  const titles = { cavalier:'Modifier le cavalier', cheval:'Modifier le cheval', categorie:'Modifier la catégorie', equipe:'Modifier l\'équipe' };
+  const titles = { cavalier:'Modifier le cavalier', cheval:'Modifier le cheval', categorie:'Modifier la catégorie', equipe:'Modifier l\'équipe', categorie_speciale:'Catégorie spéciale' };
   document.getElementById('modal-edit-field-title').textContent = titles[field] || 'Modifier';
   document.getElementById('modal-edit-field-search').value = '';
   document.getElementById('modal-edit-field-results').innerHTML = '';
@@ -8093,7 +8177,7 @@ async function editFieldSearch(val) {
         <div style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;">${c.sire||'—'}</div>
       </div>`).join('');
       items += `<div onclick="efShowCreate()" style="padding:10px 12px;cursor:pointer;color:var(--accent);border-top:1px solid var(--border);" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">+ Créer un nouveau cheval</div>`;
-    } else if (_EF.field === 'categorie') {
+    } else if (_EF.field === 'categorie' || _EF.field === 'categorie_speciale') {
       ({ data } = await sb.from('categories').select('id, label, official').ilike('label', `%${val}%`).limit(8));
       items = (data||[]).map(c => `<div onclick="efSelect('${c.id}','${esc(c.label)}')" style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
         <span class="cat-badge ${c.official?'official':'unofficial'}">${esc(c.label)}</span>
@@ -8166,6 +8250,10 @@ async function saveEditField() {
   } else if (field === 'cheval') {
     if (!selectedId) { showToast('Sélectionnez un cheval', 'error'); return; }
     const { error } = await sb.from('engagements').update({ cheval_id: selectedId }).eq('id', engId);
+    if (error) { showToast(error.message, 'error'); return; }
+  } else if (field === 'categorie_speciale') {
+    if (!selectedId) { showToast('Sélectionnez une catégorie', 'error'); return; }
+    const { error } = await sb.from('engagements').update({ categorie_speciale_id: selectedId }).eq('id', engId);
     if (error) { showToast(error.message, 'error'); return; }
   } else if (field === 'categorie') {
     if (!selectedId) { showToast('Sélectionnez une catégorie', 'error'); return; }
@@ -8665,21 +8753,27 @@ async function deletePartant() {
 }
 
 async function openAddPartant() {
-  // Remplir le select catégories
   const cats = APP.cache.categories || [];
   const sel = document.getElementById('ap-categorie');
   sel.innerHTML = `<option value="">— Choisir —</option>` +
     cats.map(c => `<option value="${c.id}">${c.label}</option>`).join('');
 
-  // Remplir la datalist équipes existantes
+  // Catégories spéciales
+  const catSpecSel = document.getElementById('ap-categorie-speciale');
+  const speciales = cats.filter(c => c.special);
+  if (catSpecSel) {
+    catSpecSel.innerHTML = '<option value="">— Aucune —</option>' + speciales.map(c => `<option value="${c.id}">${esc(c.label)}</option>`).join('');
+    document.getElementById('ap-speciale-wrap').style.display = speciales.length ? 'block' : 'none';
+  }
+
   const equipes = [...new Set(APP.cache.participants.filter(p=>p.equipe).map(p=>p.equipe))];
   document.getElementById('ap-equipe-list').innerHTML = equipes.map(e=>`<option value="${e}">`).join('');
 
-  // Reset champs
   ['ap-licence','ap-prenom','ap-nom','ap-ecurie','ap-sire','ap-cheval','ap-equipe'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
+  if (catSpecSel) catSpecSel.value = '';
   document.getElementById('ap-equipe-wrap').style.display = 'none';
 
   openModal('modal-add-partant');
@@ -8784,6 +8878,8 @@ async function saveAddPartant() {
     newDossard = APP.cache.participants.reduce((max, p) => Math.max(max, p.dossard||0), 0) + 1;
   }
 
+  const catSpecialeId = document.getElementById('ap-categorie-speciale')?.value || null;
+
   const { error } = await sb.from('engagements').insert({
     concours_id: APP.currentConcoursId,
     cavalier_id: cav.id,
@@ -8793,6 +8889,7 @@ async function saveAddPartant() {
     type_participation: type,
     statut: 'partant',
     dossard: newDossard,
+    categorie_speciale_id: catSpecialeId || null,
   });
   if (error) { showToast(error.message, 'error'); return; }
 
@@ -9360,6 +9457,7 @@ window.addEventListener('load', async () => {
   registerServiceWorker();
   checkPWA();
   initConn();
+  initVersionDisplay();
   // Vérifier si une mise à jour est disponible (après 2s pour laisser l'app démarrer)
   setTimeout(checkAppVersion, 2000);
 
