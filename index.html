@@ -255,7 +255,7 @@ a{color:var(--accent);text-decoration:none}
 .score-btn.zero{background:var(--red-bg);color:var(--red)}
 .por-control{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius2);padding:14px;margin-bottom:10px}
 .por-control-label{font-family:'DM Mono',monospace;font-size:11px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--text3);margin-bottom:12px}
-.time-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.time-grid{display:grid;grid-template-columns:1fr;gap:12px}
 .penalty-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
 .penalty-item{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:10px}
 .penalty-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
@@ -760,7 +760,7 @@ a{color:var(--accent);text-decoration:none}
   </div>
   <div class="modal-actions">
     <button class="btn-primary" onclick="verifyAdminPin()">Confirmer</button>
-    <button class="btn-secondary" onclick="closeModal('modal-admin-pin')">Annuler</button>
+    <button class="btn-secondary" onclick="if(APP._pinEditCtx?.resolve){APP._pinEditCtx.resolve(false);APP._pinEditCtx.resolve=null;}closeModal('modal-admin-pin')">Annuler</button>
   </div></div>
 </div>
 
@@ -948,15 +948,7 @@ a{color:var(--accent);text-decoration:none}
   <div class="modal-actions"><button class="btn-primary" onclick="saveScheduleEdit()">Enregistrer</button><button class="btn-secondary" onclick="closeModal('modal-edit-schedule')">Annuler</button></div></div>
 </div>
 
-<div class="modal-overlay" id="modal-edit-juge">
-  <div class="modal"><div class="modal-handle"></div><div class="modal-title">Modifier le juge</div>
-  <div class="modal-body">
-    <div id="edit-juge-name" style="font-size:18px;font-weight:600;margin-bottom:16px;"></div>
-    <div class="form-group"><label class="form-label">Type d'épreuve</label><select id="edit-juge-type" onchange="updateJugePosteOptions()"><option value="POR">POR</option><option value="MA">MA</option><option value="PTV">PTV</option></select></div>
-    <div class="form-group"><label class="form-label">Poste / Assignation</label><select id="edit-juge-poste"></select></div>
-  </div>
-  <div class="modal-actions"><button class="btn-primary" onclick="saveJugeEdit()">Enregistrer</button><button class="btn-secondary" onclick="closeModal('modal-edit-juge')">Annuler</button></div></div>
-</div>
+<!-- modal-edit-juge supprimé v1.0.133 — fonctions saveJugeEdit/updateJugePosteOptions non implémentées -->
 
 <script>
 /* ================================================================
@@ -1005,7 +997,7 @@ const APP = {
 /* ================================================================
    SERVICE WORKER — Cache assets + MAJ automatique
    ================================================================ */
-const APP_VERSION = '1.0.125'; // Incrémenté à chaque push
+const APP_VERSION = '1.0.144'; // Incrémenté à chaque push
 
 // ================================================================
 // SÉCURITÉ — Échapper les données utilisateur (prévention XSS)
@@ -1040,13 +1032,12 @@ function registerServiceWorker() {
       var nw = reg.installing;
       nw.addEventListener('statechange', function() {
         if (nw.state === 'installed' && navigator.serviceWorker.controller) {
-          showToast('🔄 Nouvelle version disponible — rechargement...', 'success');
-          setTimeout(function() { location.reload(); }, 3000);
+          // Ne pas recharger automatiquement — laisser le système ETag gérer
+          localStorage.removeItem('demeter_etag'); // forcer la détection ETag
         }
       });
     });
   }).catch(function(e) { console.warn('SW:', e); });
-  navigator.serviceWorker.addEventListener('controllerchange', function() { location.reload(); });
 }
 
 function checkPWA() {
@@ -1371,9 +1362,7 @@ function buildParticipantsFromEngagements(engagements) {
     equipe: e.equipe?.nom || null,
     equipe_id: e.equipe?.id || null,
     scores: {
-      por: e.elim_por ? 0 : ((APP.cache.porConfigs||[]).some(c => c.por_config_troncons?.length > 0)
-        ? calcPORScoreAvecTemps(e.scores_por, e.categorie, APP.cache.porConfigs)
-        : null),
+      por: e.elim_por ? 0 : calcPORScoreAvecTemps(e.scores_por, e.categorie, APP.cache.porConfigs || []),
       ma: e.elim_ma ? 0 : calcMAScore(e.scores_ma),
       ptv: e.elim_ptv ? 0 : calcPTVScore(e.scores_ptv, e.scores_ptv?.[0]?.temps_reel, e.categorie),
     },
@@ -1452,7 +1441,10 @@ async function pushPendingScores() {
     showSyncToast(`✓ ${pushed} score(s) envoyés`);
   } else if (errors > 0) {
     showSyncToast(`⚠️ ${pushed} envoyés, ${errors} échec(s) — réessai dans 30s`, true);
-    setTimeout(() => { if (APP.isOnline) pushPendingScores(); }, 30000);
+    // Push périodique des scores en attente toutes les 2 minutes
+setInterval(() => { if (APP.isOnline) pushPendingScores(); }, 2 * 60 * 1000);
+// Push immédiat 30s après démarrage (cas connexion établie après chargement)
+setTimeout(() => { if (APP.isOnline) pushPendingScores(); }, 30000);
   }
 
   // Rafraîchir la page sync si ouverte
@@ -1541,21 +1533,17 @@ function initVersionDisplay() {
 }
 
 async function checkAppVersion() {
+  if (window.location.protocol === 'file:') return;
   try {
-    // Ne pas vérifier l'ETag en local (file://)
-    if (window.location.protocol !== 'file:') {
-      const resp = await fetch(window.location.pathname + '?_=' + Date.now(), { method: 'HEAD', cache: 'no-store' });
-      const etag = resp.headers.get('etag') || resp.headers.get('last-modified') || '';
-      const stored = localStorage.getItem('demeter_etag');
-      if (stored && etag && stored !== etag) {
-        showUpdateBanner();
-      } else if (etag) {
-        localStorage.setItem('demeter_etag', etag);
-      }
+    const resp = await fetch(window.location.pathname + '?_=' + Date.now(), { method: 'HEAD', cache: 'no-store' });
+    const etag = resp.headers.get('etag') || resp.headers.get('last-modified') || '';
+    if (!etag) return;
+    const stored = localStorage.getItem('demeter_etag');
+    if (!stored) {
+      localStorage.setItem('demeter_etag', etag);
+    } else if (stored !== etag) {
+      showUpdateBanner();
     }
-    // Vérifier la table BDD
-    const { data } = await sb.from('app_versions').select('version').eq('id', 'current').single();
-    if (data && data.version !== APP_VERSION) showUpdateBanner();
   } catch(e) {}
 }
 
@@ -1569,10 +1557,50 @@ function showUpdateBanner() {
 }
 
 async function doAppUpdate() {
+  // Vérification 1 : scores en attente → REFUS CATÉGORIQUE
   const pending = await dbGetAllPending();
   if (pending.length > 0) {
-    if (!confirm(`⚠️ Vous avez ${pending.length} score(s) en attente.\n\nSynchronisez d'abord vos données.\n\nForcer quand même ?`)) return;
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.style.zIndex = '9999';
+    modal.innerHTML = `<div class="modal">
+      <div class="modal-handle"></div>
+      <div class="modal-title" style="color:var(--red);">⛔ Mise à jour impossible</div>
+      <div class="modal-body">
+        <div style="background:rgba(212,90,90,.12);border:1px solid var(--red);border-radius:var(--radius);padding:14px;margin-bottom:12px;">
+          <div style="font-weight:700;font-size:15px;color:var(--red);margin-bottom:6px;">
+            ${pending.length} saisie${pending.length>1?'s':''} en attente d'envoi
+          </div>
+          <div style="font-size:13px;color:var(--text2);">
+            Ces scores ne sont pas encore synchronisés avec le serveur. 
+            Mettre à jour maintenant les perdrait définitivement.
+          </div>
+        </div>
+        <div style="font-size:13px;color:var(--text2);">
+          👉 Reconnectez-vous au réseau et utilisez <strong>Synchroniser</strong> avant de mettre à jour.
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-primary" onclick="this.closest('.modal-overlay').remove()">Compris</button>
+      </div>
+    </div>`;
+    document.body.appendChild(modal);
+    requestAnimationFrame(() => modal.classList.add('open'));
+    return; // REFUS — on sort sans rien faire
   }
+
+  // Vérification 2 : double avertissement si saisie en cours
+  const isJuge = APP.jugeProfile && APP.jugeProfile.id !== 'orga';
+  const warning1 = isJuge
+    ? `⚠️ ATTENTION — Mise à jour\n\nSi vous êtes en cours de saisie, terminez et envoyez d'abord vos scores.\n\nPoursuivre ?`
+    : `⚠️ ATTENTION — Mise à jour\n\nL'application va se recharger. Assurez-vous que tous les juges ont bien synchronisé leurs saisies.\n\nPoursuivre ?`;
+
+  if (!confirm(warning1)) return;
+
+  // Deuxième confirmation
+  if (!confirm('✅ Confirmez la mise à jour.\n\nL\'application va redémarrer maintenant.')) return;
+
+  // Procéder à la mise à jour
   if ('serviceWorker' in navigator) {
     const regs = await navigator.serviceWorker.getRegistrations();
     await Promise.all(regs.map(r => r.unregister()));
@@ -1581,8 +1609,8 @@ async function doAppUpdate() {
     const keys = await caches.keys();
     await Promise.all(keys.map(k => caches.delete(k)));
   }
-  localStorage.setItem('demeter_etag', '');
-  window.location.href = window.location.pathname + '?reload=' + Date.now();
+  localStorage.removeItem('demeter_etag');
+  location.reload();
 }
 
 async function logAction(type, detail) {
@@ -1713,43 +1741,60 @@ async function syncPending() {
 async function processSyncAction(a) {
   const jugeIdRaw = APP.jugeProfile?.id;
   const jugeId = jugeIdRaw && jugeIdRaw !== 'orga' ? jugeIdRaw : null;
-  if (a.type === 'ptv') {
-    await sb.from('scores_ptv').upsert({
-      engagement_id: a.engagement_id,
-      obstacle_id: a.obstacle_id,
-      points: a.score,
-      grille_data: a.grille_data || null,
-      juge_id: jugeId
-    }, { onConflict: 'engagement_id,obstacle_id' });
-    logAction('saisie_ptv', { engagement_id: a.engagement_id, obstacle_id: a.obstacle_id, points: a.score });
-  } else if (a.type === 'por') {
-    await sb.from('scores_por').upsert({
-      engagement_id: a.engagement_id,
-      controle: a.controle,
-      heure_theorique: a.heure_theorique,
-      heure_reelle: a.heure_reelle,
-      penalites_hors_piste: a.hp,
-      penalites_autres: a.au,
-      juge_id: jugeId
-    }, { onConflict: 'engagement_id,controle' });
-    logAction('saisie_por', { engagement_id: a.engagement_id, controle: a.controle, heure: a.heure_reelle });
-  } else if (a.type === 'ma') {
-    const jugeId = APP.jugeProfile?.id;
-    const jugeIdValid = jugeId && jugeId !== 'orga' ? jugeId : null;
-    await sb.from('scores_ma').upsert({
-      engagement_id: a.engagement_id,
-      mode: a.mode,
-      balises_data: a.balises_data,
-      chrono_data: a.chrono_data,
-      juge_id: jugeIdValid
-    }, { onConflict: 'engagement_id' });
-  } else if (a.type === 'statut') {
-    await sb.from('engagements').update({ statut: a.statut }).eq('id', a.engagement_id);
-  } else if (a.type === 'dossards') {
-    for (const { id, dossard } of a.updates) {
-      await sb.from('engagements').update({ dossard }).eq('id', id);
+  try {
+    if (a.type === 'ptv') {
+      const { error } = await sb.from('scores_ptv').upsert({
+        engagement_id: a.engagement_id,
+        obstacle_id: a.obstacle_id,
+        points: a.score,
+        grille_data: a.grille_data || null,
+        juge_id: jugeId
+      }, { onConflict: 'engagement_id,obstacle_id' });
+      if (error) throw error;
+      logAction('saisie_ptv', { engagement_id: a.engagement_id, obstacle_id: a.obstacle_id, points: a.score });
+    } else if (a.type === 'por') {
+      const { error } = await sb.from('scores_por').upsert({
+        engagement_id: a.engagement_id,
+        controle: a.controle,
+        heure_theorique: a.heure_theorique,
+        heure_reelle: a.heure_reelle,
+        penalites_hors_piste: a.hp,
+        penalites_autres: a.au,
+        juge_id: jugeId
+      }, { onConflict: 'engagement_id,controle' });
+      if (error) throw error;
+      logAction('saisie_por', { engagement_id: a.engagement_id, controle: a.controle, heure: a.heure_reelle });
+    } else if (a.type === 'ma') {
+      const jugeIdValid = jugeId;
+      const { error } = await sb.from('scores_ma').upsert({
+        engagement_id: a.engagement_id,
+        mode: a.mode,
+        balises_data: a.balises_data,
+        chrono_data: a.chrono_data,
+        juge_id: jugeIdValid
+      }, { onConflict: 'engagement_id' });
+      if (error) throw error;
+    } else if (a.type === 'statut') {
+      const { error } = await sb.from('engagements').update({ statut: a.statut }).eq('id', a.engagement_id);
+      if (error) throw error;
+    } else if (a.type === 'dossards') {
+      for (const { id, dossard } of a.updates) {
+        const { error } = await sb.from('engagements').update({ dossard }).eq('id', id);
+        if (error) throw error;
+      }
     }
+  } catch (err) {
+    console.error('processSyncAction error:', a.type, err);
+    // Remettre en file d'attente si erreur réseau (pas erreur de validation)
+    const isNetworkError = err?.message?.includes('fetch') || err?.code === 'PGRST' || !navigator.onLine;
+    if (isNetworkError) {
+      showToast('Score en attente — sera envoyé à la reconnexion', 'info');
+      return false; // signale l'échec à pushOneScore
+    }
+    showToast('Erreur envoi score ' + a.type.toUpperCase() + ' : ' + (err?.message || 'inconnue'), 'error');
+    return false;
   }
+  return true;
 }
 
 /* ================================================================
@@ -2896,7 +2941,7 @@ async function showCavalierFiche(id) {
       categorie:categories!categorie_id(id, label, pts_por),
       cheval:chevaux(id, nom),
       equipe:equipes(id, nom),
-      scores_por(controle, heure_reelle, penalites_hors_piste, penalites_autres),
+      scores_por(controle, heure_reelle, penalites_hors_piste, penalites_autres, penalites_manuelles),
       scores_ma(mode, balises_data, chrono_data),
       scores_ptv(obstacle_id, points)
     `).eq('cavalier_id', id).order('created_at', { ascending: false })
@@ -2949,7 +2994,7 @@ async function showChevalFiche(id) {
       categorie:categories!categorie_id(id, label, official, pts_por),
       cavalier:cavaliers(id, prenom, nom),
       equipe:equipes(id, nom),
-      scores_por(controle, heure_reelle, penalites_hors_piste, penalites_autres),
+      scores_por(controle, heure_reelle, penalites_hors_piste, penalites_autres, penalites_manuelles),
       scores_ma(mode, balises_data, chrono_data),
       scores_ptv(obstacle_id, points)
     `).eq('cheval_id', id).order('created_at', { ascending: false })
@@ -3099,13 +3144,13 @@ async function loadEngagements() {
     categorie:categories!categorie_id(id, label, official, pts_por, special, mode_ma, max_ptv, participation_type),
     categorie_speciale:categories!categorie_speciale_id(id, label, official, pts_por, special, mode_ma, max_ptv, participation_type),
     equipe:equipes(id, nom),
-    scores_por(controle, heure_theorique, heure_reelle, penalites_hors_piste, penalites_autres),
+    scores_por(controle, heure_theorique, heure_reelle, penalites_hors_piste, penalites_autres, penalites_manuelles),
     scores_ma(mode, balises_data, chrono_data),
     scores_ptv(obstacle_id, points, temps_reel)
   `);
   if (APP.currentConcoursId) q = q.eq('concours_id', APP.currentConcoursId);
   const { data, error } = await q.order('dossard');
-  if (error) { console.error('loadEngagements:', error); APP.cache.participants = []; return; }
+  if (error) { console.error('loadEngagements:', error); showToast('Erreur chargement données — vérifiez votre connexion', 'error'); APP.cache.participants = []; hideLoading(); return; }
   APP.cache.participants = (data || []).map(e => ({
     id: e.id,
     dossard: e.dossard,
@@ -3126,9 +3171,7 @@ async function loadEngagements() {
     equipe: e.equipe?.nom || null,
     equipe_id: e.equipe?.id || null,
     scores: {
-      por: e.elim_por ? 0 : ((APP.cache.porConfigs||[]).some(c => c.por_config_troncons?.length > 0)
-        ? calcPORScoreAvecTemps(e.scores_por, e.categorie, APP.cache.porConfigs)
-        : null),
+      por: e.elim_por ? 0 : calcPORScoreAvecTemps(e.scores_por, e.categorie, APP.cache.porConfigs || []),
       ma: e.elim_ma ? 0 : calcMAScore(e.scores_ma),
       ptv: e.elim_ptv ? 0 : calcPTVScore(e.scores_ptv, e.scores_ptv?.[0]?.temps_reel, e.categorie),
     },
@@ -3148,18 +3191,21 @@ function calcPORScoreAvecTemps(rows, cat, porConfigs) {
   const ptsDep = cat.pts_por || 230;
   const toMin = t => { if (!t) return null; const p = t.split(':').map(Number); return p[0]*60+p[1]+(p[2]||0)/60; };
 
+  // Pénalité manuelle globale (stockée sur le row 'depart' ou tout row)
+  const penManuelle = rows.reduce((s, r) => s + (r.penalites_manuelles||0), 0);
+
   const cfg = (porConfigs||[]).find(c => (c.por_config_categories||[]).some(x => x.categorie_id === cat.id));
   if (!cfg) {
     let pen = 0;
     rows.forEach(r => { pen += (r.penalites_hors_piste||0)*30 + (r.penalites_autres||0)*50; });
-    return Math.max(0, ptsDep - pen);
+    return Math.max(0, ptsDep - pen + penManuelle);
   }
 
   const troncons = (cfg.por_config_troncons||[]).sort((a,b) => a.ordre - b.ordre);
   if (!troncons.length) {
     let pen = 0;
     rows.forEach(r => { pen += (r.penalites_hors_piste||0)*30 + (r.penalites_autres||0)*50; });
-    return Math.max(0, ptsDep - pen);
+    return Math.max(0, ptsDep - pen + penManuelle);
   }
 
   // Même logique que calcEcartTroncon dans le récap — source de vérité unique
@@ -3184,7 +3230,7 @@ function calcPORScoreAvecTemps(rows, cat, porConfigs) {
     }
   });
 
-  return Math.max(0, ptsDep - pen);
+  return Math.max(0, ptsDep - pen + penManuelle);
 }
 
 
@@ -3502,6 +3548,8 @@ async function pageOrgaParticipants() {
       <div><div class="page-title">Participants</div><div class="page-subtitle">${parts.length} engagés</div></div>
       <div class="flex-gap">
         <button class="btn-outline btn-small" id="btn-dossard-mode" onclick="toggleDossardMode()">⇅ Dossards</button>
+        <button class="btn-outline btn-small" onclick="exportPartantsPDF()">📄 PDF</button>
+        <button class="btn-outline btn-small" onclick="exportPartantsExcel()">📊 Excel</button>
         <button class="btn-primary btn-small" onclick="openAddPartant()">+ Partant</button>
         <button class="btn-outline btn-small" onclick="openImportPartants()">📥 Import</button>
       </div>
@@ -3622,6 +3670,247 @@ function renderPartTable() {
       ${!filtered.length ? `<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:20px;">Aucun résultat</td></tr>` : ''}
     </tbody>
   </table>`;
+}
+
+/* ----------------------------------------------------------------
+   EXPORT LISTE PARTANTS — PDF
+   ---------------------------------------------------------------- */
+async function exportPartantsPDF() {
+  const concours = APP.cache.concours.find(c => c.id === APP.currentConcoursId);
+  const parts = APP.cache.participants.filter(p => p.statut === 'partant');
+  const cats = APP.cache.categories || [];
+
+  // Grouper : équipes par dossard min, puis individuels, tout trié par dossard
+  const allSorted = [...parts].sort((a,b) => (a.dossard||9999)-(b.dossard||9999));
+  const equipesSeen = new Set();
+  const rows = [];
+  allSorted.forEach(p => {
+    if (p.equipe_id) {
+      if (!equipesSeen.has(p.equipe_id)) {
+        equipesSeen.add(p.equipe_id);
+        const membres = allSorted.filter(m => m.equipe_id === p.equipe_id);
+        rows.push({ type: 'equipe_header', nom: p.equipe, count: membres.length });
+        membres.forEach(m => rows.push({ type: 'row', p: m }));
+      }
+    } else {
+      rows.push({ type: 'row', p });
+    }
+  });
+
+  // Stats
+  const partants = parts.filter(p => p.statut === 'partant');
+  const nbOfficiels = partants.filter(p => p.categorie_obj?.official === true).length;
+  const nbChallenge = partants.filter(p => p.categorie_obj?.official === false).length;
+  const byCat = {};
+  partants.forEach(p => {
+    const label = p.categorie_obj?.label || p.categorie || '—';
+    byCat[label] = (byCat[label] || 0) + 1;
+  });
+  const dateStr = concours?.date ? new Date(concours.date).toLocaleDateString('fr-FR') : '';
+
+  const statsHtml = `
+    <div class="stats-block">
+      <div class="stat-item"><span class="stat-num">${parts.length}</span><span class="stat-lbl">Engagés</span></div>
+      <div class="stat-item"><span class="stat-num">${nbOfficiels}</span><span class="stat-lbl">Officiels</span></div>
+      <div class="stat-item"><span class="stat-num">${nbChallenge}</span><span class="stat-lbl">Challenge</span></div>
+      ${Object.entries(byCat).map(([l,n]) => `<div class="stat-item"><span class="stat-num">${n}</span><span class="stat-lbl">${l}</span></div>`).join('')}
+    </div>`;
+
+  const rowsHtml = rows.map(item => {
+    if (item.type === 'equipe_header') {
+      return `<tr class="equipe-header"><td colspan="7">⚑ ${item.nom} (${item.count} membre${item.count>1?'s':''})</td></tr>`;
+    }
+    const p = item.p;
+    const cat = p.categorie_obj;
+    return `<tr class="${p.equipe_id ? 'in-equipe' : ''}">
+      <td class="mono">${p.dossard || '—'}</td>
+      <td>${p.prenom} ${p.nom}<br><span class="sub">${p.licence || ''}</span></td>
+      <td>${p.ecurie || '—'}</td>
+      <td>${p.cheval_nom || '—'}<br><span class="sub">${p.cheval_sire || ''}</span></td>
+      <td><span class="cat-badge ${cat?.official ? 'official' : 'challenge'}">${cat?.label || p.categorie || '—'}</span></td>
+      <td>${p.equipe || '—'}</td>
+      <td>${p.hors_classement ? 'HC' : 'Partant'}</td>
+    </tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+  <title>Partants — ${concours?.nom || ''}</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family: system-ui, sans-serif; font-size: 11px; color: #111; background: white; }
+    header { background: #0d0f0d; color: white; padding: 12px 16px; display:flex; justify-content:space-between; align-items:center; }
+    header .title { font-size: 16px; font-weight: 700; color: #b4893c; }
+    header .sub { font-size: 11px; color: #aaa; margin-top: 3px; }
+    header .right { text-align: right; font-size: 10px; color: #aaa; }
+    .stats-block { display:flex; flex-wrap:wrap; gap:8px; padding: 8px 16px; background: #f5f5f5; border-bottom: 1px solid #ddd; }
+    .stat-item { background: white; border: 1px solid #ddd; border-radius: 4px; padding: 4px 10px; text-align:center; }
+    .stat-num { display:block; font-size: 16px; font-weight: 700; color: #b4893c; }
+    .stat-lbl { display:block; font-size: 9px; color: #666; }
+    table { width: 100%; border-collapse: collapse; margin-top: 0; }
+    th { background: #1e281e; color: #b4893c; text-align: left; padding: 5px 6px; font-size: 10px; font-weight: 700; }
+    td { padding: 4px 6px; border-bottom: 1px solid #eee; vertical-align: middle; }
+    tr:nth-child(even) td { background: #fafafa; }
+    tr.equipe-header td { background: #e8f0e8; color: #1e4020; font-weight: 700; padding: 4px 8px; font-size: 10px; }
+    tr.in-equipe td { background: #f2f8f2; }
+    .mono { font-family: monospace; font-weight: 700; color: #b4893c; }
+    .sub { font-size: 9px; color: #888; }
+    .cat-badge { display:inline-block; padding: 1px 5px; border-radius: 3px; font-size: 9px; font-weight: 700; }
+    .cat-badge.official { background: #d4edda; color: #155724; }
+    .cat-badge.challenge { background: #fff3cd; color: #856404; }
+    footer { text-align: center; color: #999; font-size: 9px; padding: 8px; margin-top: 8px; border-top: 1px solid #eee; }
+    @media print {
+      header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .stats-block, th, tr.equipe-header td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      @page { margin: 10mm; size: A4 portrait; }
+    }
+  </style>
+  </head><body>
+  <header>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <img src="${LOGO_B64}" style="height:36px;width:36px;border-radius:4px;flex-shrink:0;" alt="logo">
+      <div>
+        <div class="title">DÉMÉTER — Liste des partants</div>
+        <div class="sub">${concours?.nom || ''}</div>
+      </div>
+    </div>
+    <div class="right">${dateStr}${concours?.lieu ? ' · ' + concours.lieu : ''}</div>
+  </header>
+  ${statsHtml}
+  <table>
+    <thead><tr>
+      <th>Doss.</th><th>Cavalier</th><th>Club / Écurie</th><th>Cheval</th><th>Catégorie</th><th>Équipe</th><th>Statut</th>
+    </tr></thead>
+    <tbody>${rowsHtml}</tbody>
+  </table>
+  <footer>DÉMÉTER — Généré le ${new Date().toLocaleDateString('fr-FR')} — ${parts.length} partant${parts.length>1?'s':''}</footer>
+  </body></html>`;
+
+  const win = window.open('', '_blank');
+  if (!win) { showToast('Popup bloqué — autorisez les popups', 'error'); return; }
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 500);
+}
+
+/* ----------------------------------------------------------------
+   EXPORT LISTE PARTANTS — EXCEL
+
+/* ----------------------------------------------------------------
+   EXPORT LISTE PARTANTS — EXCEL
+   ---------------------------------------------------------------- */
+async function exportPartantsExcel() {
+  if (!window.XLSX) {
+    showToast('Chargement SheetJS...', 'info');
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+  }
+  const concours = APP.cache.concours.find(c => c.id === APP.currentConcoursId);
+  const parts = APP.cache.participants.filter(p => p.statut === 'partant');
+
+  const wb = XLSX.utils.book_new();
+
+  // === Onglet Partants : ORDRE DOSSARD STRICT ===
+  const allSorted = [...parts].sort((a,b) => (a.dossard||9999)-(b.dossard||9999));
+  const equipesSeen = new Set();
+  const rows = [];
+  const merges = [];
+
+  // En-tête
+  rows.push(['Doss.', 'Cavalier', 'Licence', 'Club / Écurie', 'Cheval', 'SIRE', 'Catégorie', 'Type', 'Équipe', 'Statut']);
+
+  allSorted.forEach(p => {
+    if (p.equipe_id && !equipesSeen.has(p.equipe_id)) {
+      equipesSeen.add(p.equipe_id);
+      const membres = allSorted.filter(m => m.equipe_id === p.equipe_id);
+      const headerRowIdx = rows.length;
+      rows.push([`■ ${p.equipe}  (${membres.length} membre${membres.length > 1 ? 's' : ''})`, '', '', '', '', '', '', '', '', '']);
+      merges.push({ s: { r: headerRowIdx, c: 0 }, e: { r: headerRowIdx, c: 9 } });
+    }
+    // Toujours ajouter la ligne du participant (y compris si equipe_id)
+    const cat = p.categorie_obj;
+    rows.push([
+      p.dossard || '',
+      `${p.prenom} ${p.nom}`,
+      p.licence || '',
+      p.ecurie || '',
+      p.cheval_nom || '',
+      p.cheval_sire || '',
+      cat?.label || p.categorie || '',
+      cat?.official ? 'Officiel' : 'Challenge',
+      p.equipe || '',
+      p.hors_classement ? 'HC' : 'Partant',
+    ]);
+  });
+
+  // === Onglet Stats ===
+  const statRows = [['Statistiques', '']];
+  statRows.push(['Total engagés', parts.length]);
+  statRows.push(['Officiels', parts.filter(p => p.categorie_obj?.official === true).length]);
+  statRows.push(['Challenge', parts.filter(p => p.categorie_obj?.official === false).length]);
+  statRows.push(['', '']);
+  statRows.push(['Par catégorie', '']);
+  const byCat = {};
+  parts.forEach(p => {
+    const label = p.categorie_obj?.label || p.categorie || '—';
+    byCat[label] = (byCat[label] || 0) + 1;
+  });
+  Object.entries(byCat).sort().forEach(([l,n]) => statRows.push([l, n]));
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!merges'] = merges;
+  ws['!cols'] = [8, 26, 14, 22, 22, 12, 18, 10, 20, 10].map(w => ({ wch: w }));
+
+  // Style header ligne 1
+  const headerStyle = { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '1E281E' } }, alignment: { horizontal: 'center' } };
+  const accentStyle = { font: { bold: true, color: { rgb: 'B4893C' } }, fill: { fgColor: { rgb: '1E281E' } } };
+  const equipeStyle = { font: { bold: true, color: { rgb: '1E4020' } }, fill: { fgColor: { rgb: 'C8E6C9' } } };
+  const evenStyle = { fill: { fgColor: { rgb: 'F5F5F5' } } };
+
+  // Appliquer styles
+  const cols10 = ['A','B','C','D','E','F','G','H','I','J'];
+  cols10.forEach(c => {
+    const cell = ws[c+'1'];
+    if (cell) cell.s = headerStyle;
+  });
+
+  let dataRowIdx = 1;
+  rows.slice(1).forEach((row, i) => {
+    const excelRow = i + 2;
+    const isEquipeRow = merges.some(m => m.s.r === i+1);
+    cols10.forEach((c, ci) => {
+      const cellAddr = c + excelRow;
+      if (!ws[cellAddr]) return;
+      if (isEquipeRow) { ws[cellAddr].s = equipeStyle; }
+      else if (ci === 0) { ws[cellAddr].s = { font: { bold: true, color: { rgb: 'B4893C' } } }; }
+      else if (excelRow % 2 === 0) { ws[cellAddr].s = evenStyle; }
+    });
+  });
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Partants');
+
+  const wsStats = XLSX.utils.aoa_to_sheet(statRows);
+  wsStats['!cols'] = [25, 10].map(w => ({ wch: w }));
+  // Style titre stats
+  if (wsStats['A1']) wsStats['A1'].s = { font: { bold: true, sz: 14, color: { rgb: 'B4893C' } } };
+  XLSX.utils.book_append_sheet(wb, wsStats, 'Statistiques');
+
+  const nom = concours?.nom?.replace(/\s+/g, '_') || 'demeter';
+  const filename = `partants_${nom}.xlsx`;
+  try {
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([wbout], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+  } catch(e) { XLSX.writeFile(wb, filename); }
+  showToast('Excel généré ✓', 'success');
 }
 
 function renderPartantRow(p, i, dragMode) {
@@ -3871,28 +4160,33 @@ function renderRecapPOR() {
     troncons.forEach((t, i) => p.push(i === troncons.length-1 ? 'arrivee' : `controle${i+1}`));
     return p;
   };
-  const calcEcartTroncon = (scores, troncons) => {
+  // Calcule les 3 types de pénalités séparément
+  const calcPenDetails = (scores, troncons) => {
     const heures = {};
+    scores.forEach(s => { if (s.heure_reelle) heures[s.controle] = toMin(s.heure_reelle); });
+    let penTemps = 0, penAutres = 0, penManuelle = 0;
     scores.forEach(s => {
-      if (s.heure_reelle) heures[s.controle] = toMin(s.heure_reelle);
+      penAutres += (s.penalites_hors_piste||0)*30 + (s.penalites_autres||0)*50;
+      penManuelle += -(s.penalites_manuelles||0); // inverser : BDD négatif = malus affiché positif
     });
-    let pen = 0;
-    scores.forEach(s => { pen += (s.penalites_hors_piste||0)*30 + (s.penalites_autres||0)*50; });
     const postes = getPostes(troncons);
     troncons.forEach((t, i) => {
       const posteDebut = postes[i];
       const posteFin = postes[i+1];
-      // Pour le temps du tronçon : utiliser heure départ du poste de début
-      // et heure ARRIVÉE au poste de fin (posteFin_arr si disponible, sinon posteFin)
       const debut = heures[posteDebut];
       const fin = heures[posteFin + '_arr'] !== undefined ? heures[posteFin + '_arr'] : heures[posteFin];
       if (debut != null && fin != null) {
         const tempsReel = fin - debut;
         const tempsIdeal = t.vitesse > 0 ? (t.distance / t.vitesse) * 60 : 0;
-        pen += Math.abs(Math.floor(tempsReel) - Math.round(tempsIdeal));
+        penTemps += Math.abs(Math.floor(tempsReel) - Math.round(tempsIdeal));
       }
     });
-    return pen;
+    return { penTemps, penAutres, penManuelle, total: penTemps + penAutres - penManuelle };
+  };
+  // Compatibilité — total pénas pour les cas sans tronçons
+  const calcEcartTroncon = (scores, troncons) => {
+    const d = calcPenDetails(scores, troncons);
+    return d.total;
   };
 
   // Détermine les contrôles réels (sans les _arr)
@@ -3959,17 +4253,25 @@ function renderRecapPOR() {
     const troncons = getTroncons(p.categorie);
     const porCfgs = APP.cache.porConfigs || [];
     const isElim = p.statut === 'elim' || p.elim_por;
-    const scorePOR = isElim ? 0 : calcPORScoreAvecTemps(scores, p.categorie_obj, porCfgs);
     const ptsDep = p.categorie_obj?.pts_por || 230;
-    const pen = (!isElim && scorePOR !== null) ? ptsDep - scorePOR : null;
     const pad = indent ? 'padding-left:20px;' : '';
     const elimBadge = isElim ? '<span class="status-badge np" style="font-size:9px;margin-left:4px;">ÉLIM</span>' : '';
     const hcBadge = p.hors_classement ? '<span class="status-badge pending" style="font-size:9px;margin-left:4px;">HC</span>' : '';
-    return `<tr onclick="openParticipantDetail('${p.id}')" style="cursor:pointer;${isElim?'opacity:0.5;':''}">
-      <td class="mono" style="${pad}">${p.dossard||'—'}</td>
-      <td style="${pad}">${esc(p.prenom)} ${esc(p.nom)}${elimBadge}${hcBadge}</td>
+    const penDetails = calcPenDetails(scores, troncons);
+    const scorePOR = isElim ? 0 : calcPORScoreAvecTemps(scores, p.categorie_obj, porCfgs);
+    // En BDD : négatif = malus, positif = bonus → inverser pour affichage (malus = positif affiché)
+    const penManuelleBdd = scores.reduce((s, r) => s + (r.penalites_manuelles||0), 0);
+    const penManuelle = -penManuelleBdd; // positif affiché = malus
+    const penManuelleTxt = penManuelle === 0 ? '—' : (penManuelle > 0 ? '+'+penManuelle : String(penManuelle));
+    const penManuelleBtnStyle = penManuelle !== 0 ? 'color:var(--accent);font-weight:700;' : 'color:var(--text3);';
+    return `<tr style="${isElim?'opacity:0.5;':''}">
+      <td class="mono" style="${pad}" onclick="openParticipantDetail('${p.id}')" style="cursor:pointer;">${p.dossard||'—'}</td>
+      <td style="${pad};cursor:pointer;" onclick="openParticipantDetail('${p.id}')">${esc(p.prenom)} ${esc(p.nom)}${elimBadge}${hcBadge}</td>
       ${controles.map(c => renderCell(scores, c, troncons)).join('')}
-      <td class="score-cell" style="color:${pen>0?'var(--red)':'var(--text3)'};">${pen!==null?Math.round(pen)||'—':'—'}</td>
+      <td class="score-cell" style="color:var(--red);font-size:11px;">${isElim ? '—' : (penDetails.penTemps||'—')}</td>
+      <td class="score-cell" style="color:var(--red);font-size:11px;">${isElim ? '—' : (penDetails.penAutres||'—')}</td>
+      <td class="score-cell" style="${penManuelleBtnStyle}font-size:11px;cursor:pointer;" onclick="openPenaManuellePOR('${p.id}')" title="Cliquer pour modifier">${isElim ? '—' : penManuelleTxt} ✎</td>
+      <td class="score-cell" style="color:var(--red);font-weight:600;">${isElim ? '—' : (penDetails.total||'—')}</td>
       <td class="score-cell" style="color:${isElim?'var(--red)':''};">${isElim?'<s>'+ptsDep+'</s> 0':scorePOR??'—'}</td>
     </tr>`;
   };
@@ -3997,7 +4299,11 @@ function renderRecapPOR() {
     <thead><tr>
       <th>Doss.</th><th>Cavalier / Équipe</th>
       ${renderHeaders()}
-      <th style="text-align:right">Pén.</th><th style="text-align:right">Score</th>
+      <th style="text-align:right;font-size:10px;color:var(--red);">⏱ Tps</th>
+      <th style="text-align:right;font-size:10px;color:var(--red);">⚠ Autres</th>
+      <th style="text-align:right;font-size:10px;color:var(--accent);" title="Pénalité manuelle — cliquer sur la cellule pour modifier">✎ Manuel</th>
+      <th style="text-align:right;font-size:10px;color:var(--red);">Σ Pén.</th>
+      <th style="text-align:right">Score</th>
     </tr></thead><tbody>`;
 
   allRows.forEach(row => {
@@ -4008,7 +4314,7 @@ function renderRecapPOR() {
       html += `<tr style="background:var(--bg2);">
         <td class="mono" style="font-size:11px;">${membresTriés.map(m=>m.dossard||'—').join(', ')}</td>
         <td colspan="${1+totalCols}" style="font-weight:600;">🏇 ${esc(equipe)} <span style="font-size:11px;font-weight:400;color:var(--text3);">${membresTriés.map(m=>esc(m.prenom)+' '+esc(m.nom)).join(', ')}</span></td>
-        <td></td><td></td>
+        <td></td><td></td><td></td><td></td><td></td>
       </tr>`;
       membresTriés.forEach(p => { html += renderIndivRow(p, true); });
     } else if (row.type === 'equipe_challenge') {
@@ -4021,7 +4327,7 @@ function renderRecapPOR() {
         <td class="mono" style="font-size:11px;">${membresTriés.map(m=>m.dossard||'—').join(', ')}</td>
         <td><div style="font-weight:600;color:var(--unofficial);">⚑ ${esc(equipe)}</div><div style="font-size:11px;color:var(--text3);">${membresTriés.map(m=>esc(m.prenom)+' '+esc(m.nom)).join(', ')}</div></td>
         ${controles.map(c => renderCell(schedScores, c, troncons)).join('')}
-        <td></td><td></td>
+        <td></td><td></td><td></td><td></td><td></td>
       </tr>`;
       membresTriés.forEach(p => { html += renderIndivRow(p, true); });
     } else {
@@ -4033,6 +4339,123 @@ function renderRecapPOR() {
 
   return html;
 }
+/* ----------------------------------------------------------------
+   PÉNALITÉ MANUELLE POR — protégée PIN admin
+   ---------------------------------------------------------------- */
+async function openPenaManuellePOR(engagementId) {
+  // Vérifier PIN admin d'abord
+  const pinOk = await new Promise(resolve => {
+    APP._pinEditCtx = { field: '_pena_manuelle_por_cb', engagementId, resolve };
+    document.getElementById('admin-pin-input').value = '';
+    document.getElementById('admin-pin-error').style.display = 'none';
+    openModal('modal-admin-pin');
+    setTimeout(() => document.getElementById('admin-pin-input')?.focus(), 200);
+  });
+  if (!pinOk) return;
+
+  const p = APP.cache.participants.find(x => x.id === engagementId);
+  if (!p) return;
+  const scores = p.raw_scores_por || [];
+  // La péna manuelle est stockée sur le row 'depart' (ou le premier row disponible)
+  // En BDD : négatif = malus, positif = bonus. Dans l'interface : positif affiché = malus
+  const existingRaw = scores.reduce((s, r) => s + (r.penalites_manuelles||0), 0);
+  const existingVal = -existingRaw; // Inverser pour affichage
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.style.zIndex = '500';
+  modal.innerHTML = `<div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">✎ Pénalité manuelle POR</div>
+    <div class="modal-body">
+      <div style="font-size:14px;font-weight:600;margin-bottom:4px;">${esc(p.prenom)} ${esc(p.nom)}</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:16px;">Doss. ${p.dossard||'—'} — ${p.categorie_obj?.label||'—'}</div>
+      <div class="form-group">
+        <label class="form-label">Points à soustraire (positif) ou ajouter (négatif)</label>
+        <input type="number" id="pena-manuelle-val" value="${existingVal}" step="1"
+          style="font-family:'DM Mono',monospace;font-size:24px;text-align:center;"
+          placeholder="0">
+        <div style="font-size:11px;color:var(--text3);margin-top:6px;">
+          Ex: 10 → -10pts au score final &nbsp;|&nbsp; -5 → +5pts (bonus)
+        </div>
+      </div>
+      <div style="background:var(--bg3);border-radius:var(--radius);padding:10px;margin-top:8px;font-size:12px;">
+        Score actuel POR : <strong>${getScoreIndiv(p,'por') ?? '—'}</strong>
+        &nbsp;→&nbsp; avec cette péna : <strong id="pena-preview">—</strong>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-primary" onclick="savePenaManuellePOR('${engagementId}', this.closest('.modal-overlay'))">Enregistrer</button>
+      <button class="btn-secondary" onclick="this.closest('.modal-overlay').remove()">Annuler</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+  requestAnimationFrame(() => modal.classList.add('open'));
+
+  // Preview en temps réel
+  const input = document.getElementById('pena-manuelle-val');
+  const preview = document.getElementById('pena-preview');
+  const scoreCourant = getScoreIndiv(p,'por') ?? 0;
+  const update = () => {
+    const val = parseInt(input.value) || 0;
+    // Dans calcPORScoreAvecTemps : score = ptsDep - autresPens + penManuelle
+    // Donc un val positif dans l'interface = points soustraits → on stocke -val dans penManuelle
+    // Mais ici existingVal = ce qui est stocké en BDD (positif = malus affiché)
+    // scoreCourant = ptsDep - autresPens - existingVal
+    // scoreSansPena = scoreCourant + existingVal  (repart de la base sans péna manuelle)
+    const scoreSansPena = scoreCourant + existingVal;
+    // nouveauScore = scoreSansPena - val  (val positif = malus, val négatif = bonus)
+    const newScore = Math.max(0, scoreSansPena - val);
+    preview.textContent = newScore + ' pts';
+    preview.style.color = val > existingVal ? 'var(--red)' : val < existingVal ? 'var(--accent)' : 'var(--text)';
+  };
+  input?.addEventListener('input', update);
+  update();
+}
+
+async function savePenaManuellePOR(engagementId, modalEl) {
+  const valInput = parseInt(document.getElementById('pena-manuelle-val')?.value) || 0;
+  // val positif = malus = soustrait du score → stocker négatif en BDD
+  // calcPORScoreAvecTemps fait ptsDep - pen + penManuelle, donc malus = négatif
+  const val = -valInput;
+  const p = APP.cache.participants.find(x => x.id === engagementId);
+  if (!p) return;
+  const scores = p.raw_scores_por || [];
+
+  showLoading();
+  try {
+    // Stocker la péna manuelle sur le row 'depart' (crée si absent)
+    const departRow = scores.find(s => s.controle === 'depart');
+    if (departRow) {
+      const { error } = await sb.from('scores_por')
+        .update({ penalites_manuelles: val })
+        .eq('engagement_id', engagementId)
+        .eq('controle', 'depart');
+      if (error) throw error;
+    } else {
+      // Pas encore de row départ — créer un row minimal
+      const { error } = await sb.from('scores_por')
+        .upsert({ engagement_id: engagementId, controle: 'depart', penalites_manuelles: val }, { onConflict: 'engagement_id,controle' });
+      if (error) throw error;
+    }
+    // Mettre à jour le cache local immédiatement
+    p.raw_scores_por.forEach(r => { r.penalites_manuelles = 0; });
+    if (departRow) departRow.penalites_manuelles = val;
+    else p.raw_scores_por.push({ controle: 'depart', penalites_manuelles: val });
+    // Recalculer le score dans le cache
+    p.scores.por = p.elim_por ? 0 : calcPORScoreAvecTemps(p.raw_scores_por, p.categorie_obj, APP.cache.porConfigs||[]);
+    if (modalEl) modalEl.remove();
+    showToast('Pénalité manuelle enregistrée ✓', 'success');
+    // Rafraîchir le récap
+    const recapContent = document.getElementById('recap-content');
+    if (recapContent) recapContent.innerHTML = renderRecapPOR();
+  } catch(err) {
+    showToast('Erreur : ' + (err?.message || 'inconnue'), 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
 function renderRecapMA() {
   const parts = APP.cache.participants.filter(p => p.statut === 'partant')
     .sort((a,b) => (a.dossard||9999)-(b.dossard||9999));
@@ -4231,60 +4654,7 @@ function exitOrgaSaisies() {
 // ================================================================
 // PDF HELPER — header commun avec logo DEMETER
 // ================================================================
-function pdfDrawHeader(doc, concours, titre, isOfficial) {
-  const dateStr = concours ? new Date(concours.date).toLocaleDateString('fr-FR') : '';
-  const lieu = concours?.lieu || '';
-  // Fond noir
-  doc.setFillColor(0, 0, 0);
-  doc.rect(0, 0, 210, 36, 'F');
-  // Bande couleur selon type (or=challenge, vert=officiel)
-  if (isOfficial === true) {
-    doc.setFillColor(74, 120, 54);
-  } else if (isOfficial === false) {
-    doc.setFillColor(180, 137, 60);
-  } else {
-    doc.setFillColor(60, 80, 60);
-  }
-  doc.rect(0, 0, 4, 36, 'F');
-  // Logo (petit, coin gauche)
-  try {
-    doc.addImage(LOGO_B64, 'JPEG', 7, 4, 14, 14);
-  } catch(e) {}
-  // Nom concours
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
-  doc.setTextColor(255, 255, 255);
-  doc.text(concours?.nom || 'DEMETER', 25, 12);
-  // Date et lieu
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(180, 200, 180);
-  doc.text(`${dateStr}${lieu ? ' · ' + lieu : ''}`, 25, 19);
-  // Badge type
-  if (isOfficial === true) {
-    doc.setFillColor(74, 120, 54);
-    doc.roundedRect(25, 22, 22, 7, 2, 2, 'F');
-    doc.setTextColor(255, 255, 255); doc.setFontSize(7); doc.setFont('helvetica', 'bold');
-    doc.text('OFFICIEL', 36, 27.5, { align: 'center' });
-  } else if (isOfficial === false) {
-    doc.setFillColor(180, 137, 60);
-    doc.roundedRect(25, 22, 22, 7, 2, 2, 'F');
-    doc.setTextColor(255, 255, 255); doc.setFontSize(7); doc.setFont('helvetica', 'bold');
-    doc.text('CHALLENGE', 36, 27.5, { align: 'center' });
-  }
-  // Titre à droite
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
-  doc.setTextColor(220, 220, 220);
-  doc.text(titre || '', 210 - 10, 20, { align: 'right' });
-  // Filigrane DEMETER
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(100, 130, 100);
-  doc.text('DEMETER', 210 - 10, 32, { align: 'right' });
-  doc.setTextColor(0, 0, 0);
-  return 40; // y de départ après header
-}
+function pdfDrawHeader() {} // legacy stub — now uses HTML print
 
 async function exportResultatsPDF() {
   showLoading();
@@ -4292,147 +4662,175 @@ async function exportResultatsPDF() {
   const concours = APP.cache.concours.find(c => c.id === APP.currentConcoursId);
   const parts = APP.cache.participants.filter(p => p.statut === 'partant');
 
-  // Regrouper par catégorie (principale + spéciale)
+  // Regrouper par catégorie
   const byCat = {};
   parts.forEach(p => {
     const catId = p.categorie;
     if (!byCat[catId]) byCat[catId] = { cat: p.categorie_obj, parts: [] };
     byCat[catId].parts.push(p);
-    // Ajouter aussi dans la catégorie spéciale si définie
     if (p.categorie_speciale_id && p.categorie_speciale_obj) {
       const spId = p.categorie_speciale_id;
       if (!byCat[spId]) byCat[spId] = { cat: p.categorie_speciale_obj, parts: [] };
-      // Ajouter une copie du participant avec scores filtrés selon la catégorie spéciale
       byCat[spId].parts.push({ ...p, _isSpeciale: true });
     }
   });
 
-  // Charger jsPDF depuis CDN
-  if (!window.jspdf) {
-    await new Promise((res, rej) => {
-      const s = document.createElement('script');
-      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-      s.onload = res; s.onerror = rej;
-      document.head.appendChild(s);
-    });
-  }
-  await new Promise((res, rej) => {
-    const s = document.createElement('script');
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js';
-    s.onload = res; s.onerror = rej;
-    document.head.appendChild(s);
-  });
-
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const dateStr = concours ? new Date(concours.date).toLocaleDateString('fr-FR') : '';
+  const dateStr = concours?.date ? new Date(concours.date).toLocaleDateString('fr-FR') : '';
   const lieu = concours?.lieu || '';
-  let firstPage = true;
+
+  let pagesHtml = '';
 
   for (const [catId, { cat, parts: catParts }] of Object.entries(byCat)) {
-    if (!firstPage) doc.addPage();
-    firstPage = false;
-
-    const sorted = [...catParts].sort((a, b) => {
-      const sa = (a.scores.por||0) + (a.scores.ma||0) + (a.scores.ptv||0);
-      const sb2 = (b.scores.por||0) + (b.scores.ma||0) + (b.scores.ptv||0);
-      return sb2 - sa;
-    });
-
-    // En-tête page avec helper DEMETER
     const isOfficial = cat?.official === true;
-    pdfDrawHeader(doc, concours, (cat?.label || catId).toUpperCase(), isOfficial);
     const isEquipeOfficielle = isOfficial && (cat?.participation_type === 'equ' || cat?.participation_type === 'duo');
-    const rows = [];
-    let rank = 0;
-    const equipesSeen = new Set();
-
-    sorted.forEach(p => {
-      if (isEquipeOfficielle && p.equipe_id) {
-        // Équipe officielle → regrouper par équipe
-        if (equipesSeen.has(p.equipe_id)) return;
-        equipesSeen.add(p.equipe_id);
-        const membres = sorted.filter(m => m.equipe_id === p.equipe_id);
-        const scoreEquipe = getScoreEquipe(membres);
-        // Calcul moyennes par épreuve
-        const n = Math.min(membres.length <= 2 ? 2 : 3, membres.length);
-        const avgEpreuve = (ep) => {
-          const scores = membres.map(m => getScoreIndiv(m, ep)).sort((a,b) => b-a);
-          return n ? Math.round(scores.slice(0,n).reduce((a,b)=>a+b,0)/n) : 0;
-        };
-        rank++;
-        rows.push([
-          rank,
-          (p.equipe || '—').replace(/&amp;/g, '&').replace(/&lt;/g,'<').replace(/&gt;/g,'>'),
-          membres.map(m => `${m.prenom} ${m.nom}`).join('\n'),
-          membres.map(m => m.dossard || '—').join(', '),
-          avgEpreuve('por') || '—',
-          avgEpreuve('ma') || '—',
-          avgEpreuve('ptv') || '—',
-          scoreEquipe || '—',
-        ]);
-      } else {
-        // Individuel (challenge OU individuel pur OU membre challenge avec équipe)
-        rank++;
-        const infoCol = isOfficial
-          ? (p.cheval_nom || '—')  // Officiel indiv → cheval
-          : (p.equipe ? p.equipe.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&#39;/g,"'") : '—'); // Challenge → équipe
-        rows.push([
-          rank,
-          `${p.prenom} ${p.nom}`,
-          infoCol,
-          p.dossard || '—',
-          getScoreIndiv(p,'por') ?? '—',
-          getScoreIndiv(p,'ma') ?? '—',
-          getScoreIndiv(p,'ptv') ?? '—',
-          getScore(p,'global') || '—',
-        ]);
-      }
+    const sorted = [...catParts].sort((a, b) => {
+      // HC et élim en bas
+      const aOut = a.hors_classement || a.statut === 'elim';
+      const bOut = b.hors_classement || b.statut === 'elim';
+      if (aOut && !bOut) return 1;
+      if (!aOut && bOut) return -1;
+      const sa = (a.scores.por||0)+(a.scores.ma||0)+(a.scores.ptv||0);
+      const sb2 = (b.scores.por||0)+(b.scores.ma||0)+(b.scores.ptv||0);
+      return sb2 - sa;
     });
 
     const col2label = isEquipeOfficielle ? 'Équipe' : 'Cavalier';
     const col3label = isEquipeOfficielle ? 'Membres' : (isOfficial ? 'Cheval' : 'Équipe');
+    const badgeClass = isOfficial ? 'official' : 'challenge';
+    const badgeLabel = isOfficial ? 'OFFICIEL' : 'CHALLENGE';
 
-    doc.autoTable({
-      startY: 40,
-      head: [['Cl.', col2label, col3label, 'Doss.', 'POR', 'MA', 'PTV', 'Total']],
-      body: rows,
-      theme: 'striped',
-      headStyles: { fillColor: [0, 0, 0], textColor: [255,255,255], fontSize: 9, fontStyle: 'bold' },
-      bodyStyles: { fontSize: 8 },
-      columnStyles: {
-        0: { cellWidth: 10, halign: 'center' },
-        3: { cellWidth: 14, halign: 'center' },
-        4: { cellWidth: 18, halign: 'center' },
-        5: { cellWidth: 18, halign: 'center' },
-        6: { cellWidth: 18, halign: 'center' },
-        7: { cellWidth: 20, halign: 'center', fontStyle: 'bold' },
-      },
-      alternateRowStyles: { fillColor: [240, 240, 240] },
-      margin: { left: 14, right: 14 },
+    let rank = 0;
+    const equipesSeen = new Set();
+    let rowsHtml = '';
+
+    sorted.forEach(p => {
+      if (isEquipeOfficielle && p.equipe_id) {
+        if (equipesSeen.has(p.equipe_id)) return;
+        equipesSeen.add(p.equipe_id);
+        const membres = sorted.filter(m => m.equipe_id === p.equipe_id);
+        const scoreEquipe = getScoreEquipe(membres);
+        const n = Math.min(membres.length <= 2 ? 2 : 3, membres.length);
+        const avgEpreuve = (ep) => {
+          const scores = membres.map(m => getScoreIndiv(m, ep)).filter(s => s != null).sort((a,b) => b-a);
+          return n && scores.length ? Math.round(scores.slice(0,n).reduce((a,b)=>a+b,0)/scores.slice(0,n).length) : '—';
+        };
+        rank++;
+        rowsHtml += `<tr>
+          <td class="rank">${rank}</td>
+          <td><strong>${p.equipe || '—'}</strong></td>
+          <td style="font-size:9px;">${membres.map(m => m.prenom+' '+m.nom).join('<br>')}</td>
+          <td>${membres.map(m => m.dossard||'—').join(', ')}</td>
+          <td>${avgEpreuve('por')}</td><td>${avgEpreuve('ma')}</td><td>${avgEpreuve('ptv')}</td>
+          <td class="total">${scoreEquipe || '—'}</td>
+        </tr>`;
+      } else {
+        const isElim = p.statut === 'elim';
+        const isHC = p.hors_classement;
+        if (!isElim && !isHC) rank++;
+        const infoCol = isOfficial ? (p.cheval_nom || '—') : (p.equipe || '—');
+        const rankDisplay = (isElim || isHC) ? '—' : rank;
+        const badge = isElim ? ' <span class="badge-elim">ÉLIM</span>' : isHC ? ' <span class="badge-elim" style="background:#fff3cd;color:#856404;">HC</span>' : '';
+        rowsHtml += `<tr class="${(isElim || isHC) ? 'elim' : ''}">
+          <td class="rank">${rankDisplay}</td>
+          <td><strong>${p.prenom} ${p.nom}</strong>${badge}</td>
+          <td>${infoCol}</td>
+          <td>${p.dossard || '—'}</td>
+          <td>${getScoreIndiv(p,'por') ?? '—'}</td>
+          <td>${getScoreIndiv(p,'ma') ?? '—'}</td>
+          <td>${getScoreIndiv(p,'ptv') ?? '—'}</td>
+          <td class="total">${(isElim || isHC) ? '—' : getScore(p,'global') || '—'}</td>
+        </tr>`;
+      }
     });
 
-    // Pied de page
-    const pageHeight = doc.internal.pageSize.height;
-    doc.setFontSize(7);
-    doc.setTextColor(150);
-    doc.text(`DEMETER — Généré le ${new Date().toLocaleDateString('fr-FR')}`, 14, pageHeight - 8);
-    doc.text(`Page ${doc.internal.getNumberOfPages()}`, 210 - 14, pageHeight - 8, { align: 'right' });
+    pagesHtml += `<div class="page">
+      <header>
+        <div class="header-left">
+          <img src="${LOGO_B64}" style="height:40px;width:40px;border-radius:4px;flex-shrink:0;" alt="logo">
+          <span class="demeter-title">DÉMÉTER</span>
+          <span class="concours-nom">${concours?.nom || ''}</span>
+          <span class="concours-info">${dateStr}${lieu ? ' · ' + lieu : ''}</span>
+        </div>
+        <div class="header-right">
+          <span class="cat-name">${cat?.label || catId}</span>
+          <span class="badge ${badgeClass}">${badgeLabel}</span>
+        </div>
+      </header>
+      <table>
+        <thead><tr>
+          <th style="width:30px">Cl.</th>
+          <th>${col2label}</th>
+          <th>${col3label}</th>
+          <th style="width:40px">Doss.</th>
+          <th style="width:45px">POR</th>
+          <th style="width:45px">MA</th>
+          <th style="width:45px">PTV</th>
+          <th style="width:50px">Total</th>
+        </tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+      <footer>DÉMÉTER — Généré le ${new Date().toLocaleDateString('fr-FR')} — ${catParts.length} participant${catParts.length>1?'s':''}</footer>
+    </div>`;
   }
 
-  doc.save(`resultats_${concours?.nom?.replace(/\s+/g, '_') || 'demeter'}.pdf`);
+  const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+  <title>Résultats — ${concours?.nom || ''}</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family: system-ui, sans-serif; font-size: 11px; color: #111; background: white; }
+    .page { page-break-after: always; padding: 0; }
+    .page:last-child { page-break-after: avoid; }
+    header { background: #0d0f0d; color: white; padding: 10px 16px; display:flex; justify-content:space-between; align-items:center; }
+    .demeter-title { font-size: 18px; font-weight: 900; color: #b4893c; margin-right: 12px; }
+    .concours-nom { font-size: 14px; font-weight: 700; color: white; }
+    .concours-info { display:block; font-size: 9px; color: #aaa; margin-top: 2px; }
+    .header-left { display:flex; align-items:baseline; flex-wrap:wrap; gap:4px; }
+    .header-right { text-align:right; }
+    .cat-name { display:block; font-size: 14px; font-weight: 700; color: white; }
+    .badge { display:inline-block; padding: 2px 8px; border-radius: 4px; font-size: 9px; font-weight: 700; margin-top: 4px; }
+    .badge.official { background: #4a7836; color: white; }
+    .badge.challenge { background: #b4893c; color: white; }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: #1e281e; color: #b4893c; text-align: left; padding: 5px 6px; font-size: 10px; font-weight: 700; }
+    td { padding: 4px 6px; border-bottom: 1px solid #eee; vertical-align: middle; }
+    tr:nth-child(even) td { background: #f7f7f7; }
+    tr.elim td { opacity: 0.6; }
+    td.rank { font-weight: 900; color: #b4893c; text-align: center; font-size: 13px; }
+    td.total { font-weight: 700; font-size: 13px; text-align: center; color: #1e4020; }
+    .badge-elim { background: #fee; color: #c00; font-size: 8px; padding: 1px 4px; border-radius: 2px; font-weight: 700; }
+    footer { text-align: center; color: #999; font-size: 9px; padding: 6px; margin-top: 4px; border-top: 1px solid #eee; }
+    @media print {
+      header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      tr:nth-child(even) td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      @page { margin: 8mm; size: A4 portrait; }
+    }
+  </style>
+  </head><body>${pagesHtml}</body></html>`;
+
   hideLoading();
-  showToast('PDF généré ✓', 'success');
+  const win = window.open('', '_blank');
+  if (!win) { showToast('Popup bloqué — autorisez les popups', 'error'); return; }
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 500);
+  showToast('PDF prêt à imprimer ✓', 'success');
 }
 
 function showExportExcelModal() {
   const modal = document.createElement('div');
-  modal.className = 'modal-overlay active';
+  modal.className = 'modal-overlay';
   modal.style.zIndex = '500';
   modal.innerHTML = `<div class="modal">
-    <div class="modal-title">Export Excel</div>
+    <div class="modal-handle"></div>
+    <div class="modal-title">Export Excel — Résultats</div>
     <div class="modal-body">
-      <p style="font-size:13px;color:var(--text2);margin-bottom:16px;">Sélectionner les épreuves à exporter :</p>
+      <p style="font-size:13px;color:var(--text2);margin-bottom:16px;">Sélectionner les onglets à exporter :</p>
+      <label style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg3);border-radius:var(--radius);margin-bottom:8px;cursor:pointer;">
+        <input type="checkbox" id="exp-classement" checked style="width:18px;height:18px;accent-color:var(--accent);">
+        <span>🏅 Classement général</span>
+      </label>
       <label style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg3);border-radius:var(--radius);margin-bottom:8px;cursor:pointer;">
         <input type="checkbox" id="exp-por" checked style="width:18px;height:18px;accent-color:var(--accent);">
         <span>🗺️ POR — détail des passages</span>
@@ -4445,27 +4843,25 @@ function showExportExcelModal() {
         <input type="checkbox" id="exp-ptv" checked style="width:18px;height:18px;accent-color:var(--accent);">
         <span>🏁 PTV — obstacles</span>
       </label>
-      <label style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg3);border-radius:var(--radius);margin-bottom:8px;cursor:pointer;">
-        <input type="checkbox" id="exp-classement" checked style="width:18px;height:18px;accent-color:var(--accent);">
-        <span>🏅 Classement général</span>
-      </label>
     </div>
     <div class="modal-actions">
-      <button class="btn-primary" onclick="exportResultatsExcel()">📊 Exporter</button>
+      <button class="btn-primary" onclick="exportResultatsExcel(this.closest('.modal-overlay'))">📊 Exporter</button>
       <button class="btn-secondary" onclick="this.closest('.modal-overlay').remove()">Annuler</button>
     </div>
   </div>`;
   document.body.appendChild(modal);
+  requestAnimationFrame(() => modal.classList.add('open'));
 }
 
-async function exportResultatsExcel() {
+async function exportResultatsExcel(modalEl) {
   // Lire les options AVANT de fermer le modal
   const expPor = document.getElementById('exp-por')?.checked ?? true;
   const expMa = document.getElementById('exp-ma')?.checked ?? true;
   const expPtv = document.getElementById('exp-ptv')?.checked ?? true;
   const expClass = document.getElementById('exp-classement')?.checked ?? true;
-  // Fermer tous les modaux ouverts
-  document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
+  // Fermer le modal
+  if (modalEl) modalEl.remove();
+  else document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
   showLoading();
   await loadEngagements();
   const concours = APP.cache.concours.find(c => c.id === APP.currentConcoursId);
@@ -4486,44 +4882,149 @@ async function exportResultatsExcel() {
   const wb = XLSX.utils.book_new();
   const headerStyle = { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '1E281E' } } };
 
-  // Onglet Classement
+  // Onglet Classement — par catégorie avec séparateurs + stats
   if (expClass) {
-    const rows = [['Rang', 'Dossard', 'Cavalier', 'Cheval', 'Ecurie', 'Catégorie', 'Équipe', 'POR', 'MA', 'PTV', 'Total', 'Statut']];
-    const sorted = [...parts].sort((a, b) => {
-      const sa = (a.scores.por||0)+(a.scores.ma||0)+(a.scores.ptv||0);
-      const sb2 = (b.scores.por||0)+(b.scores.ma||0)+(b.scores.ptv||0);
-      return sb2 - sa;
+    const COLS = ['A','B','C','D','E','F','G','H','I','J','K','L'];
+    const hdrStyle = { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '1E281E' } } };
+    const catHdrStyle = { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '4A7836' } } };
+    const chalHdrStyle = { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: 'B4893C' } } };
+    const rank1Style = { font: { bold: true, color: { rgb: 'B4893C' } }, fill: { fgColor: { rgb: 'FFF8E8' } } };
+    const elimStyle = { font: { color: { rgb: 'CC0000' }, italic: true } };
+    const evenStyle = { fill: { fgColor: { rgb: 'F5F5F5' } } };
+
+    const rows = [['Rang', 'Dossard', 'Cavalier', 'Club / Écurie', 'Cheval', 'Catégorie', 'Équipe', 'POR', 'MA', 'PTV', 'Total', 'Statut']];
+    const merges = [];
+    const cellStyles = {}; // rowIdx -> colIdx -> style
+
+    // Style header
+    COLS.forEach((c, ci) => { cellStyles[`${c}1`] = hdrStyle; });
+
+    // Grouper par catégorie
+    const byCat = {};
+    parts.forEach(p => {
+      const id = p.categorie;
+      if (!byCat[id]) byCat[id] = { cat: p.categorie_obj, parts: [] };
+      byCat[id].parts.push(p);
+      if (p.categorie_speciale_id && p.categorie_speciale_obj) {
+        const spId = p.categorie_speciale_id;
+        if (!byCat[spId]) byCat[spId] = { cat: p.categorie_speciale_obj, parts: [] };
+        byCat[spId].parts.push({ ...p, _isSpeciale: true });
+      }
     });
-    sorted.forEach((p, i) => {
-      const total = getScore(p,'global');
-      rows.push([i+1, p.dossard||'—', `${esc(p.prenom)} ${esc(p.nom)}`, p.cheval_nom||'—', p.ecurie||'—', p.categorie_obj?.label||'—', p.equipe||'—', getScoreIndiv(p,'por')||'—', getScoreIndiv(p,'ma')||'—', getScoreIndiv(p,'ptv')||'—', total||'—', p.hors_classement?'HC':p.elim_por?'ELIM POR':p.elim_ma?'ELIM MA':p.elim_ptv?'ELIM PTV':'']);
+
+    let currentRow = 1; // 0-based index dans rows
+
+    for (const [catId, { cat, parts: catParts }] of Object.entries(byCat)) {
+      // Ligne séparateur catégorie
+      const catLabel = `${cat?.label || catId}  (${catParts.length} partant${catParts.length>1?'s':''}) — ${cat?.official?'OFFICIEL':'CHALLENGE'}`;
+      rows.push([catLabel, '', '', '', '', '', '', '', '', '', '', '']);
+      const sepRowExcel = currentRow + 1; // 1-based pour Excel
+      merges.push({ s: { r: currentRow, c: 0 }, e: { r: currentRow, c: 11 } });
+      COLS.forEach(c => { cellStyles[`${c}${sepRowExcel}`] = cat?.official ? catHdrStyle : chalHdrStyle; });
+      currentRow++;
+
+      const sorted = [...catParts].sort((a, b) => {
+        // HC et élim en bas du classement
+        const aOut = a.hors_classement || a.statut === 'elim';
+        const bOut = b.hors_classement || b.statut === 'elim';
+        if (aOut && !bOut) return 1;
+        if (!aOut && bOut) return -1;
+        const sa = (a.scores.por||0)+(a.scores.ma||0)+(a.scores.ptv||0);
+        const sb2 = (b.scores.por||0)+(b.scores.ma||0)+(b.scores.ptv||0);
+        return sb2 - sa;
+      });
+
+      // Gérer équipes officielles groupées
+      const isEquipeOfficielle = cat?.official === true && (cat?.participation_type === 'equ' || cat?.participation_type === 'duo');
+      const equipesSeen2 = new Set();
+      let rankIdx = 0;
+
+      sorted.forEach((p) => {
+        let rowStatut = '';
+        if (isEquipeOfficielle && p.equipe_id) {
+          if (equipesSeen2.has(p.equipe_id)) return;
+          equipesSeen2.add(p.equipe_id);
+          const membres = sorted.filter(m => m.equipe_id === p.equipe_id);
+          const scoreEquipe = getScoreEquipe(membres);
+          const n = Math.min(membres.length <= 2 ? 2 : 3, membres.length);
+          const avgEpreuve = (ep) => {
+            const scores = membres.map(m => getScoreIndiv(m, ep)).filter(s => s != null).sort((a,b) => b-a);
+            return n && scores.length ? Math.round(scores.slice(0,n).reduce((a,b)=>a+b,0)/scores.slice(0,n).length) : '';
+          };
+          rankIdx++;
+          rowStatut = p.hors_classement ? 'HC' : '';
+          rows.push([rankIdx, p.dossard||'', p.equipe||'', p.ecurie||'', membres.map(m=>m.cheval_nom||'').join(' / '), p.categorie_obj?.label||'', membres.map(m=>`${m.prenom} ${m.nom}`).join(' / '), avgEpreuve('por'), avgEpreuve('ma'), avgEpreuve('ptv'), scoreEquipe||'', rowStatut]);
+        } else {
+          const isOutExcel = p.hors_classement || p.statut === 'elim';
+          if (!isOutExcel) rankIdx++;
+          const total = getScore(p,'global');
+          rowStatut = p.hors_classement?'HC':p.elim_por?'ELIM POR':p.elim_ma?'ELIM MA':p.elim_ptv?'ELIM PTV':'';
+          rows.push([isOutExcel ? '—' : rankIdx, p.dossard||'', `${p.prenom} ${p.nom}`, p.ecurie||'', p.cheval_nom||'', p.categorie_obj?.label||'', p.equipe||'', getScoreIndiv(p,'por')??'', getScoreIndiv(p,'ma')??'', getScoreIndiv(p,'ptv')??'', total||'', rowStatut]);
+        }
+        const excelRow = currentRow + 1;
+        if (rankIdx === 1) { COLS.forEach(c => { cellStyles[`${c}${excelRow}`] = rank1Style; }); }
+        else if (rowStatut) { COLS.forEach(c => { cellStyles[`${c}${excelRow}`] = elimStyle; }); }
+        else if (rankIdx % 2 === 0) { COLS.forEach(c => { cellStyles[`${c}${excelRow}`] = evenStyle; }); }
+        currentRow++;
+      });
+
+      // Ligne vide entre catégories
+      rows.push(['', '', '', '', '', '', '', '', '', '', '', '']);
+      currentRow++;
+    }
+
+    // Onglet stats
+    const statRows = [['Statistiques du concours', '']];
+    statRows.push(['Total partants', parts.length]);
+    statRows.push(['Officiels', parts.filter(p => p.categorie_obj?.official === true).length]);
+    statRows.push(['Challenge', parts.filter(p => p.categorie_obj?.official === false).length]);
+    statRows.push(['', '']);
+    statRows.push(['Par catégorie', 'Nb partants']);
+    Object.entries(byCat).forEach(([id, {cat, parts: cp}]) => {
+      statRows.push([cat?.label || id, cp.length]);
     });
+    const wsStats = XLSX.utils.aoa_to_sheet(statRows);
+    wsStats['!cols'] = [28, 12].map(w => ({ wch: w }));
+    if (wsStats['A1']) wsStats['A1'].s = { font: { bold: true, sz: 14, color: { rgb: 'B4893C' } } };
+    if (wsStats['A6']) wsStats['A6'].s = hdrStyle;
+    if (wsStats['B6']) wsStats['B6'].s = hdrStyle;
+
     const ws = XLSX.utils.aoa_to_sheet(rows);
-    ws['!cols'] = [6,8,22,18,15,15,15,8,8,8,8,12].map(w => ({ wch: w }));
+    ws['!merges'] = merges;
+    ws['!cols'] = [6,8,24,20,20,16,16,8,8,8,10,12].map(w => ({ wch: w }));
+    // Appliquer les styles
+    Object.entries(cellStyles).forEach(([addr, style]) => {
+      if (ws[addr]) ws[addr].s = style;
+    });
     XLSX.utils.book_append_sheet(wb, ws, 'Classement');
+    XLSX.utils.book_append_sheet(wb, wsStats, 'Statistiques');
   }
 
   // Onglet POR
   if (expPor) {
-    const rows = [['Dossard', 'Cavalier', 'Cheval', 'Catégorie', 'Équipe', 'Départ réel', 'Contrôle 1 arr.', 'Contrôle 1 dép.', 'Contrôle 2 arr.', 'Contrôle 2 dép.', 'Contrôle 3 arr.', 'Contrôle 3 dép.', 'Arrivée réelle', 'Pénalités HP', 'Pénalités Autres', 'Score POR']];
+    const rows = [['Dossard', 'Cavalier', 'Club / Écurie', 'Cheval', 'Catégorie', 'Équipe', 'Départ réel', 'Contrôle 1 arr.', 'Contrôle 1 dép.', 'Contrôle 2 arr.', 'Contrôle 2 dép.', 'Contrôle 3 arr.', 'Contrôle 3 dép.', 'Arrivée réelle', 'Pén. HP (×30)', 'Pén. Autres (×50)', 'Pén. Manuelle', 'Score POR']];
     parts.sort((a,b) => (a.dossard||9999)-(b.dossard||9999)).forEach(p => {
       const scores = p.raw_scores_por || [];
       const getH = (controle) => scores.find(s => s.controle === controle)?.heure_reelle || '—';
       const getPen = (controle, field) => scores.find(s => s.controle === controle)?.[field] || 0;
       const totHP = scores.reduce((n,s) => n+(s.penalites_hors_piste||0), 0);
       const totAu = scores.reduce((n,s) => n+(s.penalites_autres||0), 0);
-      rows.push([p.dossard||'—', `${esc(p.prenom)} ${esc(p.nom)}`, p.cheval_nom||'—', p.categorie_obj?.label||'—', p.equipe||'—',
+      rows.push([p.dossard||'—', `${esc(p.prenom)} ${esc(p.nom)}`, p.ecurie||'—', p.cheval_nom||'—', p.categorie_obj?.label||'—', p.equipe||'—',
         getH('depart'), getH('controle1_arr'), getH('controle1'), getH('controle2_arr'), getH('controle2'), getH('controle3_arr'), getH('controle3'), getH('arrivee'),
-        totHP, totAu, getScoreIndiv(p,'por')??'—']);
+        totHP, totAu, scores.reduce((n,s)=>n+(s.penalites_manuelles||0),0)||0, getScoreIndiv(p,'por')??'—']);
     });
     const ws = XLSX.utils.aoa_to_sheet(rows);
-    ws['!cols'] = [8,22,18,15,15,10,12,12,12,12,12,12,10,10,10,10].map(w => ({ wch: w }));
+    ws['!cols'] = [8,22,18,18,15,15,10,12,12,12,12,12,12,10,10,10,10,10].map(w => ({ wch: w }));
+    // Style header
+    ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R'].forEach(c => {
+      if (ws[c+'1']) ws[c+'1'].s = { font:{bold:true,color:{rgb:'FFFFFF'}}, fill:{fgColor:{rgb:'1E281E'}} };
+    });
     XLSX.utils.book_append_sheet(wb, ws, 'POR');
   }
 
   // Onglet MA
   if (expMa) {
-    const rows = [['Dossard', 'Cavalier', 'Cheval', 'Catégorie', 'Mode MA', 'Détail', 'Score MA']];
+    const rows = [['Dossard', 'Cavalier', 'Club / Écurie', 'Cheval', 'Catégorie', 'Mode MA', 'Détail', 'Score MA']];
     parts.sort((a,b) => (a.dossard||9999)-(b.dossard||9999)).forEach(p => {
       const ma = p.raw_scores_ma?.[0] || (Array.isArray(p.raw_scores_ma) ? p.raw_scores_ma[0] : p.raw_scores_ma);
       let detail = '—';
@@ -4534,10 +5035,13 @@ async function exportResultatsExcel() {
       } else if (ma?.mode === 'temps' && ma?.chrono_data) {
         detail = `Galop:${ma.chrono_data.temps_galop||'—'}s Pas:${ma.chrono_data.temps_pas||'—'}s`;
       }
-      rows.push([p.dossard||'—', `${esc(p.prenom)} ${esc(p.nom)}`, p.cheval_nom||'—', p.categorie_obj?.label||'—', ma?.mode||'—', detail, getScoreIndiv(p,'ma')??'—']);
+      rows.push([p.dossard||'—', `${esc(p.prenom)} ${esc(p.nom)}`, p.ecurie||'—', p.cheval_nom||'—', p.categorie_obj?.label||'—', ma?.mode||'—', detail, getScoreIndiv(p,'ma')??'—']);
     });
     const ws = XLSX.utils.aoa_to_sheet(rows);
-    ws['!cols'] = [8,22,18,15,12,40,10].map(w => ({ wch: w }));
+    ws['!cols'] = [8,22,18,18,15,12,40,10].map(w => ({ wch: w }));
+    ['A','B','C','D','E','F','G','H'].forEach(c => {
+      if (ws[c+'1']) ws[c+'1'].s = { font:{bold:true,color:{rgb:'FFFFFF'}}, fill:{fgColor:{rgb:'1E281E'}} };
+    });
     XLSX.utils.book_append_sheet(wb, ws, 'MA');
   }
 
@@ -4546,14 +5050,17 @@ async function exportResultatsExcel() {
     const obstacles = APP.cache.obstacles || [];
     const obsIds = [...new Set(parts.flatMap(p => (p.raw_scores_ptv||[]).map(s => s.obstacle_id)))];
     const obsHeaders = obsIds.map(id => { const o = obstacles.find(x => x.id === id); return o ? `${o.code} — ${o.label}` : id; });
-    const rows = [['Dossard', 'Cavalier', 'Cheval', 'Catégorie', ...obsHeaders, 'Score PTV']];
+    const rows = [['Dossard', 'Cavalier', 'Club / Écurie', 'Cheval', 'Catégorie', ...obsHeaders, 'Score PTV']];
     parts.sort((a,b) => (a.dossard||9999)-(b.dossard||9999)).forEach(p => {
       const scores = p.raw_scores_ptv || [];
       const obsScores = obsIds.map(id => scores.find(s => s.obstacle_id === id)?.points ?? '—');
-      rows.push([p.dossard||'—', `${esc(p.prenom)} ${esc(p.nom)}`, p.cheval_nom||'—', p.categorie_obj?.label||'—', ...obsScores, getScoreIndiv(p,'ptv')??'—']);
+      rows.push([p.dossard||'—', `${esc(p.prenom)} ${esc(p.nom)}`, p.ecurie||'—', p.cheval_nom||'—', p.categorie_obj?.label||'—', ...obsScores, getScoreIndiv(p,'ptv')??'—']);
     });
     const ws = XLSX.utils.aoa_to_sheet(rows);
-    ws['!cols'] = [8,22,18,15,...obsIds.map(() => ({ wch: 12 })),10].map(w => typeof w === 'number' ? { wch: w } : w);
+    ws['!cols'] = [8,22,18,18,15,...obsIds.map(() => ({ wch: 12 })),10].map(w => typeof w === 'number' ? { wch: w } : w);
+    // Style header
+    const ptvCols = ['A','B','C','D','E',...obsIds.map((_,i) => String.fromCharCode(70+i)),'Z'].slice(0, 5+obsIds.length+1);
+    ptvCols.forEach(c => { if (ws[c+'1']) ws[c+'1'].s = { font:{bold:true,color:{rgb:'FFFFFF'}}, fill:{fgColor:{rgb:'1E281E'}} }; });
     XLSX.utils.book_append_sheet(wb, ws, 'PTV');
   }
 
@@ -4777,7 +5284,12 @@ function getScore(p, type) {
 
 // Score d'équipe officielle : moyenne des N meilleurs totaux individuels
 function getScoreEquipe(members) {
-  const totals = members.map(m => getScore(m, 'global')).sort((a,b) => b-a);
+  // Un membre éliminé (statut=elim) compte comme score 0 mais reste dans le calcul
+  // Un membre HC ne compte pas comme éliminé mais son score est inclus
+  const totals = members.map(m => {
+    if (m.statut === 'elim') return 0;
+    return getScore(m, 'global');
+  }).sort((a,b) => b-a);
   const n = Math.min(members.length <= 2 ? 2 : 3, totals.length);
   if (!n) return 0;
   return Math.round(totals.slice(0, n).reduce((a,b) => a+b, 0) / n);
@@ -5402,98 +5914,97 @@ async function pageOrgaHoraires() {
 }
 
 // Helper PDF : tronquer un texte à maxWidth (en mm) et ajouter ...
-function pdfTrunc(doc, text, maxWidth) {
-  const t = String(text||'');
-  const w = doc.getTextWidth(t);
-  if (w <= maxWidth) return t;
-  let truncated = t;
-  while (doc.getTextWidth(truncated + '…') > maxWidth && truncated.length > 0) {
-    truncated = truncated.slice(0, -1);
-  }
-  return truncated + '…';
-}
-// Helper PDF : wrapper texte multiligne (retour à la ligne automatique)
-function pdfWrap(doc, text, x, y, maxWidth, lineHeight) {
-  const lines = doc.splitTextToSize(String(text||''), maxWidth);
-  lines.forEach((line, i) => doc.text(line, x, y + i * lineHeight));
-  return y + lines.length * lineHeight;
-}
+function pdfTrunc(t) { return String(t||''); } // legacy stub
 
 async function exportHorairesPDF() {
-  const { jsPDF } = window.jspdf;
-  if (!jsPDF) { showToast('jsPDF non chargé', 'error'); return; }
-  const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
-  const { data: conc } = APP.currentConcoursId ? await sb.from('concours').select('nom,date').eq('id', APP.currentConcoursId).single() : { data: null };
+  const { data: conc } = APP.currentConcoursId ? await sb.from('concours').select('nom,date,lieu').eq('id', APP.currentConcoursId).single() : { data: null };
   const concNom = conc?.nom || 'Concours';
+  const dateStr = conc?.date ? new Date(conc.date).toLocaleDateString('fr-FR') : '';
 
-  // Sauvegarder les indications dans le cache
+  // Sauvegarder les indications
   ['por','ma','ptv'].forEach(t => {
     const el = document.getElementById(`sched-indications-${t}`);
     if (el) APP.cache.schedules[t+'_indications'] = el.value;
   });
 
-  // Détecter l'onglet actif
   const activeTab = document.querySelector('.tabs .tab-btn.active');
   const activeType = activeTab?.textContent?.trim().toLowerCase() || 'por';
-  const types = [activeType];
-  let firstPage = true;
+  const scheds = APP.cache.schedules[activeType] || [];
+  if (!scheds.length) { showToast('Aucun horaire à exporter', 'error'); return; }
 
-  types.forEach(type => {
-    const scheds = APP.cache.schedules[type] || [];
-    if (!scheds.length) return;
-    if (!firstPage) doc.addPage();
-    firstPage = false;
+  const indications = APP.cache.schedules[activeType+'_indications'] || '';
+  const indicationsHtml = indications ? `<div class="indications">${indications}</div>` : '';
 
-    // En-tête avec helper DEMETER
-    pdfDrawHeader(doc, conc, `Horaires ${type.toUpperCase()}`, null);
-
-    doc.setFont('helvetica','normal'); doc.setFontSize(10);
-
-    // Indications
-    const indications = APP.cache.schedules[type+'_indications'] || '';
-    let headerY = 42;
-    if (indications) {
-      doc.setFontSize(8); doc.setTextColor(100,80,20);
-      const indLines = doc.splitTextToSize(`>> ${indications}`, 182);
-      const indH = indLines.length * 4 + 4;
-      doc.setFillColor(255,250,220); doc.rect(10, 40, 190, indH, 'F');
-      indLines.forEach((line, i) => doc.text(line, 13, 45 + i*4));
-      doc.setTextColor(20,20,20);
-      headerY = 42 + indH;
-    }
-
-    const cols = type === 'por' ? [14, 56, 108, 168] : [14, 45, 130];
-    doc.setFillColor(30,40,30); doc.setTextColor(230,240,230);
-    doc.rect(10, headerY, 190, 8, 'F');
-    doc.setFont('helvetica','bold'); doc.setFontSize(8);
-
-    if (type === 'por') {
-      ['Salle des cartes (15 min)','Départ','Participant','Doss.'].forEach((h,i) => doc.text(h, cols[i], headerY+6));
+  const rowsHtml = scheds.map((s, i) => {
+    if (activeType === 'por') {
+      return `<tr class="${i%2===0?'even':''}">
+        <td class="mono">${s.sdc_time || '—'}</td>
+        <td class="mono">${s.time || '—'}</td>
+        <td><strong>${s.name || '—'}</strong></td>
+        <td class="mono">${s.dossard || '—'}</td>
+      </tr>`;
     } else {
-      ['Heure','Participant','Doss.'].forEach((h,i) => doc.text(h, cols[i], headerY+6));
+      return `<tr class="${i%2===0?'even':''}">
+        <td class="mono">${s.time || '—'}</td>
+        <td><strong>${s.name || '—'}</strong></td>
+        <td class="mono">${s.dossard || '—'}</td>
+      </tr>`;
     }
+  }).join('');
 
-    doc.setTextColor(20,20,20); doc.setFont('helvetica','normal');
-    let y = headerY + 8;
-    scheds.forEach((s, idx) => {
-      if (y > 270) { doc.addPage(); y = 20; }
-      if (idx%2===0) { doc.setFillColor(245,248,245); doc.rect(10,y,190,8,'F'); }
-      if (type === 'por') {
-        doc.text(pdfTrunc(doc, s.sdc_time||'—', 38), cols[0], y+6);
-        doc.text(pdfTrunc(doc, s.time, 38), cols[1], y+6);
-        doc.text(pdfTrunc(doc, s.name||'—', 55), cols[2], y+6);
-        doc.text(pdfTrunc(doc, String(s.dossard||'—'), 18), cols[3], y+6);
-      } else {
-        doc.text(pdfTrunc(doc, s.time, 38), cols[0], y+6);
-        doc.text(pdfTrunc(doc, s.name||'—', 80), cols[1], y+6);
-        doc.text(pdfTrunc(doc, String(s.dossard||'—'), 40), cols[2], y+6);
-      }
-      y += 8;
-    });
-  });
+  const headersHtml = activeType === 'por'
+    ? '<th>Salle des cartes</th><th>Départ</th><th>Participant</th><th>Doss.</th>'
+    : '<th>Heure</th><th>Participant</th><th>Doss.</th>';
 
-  doc.save(`horaires-${concNom}.pdf`);
-  showToast('PDF généré ✓', 'success');
+  const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+  <title>Horaires ${activeType.toUpperCase()} — ${concNom}</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family: system-ui, sans-serif; font-size: 11px; color: #111; background: white; }
+    header { background: #0d0f0d; color: white; padding: 10px 16px; display:flex; justify-content:space-between; align-items:center; }
+    .title { font-size:16px; font-weight:700; color: #b4893c; }
+    .sub { font-size:11px; color:#aaa; margin-top:2px; }
+    .right { text-align:right; font-size:10px; color:#aaa; }
+    .indications { background: #fffde7; border-left: 3px solid #f9a825; padding: 6px 12px; font-size: 10px; color: #5d4037; margin: 8px 16px; border-radius: 2px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    th { background: #1e281e; color: #b4893c; text-align:left; padding:5px 8px; font-size:10px; font-weight:700; }
+    td { padding: 4px 8px; border-bottom: 1px solid #eee; }
+    tr.even td { background: #f8f8f8; }
+    .mono { font-family: monospace; font-weight:700; }
+    footer { text-align:center; color:#999; font-size:9px; padding:8px; margin-top:8px; border-top:1px solid #eee; }
+    @media print {
+      header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      tr.even td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      @page { margin: 10mm; size: A4 portrait; }
+    }
+  </style>
+  </head><body>
+  <header>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <img src="${LOGO_B64}" style="height:36px;width:36px;border-radius:4px;flex-shrink:0;" alt="logo">
+      <div>
+        <div class="title">DÉMÉTER — Horaires ${activeType.toUpperCase()}</div>
+        <div class="sub">${concNom}</div>
+      </div>
+    </div>
+    <div class="right">${dateStr}${conc?.lieu ? ' · ' + conc.lieu : ''}<br>${scheds.length} passage${scheds.length>1?'s':''}</div>
+  </header>
+  ${indicationsHtml}
+  <table>
+    <thead><tr>${headersHtml}</tr></thead>
+    <tbody>${rowsHtml}</tbody>
+  </table>
+  <footer>DÉMÉTER — Généré le ${new Date().toLocaleDateString('fr-FR')}</footer>
+  </body></html>`;
+
+  const win = window.open('', '_blank');
+  if (!win) { showToast('Popup bloqué — autorisez les popups', 'error'); return; }
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 500);
+  showToast('PDF prêt à imprimer ✓', 'success');
 }
 function switchSchedTab(t, el) {
   document.querySelectorAll('.tabs .tab-btn').forEach(b => b.classList.remove('active'));
@@ -6578,6 +7089,14 @@ async function renderJugePOR() {
       .eq('controle', poste)
       .in('engagement_id', parts.map(p => p.id));
     (existingScores||[]).forEach(s => scoresSaisis.add(s.engagement_id));
+    // Charger tous les horaires POR en cache une seule fois
+    if (!APP.cache.horairesPOR) {
+      const { data: hor } = await sb.from('horaires_por')
+        .select('engagement_id, heure_depart')
+        .eq('concours_id', APP.currentConcoursId)
+        .eq('type_epreuve', 'por');
+      APP.cache.horairesPOR = hor || [];
+    }
   }
 
   setPageContent(`<div class="page active">
@@ -6595,7 +7114,7 @@ async function renderJugePOR() {
     <div id="por-entry" style="display:none;">
       <div class="por-control"><div class="por-control-label">Passage — ${poste}</div>
         <div class="time-grid">
-          ${isDepart ? `<div class="form-group"><label class="form-label" style="color:var(--text3);font-size:11px;letter-spacing:.05em;">HEURE THÉORIQUE (indicatif)</label><div id="por-theorique-display" style="font-family:'DM Mono',monospace;font-size:24px;color:var(--text3);padding:6px 0;">—</div></div>` : ''}
+          ${isDepart ? `<div class="form-group"><label class="form-label" style="color:var(--text3);font-size:11px;letter-spacing:.05em;">HEURE THÉORIQUE</label><div id="por-theorique-display" style="font-family:'DM Mono',monospace;font-size:28px;font-weight:700;color:var(--text2);padding:4px 0;">—</div></div>` : ''}
           ${poste === 'arrivee' ? `
           <div class="form-group"><label class="form-label">Heure d'arrivée</label>
             <div style="display:flex;align-items:center;gap:8px;">
@@ -6676,20 +7195,33 @@ async function showPOREntry(id) {
   APP._pen = { hp:0, au:0 };
   document.getElementById('pen-hp').textContent = '0';
   document.getElementById('pen-au').textContent = '0';
-  // Heure théorique départ depuis BDD (horaires_por)
+  // Heure théorique départ depuis cache horairesPOR
   const posteActuel = APP.jugeAssignation?.poste || 'depart';
   const isDepart = posteActuel === 'depart';
   const theoriqueEl = document.getElementById('por-theorique-display');
-  if (theoriqueEl && isDepart && APP.isOnline) {
-    const { data: horaire } = await sb.from('horaires_por').select('heure_depart').eq('engagement_id', id).eq('concours_id', APP.currentConcoursId).maybeSingle();
-    if (horaire?.heure_depart) {
-      const t = horaire.heure_depart.substring(0,5); // HH:MM
-      theoriqueEl.textContent = t;
-      APP._por_theorique = t;
-    } else {
-      theoriqueEl.textContent = '—';
-      APP._por_theorique = null;
+  if (theoriqueEl && isDepart) {
+    // Chercher dans le cache (chargé dans renderJugePOR)
+    const horairesCached = APP.cache.horairesPOR || [];
+    // Pour les équipes, l'id peut être membres[0].id — chercher tous les membres
+    const entry = (APP._porEntries||[]).find(e => e.id === id);
+    const idsToCheck = entry?.membresIds || [id];
+    let heureTheo = null;
+    for (const mid of idsToCheck) {
+      const h = horairesCached.find(h => h.engagement_id === mid);
+      if (h?.heure_depart) { heureTheo = h.heure_depart.substring(0,5); break; }
     }
+    // Fallback : fetch direct si pas en cache
+    if (!heureTheo && APP.isOnline && APP.currentConcoursId) {
+      const { data: horaire } = await sb.from('horaires_por')
+        .select('heure_depart')
+        .in('engagement_id', idsToCheck)
+        .eq('concours_id', APP.currentConcoursId)
+        .eq('type_epreuve', 'por')
+        .maybeSingle();
+      if (horaire?.heure_depart) heureTheo = horaire.heure_depart.substring(0,5);
+    }
+    theoriqueEl.textContent = heureTheo || '—';
+    APP._por_theorique = heureTheo || null;
   }
   // Pré-remplir depuis score existant
   const poste = APP.jugeAssignation?.poste || 'depart';
@@ -7264,21 +7796,40 @@ async function showParticipantConcours(engId, concoursId) {
   const container = document.getElementById('participant-results');
   container.innerHTML = `<div class="loading"><div class="spinner"></div></div>`;
 
-  const [{ data: e }, { data: obstacles }, { data: ptvObsConfig }, { data: ptvCatLinks }] = await Promise.all([
-    sb.from('engagements').select(`
-      statut, elim_por, elim_ma, elim_ptv, hors_classement,
-      concours:concours(id,nom,date,lieu,results_visibility,resultats_publies),
-      scores_por(controle,heure_theorique,heure_reelle,penalites_hors_piste,penalites_autres),
-      scores_ma(mode,balises_data,chrono_data),
-      scores_ptv(obstacle_id,points,temps_reel),
-      cat:categories(id,label,pts_por,mode_ma,official,participation_type)
-    `).eq('id', engId).single(),
-    sb.from('obstacles').select('id,code,label'),
-    sb.from('ptv_config_obstacles').select('obstacle_id,parcours_ref,nom_parcours,ordre').eq('concours_id', concoursId),
-    sb.from('ptv_config_categories').select('parcours_ref,categorie_id').eq('concours_id', concoursId),
-  ]);
+  let e, obstacles, ptvObsConfig, ptvCatLinks;
+  try {
+    // Toujours tenter sans penalites_manuelles d'abord (compatibilité BDD)
+    const results = await Promise.all([
+      sb.from('engagements').select(`
+        statut, elim_por, elim_ma, elim_ptv, hors_classement,
+        concours:concours(id,nom,date,lieu,results_visibility,resultats_publies),
+        scores_por(controle,heure_theorique,heure_reelle,penalites_hors_piste,penalites_autres),
+        scores_ma(mode,balises_data,chrono_data),
+        scores_ptv(obstacle_id,points,temps_reel),
+        cat:categories!categorie_id(id,label,pts_por,mode_ma,official,participation_type)
+      `).eq('id', engId).single(),
+      sb.from('obstacles').select('id,code,label'),
+      sb.from('ptv_config_obstacles').select('obstacle_id,parcours_ref,nom_parcours,ordre').eq('concours_id', concoursId),
+      sb.from('ptv_config_categories').select('parcours_ref,categorie_id').eq('concours_id', concoursId),
+    ]);
+    e = results[0].data;
+    obstacles = results[1].data;
+    ptvObsConfig = results[2].data;
+    ptvCatLinks = results[3].data;
+    // Si on a des données, tenter d'enrichir avec penalites_manuelles
+    if (e) {
+      const { data: eRich } = await sb.from('engagements').select(`
+        scores_por(controle,heure_theorique,heure_reelle,penalites_hors_piste,penalites_autres,penalites_manuelles)
+      `).eq('id', engId).single();
+      if (eRich?.scores_por) e.scores_por = eRich.scores_por;
+    }
+  } catch(err) {
+    console.error('showParticipantConcours:', err);
+    container.innerHTML = `<div class="alert-banner warn"><div>ℹ️</div><div>Erreur de chargement. Vérifiez votre connexion.</div></div>`;
+    return;
+  }
 
-  if (!e) { container.innerHTML = `<div class="alert-banner warn"><div>ℹ️</div><div>Erreur de chargement.</div></div>`; return; }
+  if (!e) { container.innerHTML = `<div class="alert-banner warn"><div>ℹ️</div><div>Résultats introuvables pour cet engagement.</div></div>`; return; }
 
   const c = e.concours;
   const cat = e.cat;
@@ -7317,7 +7868,7 @@ async function showParticipantConcours(engId, concoursId) {
       id, statut, elim_por, elim_ma, elim_ptv, hors_classement, equipe_id,
       equipe:equipes(id, nom),
       cavalier:cavaliers(prenom, nom),
-      scores_por(controle,heure_theorique,heure_reelle,penalites_hors_piste,penalites_autres),
+      scores_por(controle,heure_theorique,heure_reelle,penalites_hors_piste,penalites_autres,penalites_manuelles),
       scores_ma(mode,balises_data,chrono_data),
       scores_ptv(obstacle_id,points,temps_reel)
     `).eq('concours_id', concoursId).eq('categorie_id', cat?.id).eq('statut', 'partant');
@@ -7451,9 +8002,34 @@ async function showParticipantConcours(engId, concoursId) {
                 </div>
               </div>`);
             });
-            // Total pénalités
-            const totalPen = (e.scores_por||[]).reduce((n,s)=>n+(s.penalites_hors_piste||0)*30+(s.penalites_autres||0)*50,0);
-            if (totalPen > 0) rows.push(`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:11px;color:var(--red);"><span>Pénalités additionnelles</span><span>-${totalPen}pts</span></div>`);
+            // Total pénalités détaillées
+            const toMin2 = t => { if(!t) return null; const p=t.split(':').map(Number); return p[0]*60+p[1]+(p[2]||0)/60; };
+            const heures2 = {};
+            (e.scores_por||[]).forEach(s => { if(s.heure_reelle) heures2[s.controle] = toMin2(s.heure_reelle); });
+            const postes2 = ['depart'];
+            troncons.forEach((t,i) => postes2.push(i===troncons.length-1?'arrivee':`controle${i+1}`));
+            let penTemps = 0;
+            troncons.forEach((t,i) => {
+              const debut = heures2[postes2[i]];
+              const posteFin = postes2[i+1];
+              const fin = heures2[posteFin+'_arr'] !== undefined ? heures2[posteFin+'_arr'] : heures2[posteFin];
+              if (debut!=null && fin!=null) {
+                const reel = fin - debut;
+                const ideal = t.vitesse > 0 ? (t.distance/t.vitesse)*60 : 0;
+                penTemps += Math.abs(Math.floor(reel) - Math.round(ideal));
+              }
+            });
+            const penAutres = (e.scores_por||[]).reduce((n,s)=>n+(s.penalites_hors_piste||0)*30+(s.penalites_autres||0)*50,0);
+            const penManuelleRaw = (e.scores_por||[]).reduce((n,s)=>n+(s.penalites_manuelles||0),0);
+            const penManuellePts = -penManuelleRaw; // positif = malus affiché
+            const penTotal = penTemps + penAutres + penManuellePts;
+            rows.push(`<div style="margin-top:8px;background:var(--bg3);border-radius:var(--radius);padding:8px 10px;font-size:11px;">
+              <div style="font-weight:700;color:var(--text2);margin-bottom:6px;">Détail des pénalités</div>
+              <div style="display:flex;justify-content:space-between;padding:2px 0;"><span style="color:var(--text3);">⏱ Temps</span><span style="color:var(--red);">${penTemps > 0 ? '-'+penTemps+' pts' : '—'}</span></div>
+              <div style="display:flex;justify-content:space-between;padding:2px 0;"><span style="color:var(--text3);">⚠ Autres (HP/balises)</span><span style="color:var(--red);">${penAutres > 0 ? '-'+penAutres+' pts' : '—'}</span></div>
+              ${penManuellePts !== 0 ? `<div style="display:flex;justify-content:space-between;padding:2px 0;"><span style="color:var(--text3);">✎ Manuelle</span><span style="color:${penManuellePts>0?'var(--red)':'var(--accent)'};">${penManuellePts>0?'-'+penManuellePts:'+'+Math.abs(penManuellePts)} pts</span></div>` : ''}
+              <div style="display:flex;justify-content:space-between;padding:4px 0;border-top:1px solid var(--border);margin-top:4px;font-weight:700;"><span>Σ Pénalités</span><span style="color:var(--red);">${penTotal > 0 ? '-'+penTotal+' pts' : '—'}</span></div>
+            </div>`);
             return rows.join('');
           })()}
         </div>` : ''}
@@ -7682,19 +8258,7 @@ async function engagerTout() {
   ].join('') || '<div style="color:var(--text3);">Aucun engagement traité.</div>';
 }
 
-function closeEngagementSession() {
-  closeModal('modal-engagement');
-  document.getElementById('engage-step-mdp').style.display = 'block';
-  document.getElementById('engage-step-session').style.display = 'none';
-  document.getElementById('engage-mdp').value = '';
-  document.getElementById('engage-rows').innerHTML = '';
-  document.getElementById('engage-recap').style.display = 'none';
-  _engageRowId = 0;
-  APP._engageConcoursId = null;
-  APP._engageCats = [];
-  // Remettre visible les éléments cachés
-  document.querySelectorAll('#engage-step-session > div').forEach(el => el.style.display = '');
-}
+// closeEngagementSession v1 supprimée (doublon) — v2 conservée
 
 
 
@@ -7988,8 +8552,8 @@ async function openParticipantDetail(id) {
   const ptv = p.scores?.ptv ?? null;
   const total = (por||0) + (ma||0) + (ptv||0);
 
-  const statutColor = { partant:'var(--accent)', non_partant:'var(--text3)', elim:'var(--red)', hc:'var(--orange)' };
-  const statutLabel = { partant:'Partant', non_partant:'Non partant', elim:'Éliminé', hc:'Hors concours' };
+  const statutColor = { partant:'var(--accent)', np:'var(--orange)', non_partant:'var(--orange)', elim:'var(--red)', hc:'var(--orange)' };
+  const statutLabel = { partant:'Partant', np:'Non partant', non_partant:'Non partant', elim:'Éliminé', hc:'Hors concours' };
   const statut = p.hors_classement ? 'hc' : p.statut;
 
   const scoreRow = (label, score, elim) => `
@@ -8016,7 +8580,7 @@ async function openParticipantDetail(id) {
       </div>
       <div style="text-align:right;">
         <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">SCORE TOTAL</div>
-        <div style="font-size:28px;font-weight:800;font-family:'Barlow Condensed',sans-serif;">${(p.statut==='elim'||p.statut==='non_partant')?'—':total||'—'}</div>
+        <div style="font-size:28px;font-weight:800;font-family:'Barlow Condensed',sans-serif;">${(p.statut==='elim'||p.statut==='np'||p.statut==='non_partant')?'—':total||'—'}</div>
       </div>
     </div>
 
@@ -8079,8 +8643,7 @@ async function openParticipantDetail(id) {
     <!-- Actions -->
     <div style="font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--text3);margin-bottom:8px;">ACTIONS</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-      <button class="btn-outline btn-small" style="padding:10px;${p.statut==='non_partant'?'border-color:var(--orange);color:var(--orange);':''}" onclick="requestPinForEdit('statut','${id}','non_partant')">
-        ${p.statut==='non_partant'?'✓ ':''}Non partant
+      <button class="btn-outline btn-small" style="padding:10px;${p.statut==='np'?'border-color:var(--orange);color:var(--orange);':''}" onclick="requestPinForEdit('statut','${id}','${p.statut==='np'?'partant':'np'}')">        ${p.statut==='np'?'✓ ':''}Non partant
       </button>
       <button class="btn-outline btn-small" style="padding:10px;${p.hors_classement?'border-color:var(--orange);color:var(--orange);':''}" onclick="requestPinForEdit('hors_classement','${id}',${p.hors_classement})">
         ${p.hors_classement?'✓ ':''}Hors concours
@@ -8097,8 +8660,7 @@ async function openParticipantDetail(id) {
         ${p.elim_ptv?'✓ ':''}Élim PTV
       </button>
     </div>
-    <button class="btn-outline btn-small" style="width:100%;padding:10px;color:var(--red);border-color:var(--red);${p.statut==='elim'?'background:rgba(212,90,90,.1);':''}" onclick="requestPinForEdit('statut','${id}','elim')">
-      ${p.statut==='elim'?'✓ Éliminé du concours':'Éliminer du concours'}
+    <button class="btn-outline btn-small" style="width:100%;padding:10px;color:var(--red);border-color:var(--red);${p.statut==='elim'?'background:rgba(212,90,90,.1);':''}" onclick="requestPinForEdit('statut','${id}','${p.statut==='elim'?'partant':'elim'}')">      ${p.statut==='elim'?'✓ Éliminé du concours':'Éliminer du concours'}
     </button>`;
 
   document.getElementById('modal-participant-name').textContent = `${p.prenom} ${p.nom}`;
@@ -8298,7 +8860,8 @@ async function directEditField(field, engagementId, currentVal) {
   if (!p) return;
   
   if (field === 'statut') {
-    const newVal = currentVal; // 'non_partant', 'elim', 'partant'
+    // Normaliser : 'non_partant' → 'np' (valeur acceptée par le check constraint Supabase)
+    const newVal = currentVal === 'non_partant' ? 'np' : currentVal;
     const { error } = await sb.from('engagements').update({ statut: newVal }).eq('id', engagementId);
     if (error) { showToast(error.message, 'error'); return; }
     p.statut = newVal;
@@ -8440,6 +9003,12 @@ async function verifyAdminPin() {
   const { field, engagementId, currentVal } = APP._pinEditCtx;
 
   if (field === 'delete_all') { await _doDeleteAllPartants(); return; }
+
+  // Callback pénalité manuelle POR
+  if (field === '_pena_manuelle_por_cb') {
+    if (APP._pinEditCtx.resolve) APP._pinEditCtx.resolve(true);
+    return;
+  }
 
   // Si c'est un champ cavalier/cheval/equipe → ouvrir modal-edit-field
   if (APP._pinEditCtx._pendingEditField) {
@@ -8725,14 +9294,22 @@ async function getOrCreateEquipe(concoursId, catId, nom, isChallenge=false) {
 }
 
 async function setStatut(s) {
-  const { error } = await sb.from('engagements').update({ statut: s }).eq('id', APP.editTarget);
-  if (error) {
-    if (!APP.isOnline) addPendingSync({ type:'statut', engagement_id: APP.editTarget, statut: s });
-    else { showToast(error.message, 'error'); return; }
+  // Normaliser la valeur avant envoi
+  const statVal = s === 'non_partant' ? 'np' : s;
+  if (!APP.isOnline) {
+    addPendingSync({ type:'statut', engagement_id: APP.editTarget, statut: statVal });
+    const p = APP.cache.participants.find(x => x.id === APP.editTarget);
+    if (p) p.statut = statVal;
+    showToast(`Statut mis à jour (hors ligne) ✓`, 'success');
+    closeModal('modal-participant-detail');
+    navigateTo('orga-participants');
+    return;
   }
+  const { error } = await sb.from('engagements').update({ statut: statVal }).eq('id', APP.editTarget);
+  if (error) { showToast(error.message, 'error'); return; }
   const p = APP.cache.participants.find(x => x.id === APP.editTarget);
   if (p) p.statut = s;
-  showToast(`Statut : ${s==='np'?'Non Partant':'Éliminé'}`, 'success');
+  showToast(`Statut : ${statVal==='np'?'Non Partant':statVal==='elim'?'Éliminé':'Partant'}`, 'success');
   closeModal('modal-participant-detail');
   navigateTo('orga-participants');
 }
@@ -9020,54 +9597,76 @@ async function applyDossards() {
    PDF FICHE TEMPÉRATURE
    ================================================================ */
 async function generateTempSheet() {
-  const { jsPDF } = window.jspdf;
-  if (!jsPDF) { showToast('jsPDF non chargé', 'error'); return; }
   if (!APP.cache.participants.length) await loadEngagements();
   const parts = APP.cache.participants.filter(p => p.statut === 'partant').sort((a,b) => (a.dossard||99)-(b.dossard||99));
   const { data: conc } = APP.currentConcoursId ? await sb.from('concours').select('nom,date,lieu').eq('id', APP.currentConcoursId).single() : { data: null };
-  const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
-  doc.setFont('helvetica','bold'); doc.setFontSize(16);
-  doc.text('FICHE DE TEMPÉRATURE', 105, 18, { align:'center' });
-  doc.setFontSize(10); doc.setFont('helvetica','normal');
-  doc.text(`${conc?conc.nom:'Concours'} — ${conc?formatDate(conc.date):'—'} — ${conc?conc.lieu:'—'}`, 105, 25, { align:'center' });
-
-  // Indications
+  const dateStr = conc?.date ? new Date(conc.date).toLocaleDateString('fr-FR') : '—';
   const indications = APP.cache.schedules?.temp_indications || '';
-  let tableY = 30;
-  if (indications) {
-    doc.setFontSize(8); doc.setTextColor(100,80,20);
-    const indLines = doc.splitTextToSize(`>> ${indications}`, 184);
-    const indH = indLines.length * 4 + 3;
-    doc.setFillColor(255,250,220); doc.rect(10, 27, 190, indH, 'F');
-    indLines.forEach((line, i) => doc.text(line, 13, 31 + i*4));
-    doc.setTextColor(20,20,20);
-    tableY = 27 + indH + 1;
-  }
+  const indicationsHtml = indications ? `<div class="indications">${indications}</div>` : '';
 
-  const cols = [14, 30, 70, 120, 160, 190];
-  doc.setFillColor(30,40,30); doc.setTextColor(230,240,230);
-  doc.rect(10, tableY, 190, 8, 'F');
-  doc.setFont('helvetica','bold'); doc.setFontSize(9);
-  ['Doss.','Cheval','Cavalier','Écurie','Température',''].forEach((h,i) => doc.text(h, cols[i], tableY+6));
-  doc.setTextColor(20,20,20); doc.setFont('helvetica','normal'); doc.setFontSize(9);
-  let y = tableY + 8;
-  parts.forEach((p, idx) => {
-    if (y > 270) { doc.addPage(); y = 20; }
-    if (idx%2===0) { doc.setFillColor(245,248,245); doc.rect(10,y,190,8,'F'); }
-    doc.text(pdfTrunc(doc, String(p.dossard||'—'), 14), cols[0], y+6);
-    doc.text(pdfTrunc(doc, p.cheval_nom||'—', 36), cols[1], y+6);
-    doc.text(pdfTrunc(doc, `${esc(p.prenom)} ${esc(p.nom)}`, 46), cols[2], y+6);
-    doc.text(pdfTrunc(doc, p.ecurie||'—', 36), cols[3], y+6);
-    doc.setDrawColor(150,160,150); doc.rect(cols[4], y+1, 24, 6);
-    y += 8;
-  });
-  doc.setFontSize(8); doc.setTextColor(120,130,120);
-  doc.text(`Généré le ${new Date().toLocaleDateString('fr-FR')} — DEMETER`, 105, 290, { align:'center' });
-  doc.save(`fiche-temperature-${conc?.nom||'concours'}.pdf`);
-  showToast('PDF généré ✓', 'success');
+  const rowsHtml = parts.map((p, i) => `
+    <tr class="${i%2===0?'even':''}">
+      <td class="mono">${p.dossard || '—'}</td>
+      <td>${p.cheval_nom || '—'}</td>
+      <td>${p.prenom} ${p.nom}</td>
+      <td>${p.ecurie || '—'}</td>
+      <td class="temp-box"></td>
+    </tr>`).join('');
+
+  const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+  <title>Fiche température — ${conc?.nom || ''}</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family: system-ui, sans-serif; font-size: 11px; color: #111; background: white; }
+    header { background: #0d0f0d; color: white; padding: 10px 16px; display:flex; justify-content:space-between; align-items:center; }
+    .title { font-size:15px; font-weight:700; color: #b4893c; }
+    .sub { font-size:11px; color:#aaa; margin-top:2px; }
+    .right { text-align:right; font-size:10px; color:#aaa; }
+    .indications { background: #fffde7; border-left: 3px solid #f9a825; padding: 6px 12px; font-size: 10px; color: #5d4037; margin: 8px 16px; border-radius: 2px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    th { background: #1e281e; color: #b4893c; text-align:left; padding:5px 8px; font-size:10px; font-weight:700; }
+    td { padding: 4px 8px; border-bottom: 1px solid #eee; }
+    tr.even td { background: #f8f8f8; }
+    .mono { font-family: monospace; font-weight:700; color: #b4893c; }
+    .temp-box { width: 70px; height: 16px; border: 1.5px solid #aaa; border-radius: 2px; }
+    footer { text-align:center; color:#999; font-size:9px; padding:8px; margin-top:8px; border-top:1px solid #eee; }
+    @media print {
+      header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      tr.even td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      @page { margin: 10mm; size: A4 portrait; }
+    }
+  </style>
+  </head><body>
+  <header>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <img src="${LOGO_B64}" style="height:36px;width:36px;border-radius:4px;flex-shrink:0;" alt="logo">
+      <div>
+        <div class="title">DÉMÉTER — Fiche de température</div>
+        <div class="sub">${conc?.nom || ''}</div>
+      </div>
+    </div>
+    <div class="right">${dateStr}${conc?.lieu ? ' · ' + conc.lieu : ''}<br>${parts.length} partant${parts.length>1?'s':''}</div>
+  </header>
+  ${indicationsHtml}
+  <table>
+    <thead><tr><th>Doss.</th><th>Cheval</th><th>Cavalier</th><th>Écurie</th><th>Température</th></tr></thead>
+    <tbody>${rowsHtml}</tbody>
+  </table>
+  <footer>DÉMÉTER — Généré le ${new Date().toLocaleDateString('fr-FR')}</footer>
+  </body></html>`;
+
+  const win = window.open('', '_blank');
+  if (!win) { showToast('Popup bloqué — autorisez les popups', 'error'); return; }
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 500);
+  showToast('PDF prêt à imprimer ✓', 'success');
 }
 
 /* ================================================================
+   MISC/* ================================================================
    MISC
    ================================================================ */
 function filterList(q, lid) {
