@@ -1,4 +1,4 @@
-const CACHE_NAME = 'demeter-1.0.144';
+const CACHE_NAME = 'demeter-1.0.158';
 
 self.addEventListener('install', function(e) {
   self.skipWaiting();

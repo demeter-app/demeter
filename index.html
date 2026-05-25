@@ -696,35 +696,56 @@ a{color:var(--accent);text-decoration:none}
 </div>
 
 <div class="modal-overlay" id="modal-add-partant">
-  <div class="modal"><div class="modal-handle"></div><div class="modal-title">Ajouter un partant</div>
-  <div class="modal-body">
-    <div class="section-label" style="margin-top:0;">Cavalier</div>
-    <div class="form-group"><label class="form-label">N° Licence</label><input type="text" id="ap-licence" placeholder="ex: 12345A" oninput="this.value=this.value.toUpperCase();prefillCavalierOrga(this.value)"></div>
-    <div class="form-row">
-      <div class="form-group"><label class="form-label">Prénom</label><input type="text" id="ap-prenom"></div>
-      <div class="form-group"><label class="form-label">Nom</label><input type="text" id="ap-nom"></div>
+  <div class="modal"><div class="modal-handle"></div><div class="modal-title" id="ap-title">Ajouter un partant</div>
+  <div class="modal-body" id="ap-body">
+    <!-- Étape 1 : Recherche cavalier -->
+    <div id="ap-step-search">
+      <div class="form-group">
+        <label class="form-label">Rechercher par licence ou nom</label>
+        <input type="text" id="ap-search" placeholder="Licence, prénom ou nom..." oninput="apSearch(this.value)" autocomplete="off" style="font-size:15px;">
+      </div>
+      <div id="ap-search-results" style="margin-top:8px;"></div>
+      <div style="text-align:center;margin-top:12px;">
+        <button class="btn-outline btn-small" onclick="apGoToCreate()">+ Nouveau cavalier</button>
+      </div>
     </div>
-    <div class="form-group"><label class="form-label">Écurie / Club</label><input type="text" id="ap-ecurie"></div>
-    <div class="section-label">Cheval</div>
-    <div class="form-group"><label class="form-label">N° SIRE</label><input type="text" id="ap-sire" style="font-family:'DM Mono',monospace;" oninput="this.value=this.value.toUpperCase();prefillChevalOrga(this.value)"></div>
-    <div class="form-group"><label class="form-label">Nom du cheval</label><input type="text" id="ap-cheval"></div>
-    <div class="section-label">Engagement</div>
-    <div class="form-group"><label class="form-label">Catégorie</label>
-      <select id="ap-categorie" onchange="onAddPartantCatChange(this.value)"><option value="">— Choisir —</option></select>
-    </div>
-    <div class="form-group" id="ap-equipe-wrap" style="display:none;">
-      <label class="form-label">Nom de l'équipe</label>
-      <input type="text" id="ap-equipe" list="ap-equipe-list">
-      <datalist id="ap-equipe-list"></datalist>
-    </div>
-    <div class="form-group" id="ap-speciale-wrap" style="display:none;">
-      <label class="form-label">Catégorie spéciale (optionnel)</label>
-      <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">Pour un cavalier classé aussi dans une catégorie spéciale POR ou PTV (même parcours, double classement)</div>
-      <select id="ap-categorie-speciale"><option value="">— Aucune —</option></select>
+    <!-- Étape 2 : Formulaire cavalier (nouveau ou édition) -->
+    <div id="ap-step-cavalier" style="display:none;">
+      <div id="ap-cav-found-banner" style="display:none;background:var(--bg3);border-radius:var(--radius);padding:8px 12px;margin-bottom:12px;font-size:13px;"></div>
+      <div class="section-label" style="margin-top:0;">Cavalier</div>
+      <div class="form-group"><label class="form-label">N° Licence *</label><input type="text" id="ap-licence" placeholder="ex: 12345A" style="font-family:'DM Mono',monospace;" oninput="this.value=this.value.toUpperCase()"></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Prénom *</label><input type="text" id="ap-prenom"></div>
+        <div class="form-group"><label class="form-label">Nom *</label><input type="text" id="ap-nom"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Écurie / Club</label><input type="text" id="ap-ecurie"></div>
+      <div class="section-label">Cheval</div>
+      <div class="form-group">
+        <label class="form-label">Rechercher cheval (SIRE ou nom)</label>
+        <input type="text" id="ap-cheval-search" placeholder="SIRE ou nom du cheval..." oninput="apSearchCheval(this.value)" autocomplete="off">
+        <div id="ap-cheval-results" style="margin-top:4px;"></div>
+      </div>
+      <div id="ap-cheval-fields">
+        <div class="form-group"><label class="form-label">N° SIRE</label><input type="text" id="ap-sire" style="font-family:'DM Mono',monospace;" oninput="this.value=this.value.toUpperCase()"></div>
+        <div class="form-group"><label class="form-label">Nom du cheval *</label><input type="text" id="ap-cheval"></div>
+      </div>
+      <div class="section-label">Engagement</div>
+      <div class="form-group"><label class="form-label">Catégorie *</label>
+        <select id="ap-categorie" onchange="onAddPartantCatChange(this.value)"><option value="">— Choisir —</option></select>
+      </div>
+      <div class="form-group" id="ap-equipe-wrap" style="display:none;">
+        <label class="form-label">Nom de l'équipe</label>
+        <input type="text" id="ap-equipe" list="ap-equipe-list">
+        <datalist id="ap-equipe-list"></datalist>
+      </div>
+      <div class="form-group" id="ap-speciale-wrap" style="display:none;">
+        <label class="form-label">Catégorie spéciale (optionnel)</label>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">Double classement sur catégorie spéciale POR ou PTV</div>
+        <select id="ap-categorie-speciale"><option value="">— Aucune —</option></select>
+      </div>
     </div>
   </div>
-  <div class="modal-actions">
-    <button class="btn-primary" onclick="saveAddPartant()">Ajouter</button>
+  <div class="modal-actions" id="ap-actions">
     <button class="btn-secondary" onclick="closeModal('modal-add-partant')">Annuler</button>
   </div></div>
 </div>
@@ -997,7 +1018,7 @@ const APP = {
 /* ================================================================
    SERVICE WORKER — Cache assets + MAJ automatique
    ================================================================ */
-const APP_VERSION = '1.0.144'; // Incrémenté à chaque push
+const APP_VERSION = '1.0.158'; // Incrémenté à chaque push
 
 // ================================================================
 // SÉCURITÉ — Échapper les données utilisateur (prévention XSS)
@@ -1378,20 +1399,24 @@ function buildParticipantsFromEngagements(engagements) {
 
 // Ajouter un score à la file d'attente — TOUJOURS immédiat, jamais bloquant
 async function queueScore(action) {
-  // Toujours vérifier le statut de blocage en BDD (pas de cache pour cette vérification)
-  if (APP.currentConcoursId && APP.isOnline) {
-    const { data } = await sb.from('concours')
-      .select('saisies_bloquees_por, saisies_bloquees_ma, saisies_bloquees_ptv')
-      .eq('id', APP.currentConcoursId).single();
-    if (data?.[`saisies_bloquees_${action.type}`]) {
-      showToast(`🔒 Saisies ${action.type.toUpperCase()} verrouillées par l'organisateur`, 'error');
+  // L'orga bypass tous les verrous de saisie
+  const isOrga = APP.jugeProfile?.id === 'orga' || APP.role === 'orga';
+  if (!isOrga) {
+    // Vérifier le statut de blocage en BDD (pas de cache pour cette vérification)
+    if (APP.currentConcoursId && APP.isOnline) {
+      const { data } = await sb.from('concours')
+        .select('saisies_bloquees_por, saisies_bloquees_ma, saisies_bloquees_ptv')
+        .eq('id', APP.currentConcoursId).single();
+      if (data?.[`saisies_bloquees_${action.type}`]) {
+        showToast(`🔒 Saisies ${action.type.toUpperCase()} verrouillées par l'organisateur`, 'error');
+        return false;
+      }
+    }
+    // Vérifier si ce juge est bloqué sur ce poste
+    if (APP.jugeAssignation?.bloque) {
+      showToast('🔒 Votre accès à ce poste a été verrouillé par l\'organisateur', 'error');
       return false;
     }
-  }
-  // Vérifier si ce juge est bloqué sur ce poste
-  if (APP.jugeAssignation?.bloque) {
-    showToast('🔒 Votre accès à ce poste a été verrouillé par l\'organisateur', 'error');
-    return false;
   }
   // 1. Écriture IndexedDB immédiate (< 5ms)
   await dbAddPending({ ...action, ts: Date.now() });
@@ -1853,8 +1878,7 @@ async function resolveRole() {
     } catch(e) { console.warn('user_roles upsert:', e); }
     const { data: assignations } = await sb.from('juge_assignations')
       .select('*, concours:concours(id, nom, date, saisies_bloquees_por, saisies_bloquees_ma, saisies_bloquees_ptv, archive)')
-      .eq('juge_id', jugeData.id)
-      .neq('poste', 'none');
+      .eq('juge_id', jugeData.id);
     // Exclure les concours archivés
     const assignationsFiltrees = (assignations||[]).filter(a => !a.concours?.archive);
     // Trier : concours ouverts (saisies actives) en premier par date décroissante
@@ -1864,9 +1888,21 @@ async function resolveRole() {
       if (aFerme !== bFerme) return aFerme ? 1 : -1;
       return new Date(b.concours?.date||0) - new Date(a.concours?.date||0);
     });
-    APP.jugeAssignations = sorted;
+    // Filtrer poste=none pour l'affichage des postes, mais garder pour trouver le concours
+    APP.jugeAssignations = sorted.filter(a => a.poste !== 'none');
     APP.jugeAssignation = APP.jugeAssignations[0] || null;
-    APP.currentConcoursId = APP.jugeAssignation?.concours_id || null;
+    // Si pas de poste réel, chercher dans les none pour trouver le concours
+    if (!APP.jugeAssignation) {
+      const noneAssign = sorted.find(a => a.poste === 'none');
+      if (noneAssign) APP.currentConcoursId = noneAssign.concours_id;
+    } else {
+      APP.currentConcoursId = APP.jugeAssignation?.concours_id || null;
+    }
+    if (!APP.currentConcoursId) APP.currentConcoursId = sorted[0]?.concours_id || null;
+    // Re-appeler rejoindre pour s'assurer que l'assignation existe toujours
+    if (APP.currentConcoursId && jugeData.id) {
+      try { await sb.rpc('rejoindre_concours_juge', { p_juge_id: jugeData.id, p_concours_id: APP.currentConcoursId }); } catch(e) {}
+    }
     if (APP.jugeAssignations.length) await dbSet(SYNC_KEYS.assignations, APP.jugeAssignations);
     // Sauvegarder profil pour accès hors ligne
     await dbSet('offline_role', 'juge');
@@ -2157,6 +2193,7 @@ function getNavItems() {
     { id:'admin-obstacles', icon:'🚧', label:'Obstacles' },
     { id:'admin-cavaliers', icon:'🏇', label:'Cavaliers' },
     { id:'admin-chevaux', icon:'🐴', label:'Chevaux' },
+    { id:'admin-doublons', icon:'⚠️', label:'Doublons' },
   ];
   if (APP.role === 'orga') return [
     { id:'orga-dashboard', icon:'📊', label:'Tableau' },
@@ -2221,6 +2258,7 @@ function navigateTo(id) {
     'admin-obstacles': pageAdminObstacles,
     'admin-cavaliers': pageAdminCavaliers,
     'admin-chevaux': pageAdminChevaux,
+    'admin-doublons': pageAdminDoublons,
     'orga-dashboard': pageOrgaDashboard,
     'orga-participants': pageOrgaParticipants,
     'orga-resultats': pageOrgaResultats,
@@ -3038,11 +3076,36 @@ async function showChevalFiche(id) {
 }
 
 async function deleteCavalier(id) {
-  if (!confirm('Supprimer ce cavalier ?')) return;
-  const { error } = await sb.from('cavaliers').delete().eq('id', id);
-  if (error) { showToast(error.message, 'error'); return; }
-  showToast('Cavalier supprimé', 'success');
-  navigateTo('admin-cavaliers');
+  showLoading();
+  const { data: engs } = await sb.from('engagements').select('id, concours:concours(nom)').eq('cavalier_id', id);
+  hideLoading();
+  if (engs?.length) {
+    const noms = [...new Set(engs.map(e => e.concours?.nom).filter(Boolean))].slice(0,3).join(', ');
+    showToast(`Impossible — ${engs.length} engagement(s) dans : ${noms}`, 'error');
+    return;
+  }
+  // Modal de confirmation
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.style.zIndex = '600';
+  modal.innerHTML = `<div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" style="color:var(--red);">Supprimer ce cavalier ?</div>
+    <div class="modal-body"><p style="font-size:13px;color:var(--text2);">Cette action est irréversible.</p></div>
+    <div class="modal-actions">
+      <button class="btn-danger" id="btn-confirm-del-cav">Supprimer</button>
+      <button class="btn-secondary" onclick="this.closest('.modal-overlay').remove()">Annuler</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+  requestAnimationFrame(() => modal.classList.add('open'));
+  document.getElementById('btn-confirm-del-cav').onclick = async () => {
+    modal.remove();
+    const { error } = await sb.from('cavaliers').delete().eq('id', id);
+    if (error) { showToast(error.message, 'error'); return; }
+    showToast('Cavalier supprimé ✓', 'success');
+    await pageAdminCavaliers();
+  };
 }
 function openEditCavalier(id, encoded) {
   APP.editTarget = id;
@@ -3095,11 +3158,35 @@ async function pageAdminChevaux() {
   </div>`);
 }
 async function deleteCheval(id) {
-  if (!confirm('Supprimer ce cheval ?')) return;
-  const { error } = await sb.from('chevaux').delete().eq('id', id);
-  if (error) { showToast(error.message, 'error'); return; }
-  showToast('Cheval supprimé', 'success');
-  navigateTo('admin-chevaux');
+  showLoading();
+  const { data: engs } = await sb.from('engagements').select('id, concours:concours(nom)').eq('cheval_id', id);
+  hideLoading();
+  if (engs?.length) {
+    const noms = [...new Set(engs.map(e => e.concours?.nom).filter(Boolean))].slice(0,3).join(', ');
+    showToast(`Impossible — ${engs.length} engagement(s) dans : ${noms}`, 'error');
+    return;
+  }
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.style.zIndex = '600';
+  modal.innerHTML = `<div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" style="color:var(--red);">Supprimer ce cheval ?</div>
+    <div class="modal-body"><p style="font-size:13px;color:var(--text2);">Cette action est irréversible.</p></div>
+    <div class="modal-actions">
+      <button class="btn-danger" id="btn-confirm-del-chev">Supprimer</button>
+      <button class="btn-secondary" onclick="this.closest('.modal-overlay').remove()">Annuler</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+  requestAnimationFrame(() => modal.classList.add('open'));
+  document.getElementById('btn-confirm-del-chev').onclick = async () => {
+    modal.remove();
+    const { error } = await sb.from('chevaux').delete().eq('id', id);
+    if (error) { showToast(error.message, 'error'); return; }
+    showToast('Cheval supprimé ✓', 'success');
+    await pageAdminChevaux();
+  };
 }
 function openEditCheval(id, encoded) {
   APP.editTarget = id;
@@ -3122,6 +3209,91 @@ async function saveCheval() {
   }
   if (error) { showToast(error.message, 'error'); return; }
   closeModal('modal-edit-cheval'); navigateTo('admin-chevaux'); showToast('Cheval enregistré', 'success');
+}
+
+/* ================================================================
+   ADMIN — DOUBLONS
+   ================================================================ */
+async function pageAdminDoublons() {
+  showPageLoading('Analyse des doublons...');
+  const [{ data: cavaliers }, { data: chevaux }] = await Promise.all([
+    sb.from('cavaliers').select('*').order('nom'),
+    sb.from('chevaux').select('*').order('nom'),
+  ]);
+
+  // Doublons cavaliers : même licence OU même nom+prénom
+  const cavDoublonsLicence = {};
+  const cavDoublonsNom = {};
+  (cavaliers||[]).forEach(c => {
+    if (c.licence) {
+      const k = c.licence.toUpperCase();
+      if (!cavDoublonsLicence[k]) cavDoublonsLicence[k] = [];
+      cavDoublonsLicence[k].push(c);
+    }
+    const kn = `${(c.prenom||'').toLowerCase().trim()} ${(c.nom||'').toLowerCase().trim()}`;
+    if (!cavDoublonsNom[kn]) cavDoublonsNom[kn] = [];
+    cavDoublonsNom[kn].push(c);
+  });
+
+  const licenceDups = Object.entries(cavDoublonsLicence).filter(([,v]) => v.length > 1);
+  const nomDups = Object.entries(cavDoublonsNom).filter(([k,v]) => v.length > 1 && k.trim() !== ' ');
+
+  // Doublons chevaux : même SIRE OU même nom
+  const chevDoublonsSire = {};
+  const chevDoublonsNom = {};
+  (chevaux||[]).forEach(c => {
+    if (c.sire) {
+      const k = c.sire.toUpperCase();
+      if (!chevDoublonsSire[k]) chevDoublonsSire[k] = [];
+      chevDoublonsSire[k].push(c);
+    }
+    const kn = (c.nom||'').toLowerCase().trim();
+    if (kn) {
+      if (!chevDoublonsNom[kn]) chevDoublonsNom[kn] = [];
+      chevDoublonsNom[kn].push(c);
+    }
+  });
+  const sireDups = Object.entries(chevDoublonsSire).filter(([,v]) => v.length > 1);
+  const chevNomDups = Object.entries(chevDoublonsNom).filter(([,v]) => v.length > 1);
+
+  const total = licenceDups.length + nomDups.length + sireDups.length + chevNomDups.length;
+
+  const renderDupGroup = (items, colorLabel, typeLabel) => items.map(([key, group]) => `
+    <div style="background:var(--bg3);border-radius:var(--radius);padding:10px 12px;margin-bottom:8px;border-left:3px solid var(--red);">
+      <div style="font-size:11px;font-weight:700;color:var(--red);margin-bottom:6px;">${typeLabel} : <span class="mono">${esc(key)}</span> — ${group.length} entrées</div>
+      ${group.map(x => `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);">
+        <div>
+          <div style="font-size:13px;font-weight:600;">${typeLabel.startsWith('Licence') || typeLabel.startsWith('Nom cav') ? `${esc(x.prenom)} ${esc(x.nom)}` : esc(x.nom)}</div>
+          <div style="font-size:11px;color:var(--text3);">${typeLabel.startsWith('Licence') || typeLabel.startsWith('Nom cav') ? `Licence: ${x.licence||'—'} · Club: ${x.ecurie||'—'}` : `SIRE: ${x.sire||'—'} · Club: ${x.ecurie||'—'}`}</div>
+        </div>
+        <div style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;">${x.id.slice(0,8)}…</div>
+      </div>`).join('')}
+    </div>`).join('');
+
+  setPageContent(`<div class="page active">
+    <div class="page-header">
+      <div><div class="page-title">Doublons</div><div class="page-subtitle">${total} anomalie${total>1?'s':''} détectée${total>1?'s':''}</div></div>
+      <button class="btn-outline btn-small" onclick="pageAdminDoublons()">⟳ Actualiser</button>
+    </div>
+
+    ${total === 0 ? `<div style="text-align:center;padding:40px;color:var(--accent);">✅ Aucun doublon détecté</div>` : ''}
+
+    ${licenceDups.length ? `
+    <div class="section-label" style="color:var(--red);">🏇 Cavaliers — même licence (${licenceDups.length})</div>
+    ${renderDupGroup(licenceDups, 'red', 'Licence')}` : ''}
+
+    ${nomDups.length ? `
+    <div class="section-label" style="color:var(--orange);">🏇 Cavaliers — même nom (${nomDups.length})</div>
+    ${renderDupGroup(nomDups, 'orange', 'Nom cav.')}` : ''}
+
+    ${sireDups.length ? `
+    <div class="section-label" style="color:var(--red);">🐴 Chevaux — même SIRE (${sireDups.length})</div>
+    ${renderDupGroup(sireDups, 'red', 'SIRE')}` : ''}
+
+    ${chevNomDups.length ? `
+    <div class="section-label" style="color:var(--orange);">🐴 Chevaux — même nom (${chevNomDups.length})</div>
+    ${renderDupGroup(chevNomDups, 'orange', 'Nom chev.')}` : ''}
+  </div>`);
 }
 
 /* ================================================================
@@ -3414,7 +3586,9 @@ async function pageOrgaDashboard() {
     const alertes = [];
     if (isToday && troncons.length) {
       const postes = ['depart', ...troncons.map((t,i) => i === troncons.length-1 ? 'arrivee' : `controle${i+1}`)];
-      partantsSorted.forEach(p => {
+      // N'itérer QUE sur les partants qui ont un horaire — ignore les NP/élim ayant un ancien horaire
+      const partantsAvecHoraire = partantsSorted.filter(p => horPOR.some(h => h.engagement_id === p.id));
+      partantsAvecHoraire.forEach(p => {
         const hDepart = horPOR.find(h => h.engagement_id === p.id);
         if (!hDepart) return;
         const departMin = toMin(hDepart.heure_depart?.substring(0,5));
@@ -4167,7 +4341,7 @@ function renderRecapPOR() {
     let penTemps = 0, penAutres = 0, penManuelle = 0;
     scores.forEach(s => {
       penAutres += (s.penalites_hors_piste||0)*30 + (s.penalites_autres||0)*50;
-      penManuelle += -(s.penalites_manuelles||0); // inverser : BDD négatif = malus affiché positif
+      penManuelle += (s.penalites_manuelles||0); // direct : positif = bonus, négatif = malus
     });
     const postes = getPostes(troncons);
     troncons.forEach((t, i) => {
@@ -4259,9 +4433,9 @@ function renderRecapPOR() {
     const hcBadge = p.hors_classement ? '<span class="status-badge pending" style="font-size:9px;margin-left:4px;">HC</span>' : '';
     const penDetails = calcPenDetails(scores, troncons);
     const scorePOR = isElim ? 0 : calcPORScoreAvecTemps(scores, p.categorie_obj, porCfgs);
-    // En BDD : négatif = malus, positif = bonus → inverser pour affichage (malus = positif affiché)
+    // penManuelle : direct depuis BDD (+10 = bonus, -10 = malus)
     const penManuelleBdd = scores.reduce((s, r) => s + (r.penalites_manuelles||0), 0);
-    const penManuelle = -penManuelleBdd; // positif affiché = malus
+    const penManuelle = penManuelleBdd;
     const penManuelleTxt = penManuelle === 0 ? '—' : (penManuelle > 0 ? '+'+penManuelle : String(penManuelle));
     const penManuelleBtnStyle = penManuelle !== 0 ? 'color:var(--accent);font-weight:700;' : 'color:var(--text3);';
     return `<tr style="${isElim?'opacity:0.5;':''}">
@@ -4357,9 +4531,9 @@ async function openPenaManuellePOR(engagementId) {
   if (!p) return;
   const scores = p.raw_scores_por || [];
   // La péna manuelle est stockée sur le row 'depart' (ou le premier row disponible)
-  // En BDD : négatif = malus, positif = bonus. Dans l'interface : positif affiché = malus
+  // Valeur stockée en BDD = valeur directe (+10 = bonus, -10 = malus)
   const existingRaw = scores.reduce((s, r) => s + (r.penalites_manuelles||0), 0);
-  const existingVal = -existingRaw; // Inverser pour affichage
+  const existingVal = existingRaw; // Pas d'inversion
 
   const modal = document.createElement('div');
   modal.className = 'modal-overlay';
@@ -4398,14 +4572,11 @@ async function openPenaManuellePOR(engagementId) {
   const scoreCourant = getScoreIndiv(p,'por') ?? 0;
   const update = () => {
     const val = parseInt(input.value) || 0;
-    // Dans calcPORScoreAvecTemps : score = ptsDep - autresPens + penManuelle
-    // Donc un val positif dans l'interface = points soustraits → on stocke -val dans penManuelle
-    // Mais ici existingVal = ce qui est stocké en BDD (positif = malus affiché)
-    // scoreCourant = ptsDep - autresPens - existingVal
-    // scoreSansPena = scoreCourant + existingVal  (repart de la base sans péna manuelle)
-    const scoreSansPena = scoreCourant + existingVal;
-    // nouveauScore = scoreSansPena - val  (val positif = malus, val négatif = bonus)
-    const newScore = Math.max(0, scoreSansPena - val);
+    // scoreCourant intègre déjà existingVal via calcPORScoreAvecTemps (ptsDep - pen + penManuelle)
+    // Pour prévoir : scoreSansPena = scoreCourant - existingVal
+    // nouveauScore = scoreSansPena + val
+    const scoreSansPena = scoreCourant - existingVal;
+    const newScore = Math.max(0, scoreSansPena + val);
     preview.textContent = newScore + ' pts';
     preview.style.color = val > existingVal ? 'var(--red)' : val < existingVal ? 'var(--accent)' : 'var(--text)';
   };
@@ -4415,9 +4586,11 @@ async function openPenaManuellePOR(engagementId) {
 
 async function savePenaManuellePOR(engagementId, modalEl) {
   const valInput = parseInt(document.getElementById('pena-manuelle-val')?.value) || 0;
-  // val positif = malus = soustrait du score → stocker négatif en BDD
-  // calcPORScoreAvecTemps fait ptsDep - pen + penManuelle, donc malus = négatif
-  const val = -valInput;
+  // Logique intuitive : valeur saisie = impact direct sur le score
+  // +10 = +10pts ajoutés, -10 = -10pts (malus)
+  // calcPORScoreAvecTemps fait ptsDep - pen + penManuelle
+  // Donc on stocke directement valInput en BDD
+  const val = valInput;
   const p = APP.cache.participants.find(x => x.id === engagementId);
   if (!p) return;
   const scores = p.raw_scores_por || [];
@@ -4572,6 +4745,35 @@ function renderRecapPTV() {
   };
 
   let html = '';
+
+  // === ANOMALIES PTV : obstacles sans score ===
+  const anomaliesPTV = [];
+  parts.forEach(p => {
+    const pid = catToParcours[p.categorie];
+    if (!pid) return;
+    const obsRows = parcoursObsMap[pid] || [];
+    const scores = p.raw_scores_ptv || [];
+    const manquants = obsRows.filter(r => {
+      const s = scores.find(x => x.obstacle_id === r.obstacle_id);
+      return s === undefined || s.points === null || s.points === undefined;
+    });
+    if (manquants.length) {
+      const nomParcours = ptvObsConfig.find(r => r.parcours_ref === pid)?.nom_parcours || pid;
+      const numsManquants = manquants.map(r => {
+        const idx2 = (parcoursObsMap[pid]||[]).findIndex(x => x.obstacle_id === r.obstacle_id) + 1;
+        return `N°${idx2}`;
+      }).join(', ');
+      anomaliesPTV.push(`Doss. <strong>${p.dossard||'—'}</strong> — ${esc(p.prenom)} ${esc(p.nom)} <span style="color:var(--text3);font-size:11px;">(${nomParcours})</span> : <strong>${numsManquants}</strong>`);
+    }
+  });
+
+  if (anomaliesPTV.length) {
+    html += `<div style="background:rgba(212,90,90,.08);border:1px solid rgba(212,90,90,.3);border-radius:var(--radius);padding:12px;margin-bottom:16px;">
+      <div style="font-weight:700;color:var(--red);margin-bottom:8px;">⚠️ ${anomaliesPTV.length} saisie${anomaliesPTV.length>1?'s':''} PTV manquante${anomaliesPTV.length>1?'s':''}</div>
+      ${anomaliesPTV.map(a => `<div style="font-size:12px;padding:3px 0;border-bottom:1px solid rgba(212,90,90,.15);">${a}</div>`).join('')}
+    </div>`;
+  }
+
   Object.entries(parcoursParts).forEach(([pid, pp]) => { html += renderParcoursTable(pid, pp); });
 
   if (noParcoursP.length) {
@@ -4683,16 +4885,29 @@ async function exportResultatsPDF() {
   for (const [catId, { cat, parts: catParts }] of Object.entries(byCat)) {
     const isOfficial = cat?.official === true;
     const isEquipeOfficielle = isOfficial && (cat?.participation_type === 'equ' || cat?.participation_type === 'duo');
-    const sorted = [...catParts].sort((a, b) => {
-      // HC et élim en bas
-      const aOut = a.hors_classement || a.statut === 'elim';
-      const bOut = b.hors_classement || b.statut === 'elim';
-      if (aOut && !bOut) return 1;
-      if (!aOut && bOut) return -1;
-      const sa = (a.scores.por||0)+(a.scores.ma||0)+(a.scores.ptv||0);
-      const sb2 = (b.scores.por||0)+(b.scores.ma||0)+(b.scores.ptv||0);
-      return sb2 - sa;
-    });
+    // Tri individus avec tiebreak FFCT
+    const sortedIndiv = sortWithTiebreak(catParts);
+    // Pour équipes officielles, tri par équipe
+    const isEquipeOff = cat?.official === true && (cat?.participation_type === 'equ' || cat?.participation_type === 'duo');
+    let sorted;
+    if (isEquipeOff) {
+      // Construire les équipes
+      const equipeMap = {};
+      catParts.filter(p => !p.hors_classement && p.statut !== 'elim' && p.statut !== 'np').forEach(p => {
+        const key = p.equipe_id || p.id;
+        if (!equipeMap[key]) equipeMap[key] = { name: p.equipe || '—', members: [], scoreGlobal: 0 };
+        equipeMap[key].members.push(p);
+      });
+      Object.values(equipeMap).forEach(eq => { eq.scoreGlobal = getScoreEquipe(eq.members); });
+      const equipesSorted = sortWithTiebreakEquipes(Object.values(equipeMap));
+      // Reconstruire la liste triée : membres de chaque équipe dans l'ordre
+      sorted = equipesSorted.flatMap(eq => [...eq.members].sort((a,b) => getScore(b,'global')-getScore(a,'global')));
+      // Ajouter HC et élim à la fin
+      const outParts = catParts.filter(p => p.hors_classement || p.statut === 'elim');
+      sorted = [...sorted, ...outParts];
+    } else {
+      sorted = sortedIndiv;
+    }
 
     const col2label = isEquipeOfficielle ? 'Équipe' : 'Cavalier';
     const col3label = isEquipeOfficielle ? 'Membres' : (isOfficial ? 'Cheval' : 'Équipe');
@@ -4725,11 +4940,12 @@ async function exportResultatsPDF() {
         </tr>`;
       } else {
         const isElim = p.statut === 'elim';
+        const isNP = p.statut === 'np' || p.statut === 'non_partant';
         const isHC = p.hors_classement;
-        if (!isElim && !isHC) rank++;
+        if (!isElim && !isHC && !isNP) rank++;
         const infoCol = isOfficial ? (p.cheval_nom || '—') : (p.equipe || '—');
-        const rankDisplay = (isElim || isHC) ? '—' : rank;
-        const badge = isElim ? ' <span class="badge-elim">ÉLIM</span>' : isHC ? ' <span class="badge-elim" style="background:#fff3cd;color:#856404;">HC</span>' : '';
+        const rankDisplay = (isElim || isHC || isNP) ? '—' : rank;
+        const badge = isElim ? ' <span class="badge-elim">ÉLIM</span>' : isNP ? ' <span class="badge-elim" style="background:#eee;color:#888;">NP</span>' : isHC ? ' <span class="badge-elim" style="background:#fff3cd;color:#856404;">HC</span>' : '';
         rowsHtml += `<tr class="${(isElim || isHC) ? 'elim' : ''}">
           <td class="rank">${rankDisplay}</td>
           <td><strong>${p.prenom} ${p.nom}</strong>${badge}</td>
@@ -4923,16 +5139,22 @@ async function exportResultatsExcel(modalEl) {
       COLS.forEach(c => { cellStyles[`${c}${sepRowExcel}`] = cat?.official ? catHdrStyle : chalHdrStyle; });
       currentRow++;
 
-      const sorted = [...catParts].sort((a, b) => {
-        // HC et élim en bas du classement
-        const aOut = a.hors_classement || a.statut === 'elim';
-        const bOut = b.hors_classement || b.statut === 'elim';
-        if (aOut && !bOut) return 1;
-        if (!aOut && bOut) return -1;
-        const sa = (a.scores.por||0)+(a.scores.ma||0)+(a.scores.ptv||0);
-        const sb2 = (b.scores.por||0)+(b.scores.ma||0)+(b.scores.ptv||0);
-        return sb2 - sa;
-      });
+      const isEquipeOffExcel = cat?.official === true && (cat?.participation_type === 'equ' || cat?.participation_type === 'duo');
+      let sorted;
+      if (isEquipeOffExcel) {
+        const equipeMapXl = {};
+        catParts.filter(p => !p.hors_classement && p.statut !== 'elim').forEach(p => {
+          const key = p.equipe_id || p.id;
+          if (!equipeMapXl[key]) equipeMapXl[key] = { name: p.equipe||'—', members: [], scoreGlobal: 0 };
+          equipeMapXl[key].members.push(p);
+        });
+        Object.values(equipeMapXl).forEach(eq => { eq.scoreGlobal = getScoreEquipe(eq.members); });
+        const equipesSortedXl = sortWithTiebreakEquipes(Object.values(equipeMapXl));
+        sorted = equipesSortedXl.flatMap(eq => [...eq.members].sort((a,b) => getScore(b,'global')-getScore(a,'global')));
+        sorted = [...sorted, ...catParts.filter(p => p.hors_classement || p.statut === 'elim')];
+      } else {
+        sorted = sortWithTiebreak(catParts);
+      }
 
       // Gérer équipes officielles groupées
       const isEquipeOfficielle = cat?.official === true && (cat?.participation_type === 'equ' || cat?.participation_type === 'duo');
@@ -5190,7 +5412,7 @@ function renderResultsByCategory(type) {
         if (!equipeMap[key]) equipeMap[key] = { name: p.equipe || 'Sans équipe', members: [] };
         equipeMap[key].members.push(p);
       });
-      const equipes = Object.values(equipeMap).map(eq => ({
+      const equipes = sortWithTiebreakEquipes(Object.values(equipeMap).map(eq => ({
         ...eq,
         scoreGlobal: getScoreEquipe(eq.members),
         scoreType: type === 'global' ? getScoreEquipe(eq.members) : (() => {
@@ -5198,7 +5420,7 @@ function renderResultsByCategory(type) {
           const n = Math.min(eq.members.length <= 2 ? 2 : 3, scores.length);
           return n ? Math.round(scores.slice(0,n).reduce((a,b)=>a+b,0)/n) : 0;
         })()
-      })).sort((a,b) => b.scoreType - a.scoreType);
+      })));
 
       equipes.forEach((eq, rank) => {
         const membresTriés = [...eq.members].sort((a,b) => getScoreIndiv(b,type==='global'?'por':type) - getScoreIndiv(a,type==='global'?'por':type));
@@ -5294,33 +5516,93 @@ function getScoreEquipe(members) {
   if (!n) return 0;
   return Math.round(totals.slice(0, n).reduce((a,b) => a+b, 0) / n);
 }
+// Tiebreak individuel FFCT :
+// 1. Total global
+// 2. POR + PTV
+// 3. POR seul
+// 4. Éliminé toujours après non-éliminé
+// 5. Spéciale PTV : nb de 10, puis nb de 9, etc.
 function sortWithTiebreak(parts) {
-  return [...parts].sort((a,b) => {
-    const g = getScore(b,'global') - getScore(a,'global');
+  return [...parts].sort((a, b) => {
+    // HC, éliminés et NP toujours en bas
+    const aOut = a.hors_classement || a.statut === 'elim' || a.statut === 'np';
+    const bOut = b.hors_classement || b.statut === 'elim' || b.statut === 'np';
+    if (aOut && !bOut) return 1;
+    if (!aOut && bOut) return -1;
+    // Éliminé sur un test après ceux ayant terminé
+    const aElimTest = a.elim_por || a.elim_ma || a.elim_ptv;
+    const bElimTest = b.elim_por || b.elim_ma || b.elim_ptv;
+    if (aElimTest && !bElimTest) return 1;
+    if (!aElimTest && bElimTest) return -1;
+    // 1. Total global
+    const g = getScore(b, 'global') - getScore(a, 'global');
     if (g !== 0) return g;
-    const t1 = getScore(b,'tiebreak1') - getScore(a,'tiebreak1');
+    // 2. POR + PTV
+    const t1 = getScore(b, 'tiebreak1') - getScore(a, 'tiebreak1');
     if (t1 !== 0) return t1;
-    return getScore(b,'tiebreak2') - getScore(a,'tiebreak2');
+    // 3. POR seul
+    const t2 = getScore(b, 'tiebreak2') - getScore(a, 'tiebreak2');
+    if (t2 !== 0) return t2;
+    // 4. Spéciale PTV : nb de 10, puis 9, etc.
+    if (a.categorie_obj?.special === 'ptv' || b.categorie_obj?.special === 'ptv') {
+      for (let pts = 10; pts >= 0; pts--) {
+        const aNb = (a.raw_scores_ptv||[]).filter(s => s.points === pts).length;
+        const bNb = (b.raw_scores_ptv||[]).filter(s => s.points === pts).length;
+        if (bNb !== aNb) return bNb - aNb;
+      }
+    }
+    return 0;
+  });
+}
+
+// Tiebreak équipes FFCT :
+// Score équipe = moyenne 3 meilleurs (2 si duo)
+// Tiebreak : POR+PTV, puis POR
+function sortWithTiebreakEquipes(equipes) {
+  // Calcul score brut (non arrondi) pour tiebreak précis
+  const scoreBrut = (eq, ...epreuves) => {
+    const n = eq.members.length <= 2 ? 2 : 3;
+    const scores = eq.members.map(m =>
+      epreuves.reduce((sum, ep) => sum + (getScoreIndiv(m, ep) || 0), 0)
+    ).sort((x, y) => y - x);
+    const kept = scores.slice(0, Math.min(n, scores.length));
+    return kept.length ? kept.reduce((s, v) => s + v, 0) : 0;
+  };
+
+  return [...equipes].sort((a, b) => {
+    // Équipes avec éliminés en bas
+    const aElim = a.members.some(m => m.statut === 'elim' || m.hors_classement);
+    const bElim = b.members.some(m => m.statut === 'elim' || m.hors_classement);
+    if (aElim && !bElim) return 1;
+    if (!aElim && bElim) return -1;
+    // 1. Score global équipe
+    const g = scoreBrut(b, 'por', 'ma', 'ptv') - scoreBrut(a, 'por', 'ma', 'ptv');
+    if (g !== 0) return g;
+    // 2. POR + PTV équipe
+    const t1 = scoreBrut(b, 'por', 'ptv') - scoreBrut(a, 'por', 'ptv');
+    if (t1 !== 0) return t1;
+    // 3. POR équipe
+    const t2 = scoreBrut(b, 'por') - scoreBrut(a, 'por');
+    return t2;
   });
 }
 function buildTable(sorted, type, sortable=true, isMembreEquipe=false) {
   const thSort = (col, label) => sortable
     ? `<th onclick="sortBuildTable(this,'${col}')" style="cursor:pointer;user-select:none;white-space:nowrap;">${label} <span style="font-size:9px;color:var(--text3);">⇅</span></th>`
     : `<th>${label}</th>`;
-  return `<div class="scrollable-x"><table class="results-table" style="min-width:600px;width:100%;">
-    <thead><tr>
-      ${thSort('dossard','Doss.')}
-      ${thSort('nom','Cavalier')}
-      ${type==='global'?`${thSort('por','POR')}${thSort('ma','MA')}${thSort('ptv','PTV')}`:''}
-      ${thSort('score','Score')}
-    </tr></thead>
-    <tbody>
-    ${sorted.map((p,i)=>{
+
+  // Séparer NP du reste
+  const classedParts = sorted.filter(p => p.statut !== 'np' && p.statut !== 'non_partant');
+  const npParts = sorted.filter(p => p.statut === 'np' || p.statut === 'non_partant');
+
+  const renderRow = (p, i, isNP=false) => {
       const por = getScoreIndiv(p,'por');
       const ma = getScoreIndiv(p,'ma');
       const ptv = getScoreIndiv(p,'ptv');
       const total = getScore(p,'global');
-      const rank = !isMembreEquipe ? `<span style="font-size:10px;color:var(--text3);margin-right:4px;">${i+1}.</span>` : '';
+      const rank = isNP
+        ? `<span style="font-size:10px;background:#eee;color:#888;padding:1px 5px;border-radius:3px;margin-right:4px;">NP</span>`
+        : (!isMembreEquipe ? `<span style="font-size:10px;color:var(--text3);margin-right:4px;">${i+1}.</span>` : '');
       const elimBadges = [
         p.elim_por ? '<span class="status-badge np" style="font-size:9px;padding:1px 4px;">ELIM POR</span>' : '',
         p.elim_ma ? '<span class="status-badge np" style="font-size:9px;padding:1px 4px;">ELIM MA</span>' : '',
@@ -5330,17 +5612,31 @@ function buildTable(sorted, type, sortable=true, isMembreEquipe=false) {
       ].filter(Boolean).join(' ');
       const challengeTeam = p.equipe && !p.categorie_obj?.official
         ? `<div style="font-size:10px;color:var(--unofficial);">⚑ ${esc(p.equipe)}</div>` : '';
-      return `<tr onclick="openParticipantDetail('${p.id}')" style="cursor:pointer;">
+      const rowStyle = isNP ? 'opacity:0.5;text-decoration:line-through;' : '';
+      const nameStyle = isNP ? 'text-decoration:line-through;' : '';
+      return `<tr onclick="openParticipantDetail('${p.id}')" style="cursor:pointer;${rowStyle}">
         <td class="mono" style="${isMembreEquipe?'padding-left:16px;':''}">${p.dossard||'—'}</td>
-        <td>${rank}${esc(p.prenom)} ${esc(p.nom)}${challengeTeam}${elimBadges?`<div style="margin-top:2px;">${elimBadges}</div>`:''}</td>
+        <td><span style="${nameStyle}">${rank}${esc(p.prenom)} ${esc(p.nom)}</span>${challengeTeam}${elimBadges?`<div style="margin-top:2px;">${elimBadges}</div>`:''}</td>
         ${type==='global'?`
-          <td class="score-cell" style="color:${p.elim_por?'var(--red)':'var(--text2)'};">${p.elim_por?`<s style="font-size:9px;">${getScoreIndiv(p,'por')||0}</s> 0`:por??'—'}</td>
-          <td class="score-cell" style="color:${p.elim_ma?'var(--red)':'var(--text2)'};">${p.elim_ma?`<s style="font-size:9px;">${getScoreIndiv(p,'ma')||0}</s> 0`:ma??'—'}</td>
-          <td class="score-cell" style="color:${p.elim_ptv?'var(--red)':'var(--text2)'};">${p.elim_ptv?`<s style="font-size:9px;">${getScoreIndiv(p,'ptv')||0}</s> 0`:ptv??'—'}</td>
+          <td class="score-cell" style="color:${p.elim_por?'var(--red)':'var(--text2)'};">${isNP?'—':p.elim_por?`<s style="font-size:9px;">${getScoreIndiv(p,'por')||0}</s> 0`:por??'—'}</td>
+          <td class="score-cell" style="color:${p.elim_ma?'var(--red)':'var(--text2)'};">${isNP?'—':p.elim_ma?`<s style="font-size:9px;">${getScoreIndiv(p,'ma')||0}</s> 0`:ma??'—'}</td>
+          <td class="score-cell" style="color:${p.elim_ptv?'var(--red)':'var(--text2)'};">${isNP?'—':p.elim_ptv?`<s style="font-size:9px;">${getScoreIndiv(p,'ptv')||0}</s> 0`:ptv??'—'}</td>
         `:''}
-        <td class="score-cell">${type==='global' ? (total||'—') : (getScoreIndiv(p,type)||'—')}</td>
+        <td class="score-cell">${isNP?'—':type==='global' ? (total||'—') : (getScoreIndiv(p,type)||'—')}</td>
       </tr>`;
-    }).join('')}
+  };
+
+  return `<div class="scrollable-x"><table class="results-table" style="min-width:600px;width:100%;">
+    <thead><tr>
+      ${thSort('dossard','Doss.')}
+      ${thSort('nom','Cavalier')}
+      ${type==='global'?`${thSort('por','POR')}${thSort('ma','MA')}${thSort('ptv','PTV')}`:''}
+      ${thSort('score','Score')}
+    </tr></thead>
+    <tbody>
+    ${classedParts.map((p,i) => renderRow(p, i, false)).join('')}
+    ${npParts.length ? `<tr><td colspan="10" style="font-size:10px;color:var(--text3);padding:4px 8px;border-top:2px solid var(--border2);">Non partants</td></tr>` : ''}
+    ${npParts.map((p,i) => renderRow(p, i, true)).join('')}
     </tbody>
   </table></div>`;
 }
@@ -6209,7 +6505,7 @@ async function pageOrgaJuges() {
   const code = concours?.code_juge || '';
   const codeActif = concours?.code_juge_actif !== false;
 
-  // Juges uniques sur ce concours
+  // Juges uniques sur ce concours — inclure TOUS, même ceux avec poste='none'
   const jugesMap = {};
   (assignations||[]).forEach(a => {
     if (a.juge?.id) jugesMap[a.juge.id] = a.juge;
@@ -7884,38 +8180,73 @@ async function showParticipantConcours(engId, concoursId) {
       let myRank = 0, total2 = 0, podiumHtml = '';
 
       if (isEquipeCat) {
-        // Classement par équipe
+        // Classement par équipe avec tiebreak FFCT
         const equipeMap = {};
         allEngs.filter(en => !en.hors_classement && en.equipe_id).forEach(en => {
           const eid = en.equipe_id;
           if (!equipeMap[eid]) equipeMap[eid] = { nom: decode(en.equipe?.nom || '—'), members: [] };
-          equipeMap[eid].members.push(calcScore(en));
+          equipeMap[eid].members.push(en);
         });
-        // Score équipe = moyenne des 3 meilleurs (ou 2 si duo)
+        // Calcul scores équipe avec tiebreak FFCT (somme 3 meilleurs)
         const equipes = Object.entries(equipeMap).map(([eid, eq]) => {
-          const sorted = eq.members.sort((a,b) => b-a);
           const n = cat?.participation_type === 'duo' ? 2 : 3;
-          const kept = sorted.slice(0, n);
+          const memberScores = eq.members.map(m => calcScore(m)).sort((a,b) => b-a);
+          const kept = memberScores.slice(0, n);
           const score = kept.length ? Math.round(kept.reduce((a,b) => a+b, 0) / kept.length) : 0;
-          return { eid, nom: eq.nom, score };
-        }).sort((a,b) => b.score - a.score);
+          // Scores individuels par épreuve pour tiebreak
+          const scoreEp = (ep) => {
+            const s = eq.members.map(m =>
+              (vis[ep] ? (m['elim_'+ep] ? 0 : (ep==='por'?calcPORScoreAvecTemps(m.scores_por,cat,porConfigs||[]):ep==='ma'?calcMAScore(m.scores_ma):calcPTVScore(m.scores_ptv,null,cat))) : 0) || 0
+            ).sort((a,b) => b-a).slice(0,n);
+            return s.reduce((a,b)=>a+b,0);
+          };
+          return { eid, nom: eq.nom, score, porptv: scoreEp('por')+scoreEp('ptv'), por: scoreEp('por') };
+        }).sort((a,b) => {
+          if (b.score !== a.score) return b.score - a.score;
+          if (b.porptv !== a.porptv) return b.porptv - a.porptv;
+          return b.por - a.por;
+        });
 
         total2 = equipes.length;
         // Trouver le rang de l'engagement courant
         const myEquipeId = allEngs.find(en => en.id === engId)?.equipe_id;
+        const myEquipeNom = equipeMap[myEquipeId]?.nom || '—';
         myRank = equipes.findIndex(eq => eq.eid === myEquipeId) + 1;
         const podium = equipes.slice(0, 3);
-        podiumHtml = podium.map((eq, i) => `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;${eq.eid===myEquipeId?'font-weight:700;color:var(--accent);':''}">
+        podiumHtml = `<div style="font-size:11px;color:var(--text3);margin-bottom:4px;">Équipe : <strong style="color:var(--accent);">${myEquipeNom}</strong></div>`
+          + podium.map((eq, i) => `<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;${eq.eid===myEquipeId?'font-weight:700;color:var(--accent);':''}">
           <span>${['🥇','🥈','🥉'][i]} ${eq.nom}</span>
           <span class="mono">${eq.score}</span>
         </div>`).join('');
       } else {
-        // Classement individuel (challenge ou officiel indiv)
-        const scored = allEngs.filter(en => !en.hors_classement).map(en => ({
-          id: en.id,
-          nom: `${en.cavalier?.prenom||''} ${en.cavalier?.nom||''}`,
-          score: calcScore(en)
-        })).sort((a,b) => b.score - a.score);
+        // Classement individuel avec tiebreak FFCT
+        const scored = allEngs.filter(en => !en.hors_classement && en.statut !== 'elim').map(en => {
+          const s_por = vis.por ? (en.elim_por ? 0 : calcPORScoreAvecTemps(en.scores_por, cat, porConfigs||[])||0) : 0;
+          const s_ma  = vis.ma  ? (en.elim_ma  ? 0 : calcMAScore(en.scores_ma)||0) : 0;
+          const s_ptv = vis.ptv ? (en.elim_ptv ? 0 : calcPTVScore(en.scores_ptv, null, cat)||0) : 0;
+          return {
+            id: en.id,
+            nom: `${en.cavalier?.prenom||''} ${en.cavalier?.nom||''}`,
+            score: s_por + s_ma + s_ptv,
+            porptv: s_por + s_ptv,
+            por: s_por,
+            raw_scores_ptv: en.scores_ptv || [],
+            special: cat?.special
+          };
+        }).sort((a, b) => {
+          if (b.score !== a.score) return b.score - a.score;
+          if (b.porptv !== a.porptv) return b.porptv - a.porptv;
+          if (b.por !== a.por) return b.por - a.por;
+          // Spéciale PTV : nb de 10, puis 9, etc.
+          if (a.special === 'ptv' || b.special === 'ptv') {
+            for (let pts = 10; pts >= 0; pts--) {
+              const aNb = a.raw_scores_ptv.filter(s => s.points === pts).length;
+              const bNb = b.raw_scores_ptv.filter(s => s.points === pts).length;
+              if (bNb !== aNb) return bNb - aNb;
+            }
+          }
+          return 0;
+        });
 
         total2 = scored.length;
         myRank = scored.findIndex(x => x.id === engId) + 1;
@@ -8021,7 +8352,7 @@ async function showParticipantConcours(engId, concoursId) {
             });
             const penAutres = (e.scores_por||[]).reduce((n,s)=>n+(s.penalites_hors_piste||0)*30+(s.penalites_autres||0)*50,0);
             const penManuelleRaw = (e.scores_por||[]).reduce((n,s)=>n+(s.penalites_manuelles||0),0);
-            const penManuellePts = -penManuelleRaw; // positif = malus affiché
+            const penManuellePts = penManuelleRaw; // direct : positif = bonus, négatif = malus
             const penTotal = penTemps + penAutres + penManuellePts;
             rows.push(`<div style="margin-top:8px;background:var(--bg3);border-radius:var(--radius);padding:8px 10px;font-size:11px;">
               <div style="font-weight:700;color:var(--text2);margin-bottom:6px;">Détail des pénalités</div>
@@ -8477,16 +8808,31 @@ async function runImport() {
         const { data, error } = await sb.from('cavaliers').insert({ licence, prenom, nom, ecurie }).select().single();
         if (error) throw error;
         cav = data;
-      } else if (updateExisting) {
-        await sb.from('cavaliers').update({ prenom, nom, ecurie }).eq('id', cav.id);
+      } else {
+        // Toujours enrichir les champs manquants, updateExisting pour tout écraser
+        const { data: cavFull } = await sb.from('cavaliers').select('ecurie,prenom,nom').eq('id', cav.id).single();
+        const upd = {};
+        if (updateExisting) { upd.prenom = prenom; upd.nom = nom; if (ecurie) upd.ecurie = ecurie; }
+        else if (!cavFull?.ecurie && ecurie) upd.ecurie = ecurie; // enrichissement seulement
+        if (Object.keys(upd).length) await sb.from('cavaliers').update(upd).eq('id', cav.id);
       }
 
       // Cheval
-      let { data: chev } = sire ? await sb.from('chevaux').select('id').eq('sire', sire).maybeSingle() : { data: null };
+      let { data: chev } = sire ? await sb.from('chevaux').select('id,ecurie,nom').eq('sire', sire).maybeSingle() : { data: null };
+      if (!chev) {
+        // Chercher aussi par nom exact si pas de SIRE
+        if (!sire && chevNom) {
+          const { data: chevByNom } = await sb.from('chevaux').select('id,ecurie,nom').ilike('nom', chevNom).maybeSingle();
+          chev = chevByNom;
+        }
+      }
       if (!chev) {
         const { data, error } = await sb.from('chevaux').insert({ sire: sire||null, nom: chevNom, ecurie }).select().single();
         if (error) throw error;
         chev = data;
+      } else {
+        // Enrichir si ecurie manquante
+        if (!chev.ecurie && ecurie) await sb.from('chevaux').update({ ecurie }).eq('id', chev.id);
       }
 
       // Catégorie + type depuis config admin
@@ -8502,11 +8848,16 @@ async function runImport() {
         equipeId = await getOrCreateEquipe(APP.currentConcoursId, catId, equipeNom, isChallenge);
       }
 
-      // Dossard
+      // Dossard — dans l'ordre du fichier
       let dossard = null;
-      const autoDossard = document.getElementById('import-skip-dossard').checked;
-      if (!autoDossard && dossardRaw) dossard = parseInt(dossardRaw) || null;
-      if (autoDossard) { maxDossard++; dossard = maxDossard; }
+      const useAutoDossard = document.getElementById('import-skip-dossard').checked;
+      if (!useAutoDossard && dossardRaw) {
+        dossard = parseInt(dossardRaw) || null;
+      } else {
+        // Auto : incrément séquentiel dans l'ordre du fichier
+        maxDossard++;
+        dossard = maxDossard;
+      }
 
       // Vérifier si déjà inscrit
       const { data: existing } = await sb.from('engagements').select('id').eq('concours_id', APP.currentConcoursId).eq('cavalier_id', cav.id).maybeSingle();
@@ -9330,30 +9681,260 @@ async function deletePartant() {
 }
 
 async function openAddPartant() {
-  const cats = APP.cache.categories || [];
-  const sel = document.getElementById('ap-categorie');
-  sel.innerHTML = `<option value="">— Choisir —</option>` +
-    cats.map(c => `<option value="${c.id}">${c.label}</option>`).join('');
+  APP._apCavId = null; // ID cavalier sélectionné
+  APP._apChevId = null; // ID cheval sélectionné
+  document.getElementById('ap-title').textContent = 'Ajouter un partant';
+  document.getElementById('ap-step-search').style.display = 'block';
+  document.getElementById('ap-step-cavalier').style.display = 'none';
+  document.getElementById('ap-search').value = '';
+  document.getElementById('ap-search-results').innerHTML = '';
+  document.getElementById('ap-actions').innerHTML = `<button class="btn-secondary" onclick="closeModal('modal-add-partant')">Annuler</button>`;
+  openModal('modal-add-partant');
+  setTimeout(() => document.getElementById('ap-search')?.focus(), 200);
+}
 
-  // Catégories spéciales
-  const catSpecSel = document.getElementById('ap-categorie-speciale');
-  const speciales = cats.filter(c => c.special);
-  if (catSpecSel) {
-    catSpecSel.innerHTML = '<option value="">— Aucune —</option>' + speciales.map(c => `<option value="${c.id}">${esc(c.label)}</option>`).join('');
-    document.getElementById('ap-speciale-wrap').style.display = speciales.length ? 'block' : 'none';
+async function apSearch(val) {
+  const q = val.trim();
+  const res = document.getElementById('ap-search-results');
+  if (q.length < 2) { res.innerHTML = ''; return; }
+  const { data } = await sb.from('cavaliers').select('id,prenom,nom,licence,ecurie')
+    .or(`licence.ilike.${q}%,nom.ilike.%${q}%,prenom.ilike.%${q}%`)
+    .limit(8);
+  if (!data?.length) {
+    res.innerHTML = `<div style="font-size:12px;color:var(--text3);padding:8px;">Aucun cavalier trouvé pour "${esc(q)}"</div>`;
+    return;
+  }
+  res.innerHTML = data.map(c => {
+    const dejaDans = APP.cache.participants.some(p => p.cavalier_id === c.id || p.licence === c.licence);
+    return `<div class="list-item" onclick="apSelectCavalier('${c.id}')" style="cursor:pointer;padding:8px 10px;">
+      <div class="list-item-info">
+        <div class="list-item-name">${esc(c.prenom)} ${esc(c.nom)} ${dejaDans ? '<span class="status-badge pending" style="font-size:9px;margin-left:6px;">Déjà engagé</span>' : ''}</div>
+        <div class="list-item-sub"><span class="mono">${c.licence||'—'}</span> · ${c.ecurie||'—'}</div>
+      </div>
+      <div style="color:var(--accent);font-size:18px;">›</div>
+    </div>`;
+  }).join('');
+}
+
+async function apSelectCavalier(id) {
+  const { data: c } = await sb.from('cavaliers').select('*').eq('id', id).single();
+  if (!c) return;
+  APP._apCavId = c.id;
+  apGoToForm(c);
+}
+
+function apGoToCreate() {
+  APP._apCavId = null;
+  apGoToForm(null);
+}
+
+function apGoToForm(c) {
+  document.getElementById('ap-step-search').style.display = 'none';
+  document.getElementById('ap-step-cavalier').style.display = 'block';
+  document.getElementById('ap-title').textContent = c ? `${c.prenom} ${c.nom}` : 'Nouveau cavalier';
+
+  const banner = document.getElementById('ap-cav-found-banner');
+  if (c) {
+    banner.style.display = 'block';
+    banner.innerHTML = `✓ Cavalier trouvé — les champs sont pré-remplis. Modifiez si besoin.`;
+  } else {
+    banner.style.display = 'none';
   }
 
-  const equipes = [...new Set(APP.cache.participants.filter(p=>p.equipe).map(p=>p.equipe))];
-  document.getElementById('ap-equipe-list').innerHTML = equipes.map(e=>`<option value="${e}">`).join('');
+  document.getElementById('ap-licence').value = c?.licence || '';
+  document.getElementById('ap-prenom').value = c?.prenom || '';
+  document.getElementById('ap-nom').value = c?.nom || '';
+  document.getElementById('ap-ecurie').value = c?.ecurie || '';
+  document.getElementById('ap-sire').value = '';
+  document.getElementById('ap-cheval').value = '';
+  document.getElementById('ap-cheval-search').value = '';
+  document.getElementById('ap-cheval-results').innerHTML = '';
+  APP._apChevId = null;
 
-  ['ap-licence','ap-prenom','ap-nom','ap-ecurie','ap-sire','ap-cheval','ap-equipe'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.value = '';
-  });
-  if (catSpecSel) catSpecSel.value = '';
+  // Catégories
+  const cats = APP.cache.categories || [];
+  const sel = document.getElementById('ap-categorie');
+  sel.innerHTML = `<option value="">— Choisir —</option>` + cats.map(c2 => `<option value="${c2.id}">${esc(c2.label)}</option>`).join('');
+  sel.value = '';
+  const catSpecSel = document.getElementById('ap-categorie-speciale');
+  const speciales = cats.filter(c2 => c2.special);
+  catSpecSel.innerHTML = '<option value="">— Aucune —</option>' + speciales.map(c2 => `<option value="${c2.id}">${esc(c2.label)}</option>`).join('');
+  document.getElementById('ap-speciale-wrap').style.display = speciales.length ? 'block' : 'none';
   document.getElementById('ap-equipe-wrap').style.display = 'none';
+  const equipes = [...new Set(APP.cache.participants.filter(p=>p.equipe).map(p=>p.equipe))];
+  document.getElementById('ap-equipe-list').innerHTML = equipes.map(e=>`<option value="${esc(e)}">`).join('');
+  document.getElementById('ap-equipe').value = '';
 
-  openModal('modal-add-partant');
+  document.getElementById('ap-actions').innerHTML = `
+    <button class="btn-primary" onclick="saveAddPartant()">✓ Ajouter</button>
+    <button class="btn-outline" onclick="apBackToSearch()">‹ Retour</button>
+    <button class="btn-secondary" onclick="closeModal('modal-add-partant')">Annuler</button>`;
+}
+
+function apBackToSearch() {
+  document.getElementById('ap-step-search').style.display = 'block';
+  document.getElementById('ap-step-cavalier').style.display = 'none';
+  document.getElementById('ap-title').textContent = 'Ajouter un partant';
+  document.getElementById('ap-actions').innerHTML = `<button class="btn-secondary" onclick="closeModal('modal-add-partant')">Annuler</button>`;
+  setTimeout(() => document.getElementById('ap-search')?.focus(), 100);
+}
+
+async function apSearchCheval(val) {
+  const q = val.trim();
+  const res = document.getElementById('ap-cheval-results');
+  if (q.length < 2) { res.innerHTML = ''; return; }
+  const { data } = await sb.from('chevaux').select('id,nom,sire,ecurie')
+    .or(`sire.ilike.${q}%,nom.ilike.%${q}%`)
+    .limit(6);
+  if (!data?.length) { res.innerHTML = ''; return; }
+  res.innerHTML = `<div style="background:var(--bg3);border-radius:var(--radius);overflow:hidden;margin-top:4px;">` +
+    data.map(h => `<div onclick="apSelectCheval('${h.id}','${encodeURIComponent(h.nom)}','${h.sire||''}')" style="padding:7px 10px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px;">
+      <span style="font-weight:600;">${esc(h.nom)}</span> <span class="mono" style="font-size:11px;color:var(--text3);">${h.sire||'—'}</span>
+    </div>`).join('') + `</div>`;
+}
+
+function apSelectCheval(id, nom, sire) {
+  APP._apChevId = id;
+  document.getElementById('ap-cheval').value = decodeURIComponent(nom);
+  document.getElementById('ap-sire').value = sire;
+  document.getElementById('ap-cheval-search').value = decodeURIComponent(nom);
+  document.getElementById('ap-cheval-results').innerHTML = '';
+}
+
+async function saveAddPartant(forceDouble=false) {
+  const licence = document.getElementById('ap-licence').value.trim().toUpperCase();
+  const prenom = document.getElementById('ap-prenom').value.trim();
+  const nom = document.getElementById('ap-nom').value.trim();
+  const ecurie = document.getElementById('ap-ecurie').value.trim();
+  const sire = document.getElementById('ap-sire').value.trim().toUpperCase();
+  const chevNom = document.getElementById('ap-cheval').value.trim();
+  const catId = document.getElementById('ap-categorie').value;
+  const cat = (APP.cache.categories||[]).find(c => c.id === catId);
+  const type = catTypeToDb(cat?.participation_type);
+  const equipeNom = document.getElementById('ap-equipe').value.trim();
+
+  if (!prenom || !nom || !chevNom || !catId) {
+    showToast('Prénom, nom, cheval et catégorie sont obligatoires', 'error'); return;
+  }
+
+  // Vérifier doublon engagement (même cavalier déjà dans ce concours)
+  if (!forceDouble && APP._apCavId) {
+    const dejaEngage = APP.cache.participants.some(p =>
+      (p.cavalier_id === APP._apCavId || (licence && p.licence === licence)) &&
+      p.statut === 'partant'
+    );
+    if (dejaEngage) {
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay';
+      modal.style.zIndex = '600';
+      modal.innerHTML = `<div class="modal">
+        <div class="modal-handle"></div>
+        <div class="modal-title" style="color:var(--orange);">⚠️ Cavalier déjà engagé</div>
+        <div class="modal-body">
+          <p style="font-size:14px;">${esc(prenom)} ${esc(nom)} est déjà partant dans ce concours.</p>
+          <p style="font-size:13px;color:var(--text3);margin-top:8px;">Voulez-vous quand même créer un second engagement (par exemple dans une autre catégorie) ?</p>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-primary" onclick="this.closest('.modal-overlay').remove();saveAddPartant(true)">Confirmer double engagement</button>
+          <button class="btn-secondary" onclick="this.closest('.modal-overlay').remove()">Annuler</button>
+        </div>
+      </div>`;
+      document.body.appendChild(modal);
+      requestAnimationFrame(() => modal.classList.add('open'));
+      return;
+    }
+  }
+
+  showLoading();
+  try {
+    // Upsert cavalier
+    let cavId = APP._apCavId;
+    if (!cavId) {
+      if (licence) {
+        const { data: existing } = await sb.from('cavaliers').select('id').eq('licence', licence).maybeSingle();
+        if (existing) cavId = existing.id;
+      }
+      if (!cavId) {
+        const { data, error } = await sb.from('cavaliers').insert({ licence: licence||null, prenom, nom, ecurie }).select().single();
+        if (error) { showToast(error.message, 'error'); return; }
+        cavId = data.id;
+      } else {
+        await sb.from('cavaliers').update({ prenom, nom, ecurie }).eq('id', cavId);
+      }
+    } else {
+      // Mettre à jour uniquement les champs qui apportent de l'info (non vides)
+      const updateObj = { prenom, nom };
+      if (licence) updateObj.licence = licence;
+      if (ecurie) updateObj.ecurie = ecurie;
+      await sb.from('cavaliers').update(updateObj).eq('id', cavId);
+    }
+
+    // Upsert cheval
+    let chevId = APP._apChevId;
+    if (!chevId) {
+      if (sire) {
+        const { data: existing } = await sb.from('chevaux').select('id,ecurie').eq('sire', sire).maybeSingle();
+        if (existing) {
+          chevId = existing.id;
+          // Enrichir si ecurie manquante
+          if (!existing.ecurie && ecurie) await sb.from('chevaux').update({ ecurie }).eq('id', chevId);
+        }
+      }
+      if (!chevId) {
+        const { data, error } = await sb.from('chevaux').insert({ sire: sire||null, nom: chevNom, ecurie }).select().single();
+        if (error) { showToast(error.message, 'error'); return; }
+        chevId = data.id;
+      }
+    }
+
+    // Équipe
+    let equipeId = null;
+    if (type === 'equ' && equipeNom) {
+      const isChallenge = !cat?.official;
+      equipeId = await getOrCreateEquipe(APP.currentConcoursId, catId, equipeNom, isChallenge);
+    }
+
+    // Dossard
+    let newDossard;
+    if (equipeId && equipeNom) {
+      const membresEquipe = APP.cache.participants.filter(p => p.equipe_id === equipeId && p.dossard);
+      const maxEquipeDossard = membresEquipe.reduce((max, p) => Math.max(max, p.dossard||0), 0);
+      if (maxEquipeDossard > 0) {
+        newDossard = maxEquipeDossard + 1;
+        const aRepousser = APP.cache.participants.filter(p => (p.dossard||0) >= newDossard).sort((a,b) => (b.dossard||0)-(a.dossard||0));
+        for (const p of aRepousser) {
+          await sb.from('engagements').update({ dossard: p.dossard + 1 }).eq('id', p.id);
+          p.dossard = p.dossard + 1;
+        }
+      } else {
+        newDossard = APP.cache.participants.reduce((max, p) => Math.max(max, p.dossard||0), 0) + 1;
+      }
+    } else {
+      newDossard = APP.cache.participants.reduce((max, p) => Math.max(max, p.dossard||0), 0) + 1;
+    }
+
+    const catSpecialeId = document.getElementById('ap-categorie-speciale')?.value || null;
+    const { error } = await sb.from('engagements').insert({
+      concours_id: APP.currentConcoursId,
+      cavalier_id: cavId,
+      cheval_id: chevId,
+      categorie_id: catId,
+      equipe_id: equipeId,
+      type_participation: type,
+      statut: 'partant',
+      dossard: newDossard,
+      categorie_speciale_id: catSpecialeId || null,
+    });
+    if (error) { showToast(error.message, 'error'); return; }
+    showToast('Partant ajouté ✓', 'success');
+    closeModal('modal-add-partant');
+    await loadEngagements();
+    pageOrgaParticipants();
+  } catch(e) {
+    showToast(e?.message || 'Erreur inconnue', 'error');
+  } finally {
+    hideLoading();
+  }
 }
 
 function onAddPartantCatChange(catId) {
@@ -9374,107 +9955,9 @@ function catNeedsEquipe(participation_type) {
   return participation_type === 'equ' || participation_type === 'equ_challenge' || participation_type === 'duo';
 }
 
-async function prefillCavalierOrga(licence) {
-  if (licence.length < 4) return;
-  const { data } = await sb.from('cavaliers').select('prenom,nom,ecurie').eq('licence', licence).maybeSingle();
-  if (data) {
-    document.getElementById('ap-prenom').value = data.prenom || '';
-    document.getElementById('ap-nom').value = data.nom || '';
-    document.getElementById('ap-ecurie').value = data.ecurie || '';
-  }
-}
+// prefillCavalierOrga/prefillChevalOrga remplacés par le nouveau flow apSearch
 
-async function prefillChevalOrga(sire) {
-  if (sire.length < 4) return;
-  const { data } = await sb.from('chevaux').select('nom').eq('sire', sire).maybeSingle();
-  if (data) {
-    document.getElementById('ap-cheval').value = data.nom || '';
-  }
-}
-
-async function saveAddPartant() {
-  const licence = document.getElementById('ap-licence').value.trim().toUpperCase();
-  const prenom = document.getElementById('ap-prenom').value.trim();
-  const nom = document.getElementById('ap-nom').value.trim();
-  const ecurie = document.getElementById('ap-ecurie').value.trim();
-  const sire = document.getElementById('ap-sire').value.trim().toUpperCase();
-  const chevNom = document.getElementById('ap-cheval').value.trim();
-  const catId = document.getElementById('ap-categorie').value;
-  const cat = (APP.cache.categories||[]).find(c => c.id === catId);
-  const type = catTypeToDb(cat?.participation_type);
-  const equipeNom = document.getElementById('ap-equipe').value.trim();
-
-  if (!licence || !prenom || !nom || !chevNom || !catId) {
-    showToast('Licence, prénom, nom, cheval et catégorie sont obligatoires', 'error'); return;
-  }
-
-  // Upsert cavalier
-  let { data: cav } = await sb.from('cavaliers').select('id').eq('licence', licence).maybeSingle();
-  if (!cav) {
-    const { data, error } = await sb.from('cavaliers').insert({ licence, prenom, nom, ecurie }).select().single();
-    if (error) { showToast(error.message, 'error'); return; }
-    cav = data;
-  }
-
-  // Upsert cheval
-  let { data: chev } = sire ? await sb.from('chevaux').select('id').eq('sire', sire).maybeSingle() : { data: null };
-  if (!chev) {
-    const { data, error } = await sb.from('chevaux').insert({ sire: sire||null, nom: chevNom, ecurie }).select().single();
-    if (error) { showToast(error.message, 'error'); return; }
-    chev = data;
-  }
-
-  // Équipe
-  let equipeId = null;
-  if (type === 'equ' && equipeNom) {
-    const isChallenge = !cat?.official;
-    equipeId = await getOrCreateEquipe(APP.currentConcoursId, catId, equipeNom, isChallenge);
-  }
-
-  // Dossard : s'insérer après les membres de l'équipe si applicable, sinon maxDossard+1
-  let newDossard;
-  if (equipeId && equipeNom) {
-    // Trouver le dossard max des membres existants de cette équipe
-    const membresEquipe = APP.cache.participants.filter(p => p.equipe_id === equipeId && p.dossard);
-    const maxEquipeDossard = membresEquipe.reduce((max, p) => Math.max(max, p.dossard||0), 0);
-    if (maxEquipeDossard > 0) {
-      // Insérer après le dernier membre de l'équipe et repousser les suivants
-      newDossard = maxEquipeDossard + 1;
-      // Repousser tous les partants ayant un dossard >= newDossard
-      const aRepousser = APP.cache.participants
-        .filter(p => (p.dossard||0) >= newDossard)
-        .sort((a,b) => (b.dossard||0)-(a.dossard||0)); // tri décroissant pour éviter collisions
-      for (const p of aRepousser) {
-        await sb.from('engagements').update({ dossard: p.dossard + 1 }).eq('id', p.id);
-        p.dossard = p.dossard + 1;
-      }
-    } else {
-      newDossard = APP.cache.participants.reduce((max, p) => Math.max(max, p.dossard||0), 0) + 1;
-    }
-  } else {
-    newDossard = APP.cache.participants.reduce((max, p) => Math.max(max, p.dossard||0), 0) + 1;
-  }
-
-  const catSpecialeId = document.getElementById('ap-categorie-speciale')?.value || null;
-
-  const { error } = await sb.from('engagements').insert({
-    concours_id: APP.currentConcoursId,
-    cavalier_id: cav.id,
-    cheval_id: chev.id,
-    categorie_id: catId,
-    equipe_id: equipeId,
-    type_participation: type,
-    statut: 'partant',
-    dossard: newDossard,
-    categorie_speciale_id: catSpecialeId || null,
-  });
-  if (error) { showToast(error.message, 'error'); return; }
-
-  showToast('Partant ajouté ✓', 'success');
-  closeModal('modal-add-partant');
-  await loadEngagements();
-  pageOrgaParticipants();
-}
+// saveAddPartant réécrite plus haut dans le nouveau flow
 
 async function saveElimTests() {
   const elimPor = document.getElementById('elim-por-chk')?.checked || false;
