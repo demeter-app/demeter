@@ -1018,7 +1018,7 @@ const APP = {
 /* ================================================================
    SERVICE WORKER — Cache assets + MAJ automatique
    ================================================================ */
-const APP_VERSION = '1.0.158'; // Incrémenté à chaque push
+const APP_VERSION = '1.0.161'; // Incrémenté à chaque push
 
 // ================================================================
 // SÉCURITÉ — Échapper les données utilisateur (prévention XSS)
@@ -6872,6 +6872,50 @@ async function renderJugeEpreuve() {
   else if (type === 'POR') await renderJugePOR();
   else renderJugeMA();
 }
+async function refreshPendingSymbols(selId, type, posteKey) {
+  // Recharger les scores en attente depuis IndexedDB
+  const pending = await dbGetAllPending();
+  APP._pendingScores = pending;
+  const sel = document.getElementById(selId);
+  if (!sel) return;
+  const obstacleId = APP.jugeAssignation?.poste;
+  Array.from(sel.options).forEach(opt => {
+    if (!opt.value) return;
+    const isPending = pending.some(s => s.type === type && s.engagement_id === opt.value &&
+      (type === 'ptv' ? s.obstacle_id === obstacleId : s.controle === obstacleId));
+    const isSaisi = type === 'ptv'
+      ? APP._ptvSaisedIds?.has(opt.value)
+      : APP._porSaisedIds?.has(opt.value);
+    const isCurrent = opt.value === (APP.jugeCtx?.participantId);
+    const base = opt.text.replace(/^[✓⏳→] /, '');
+    opt.text = (isCurrent ? '→ ' : isPending ? '⏳ ' : isSaisi ? '✓ ' : '') + base;
+  });
+}
+
+function onPTVSelChange(sel) {
+  // Marquer sélectionné avec →
+  Array.from(sel.options).forEach(opt => {
+    if (!opt.value) return;
+    const base = opt.text.replace(/^[✓⏳→] /, '');
+    const isPending = (APP._pendingScores||[]).some(s => s.type==='ptv' && s.engagement_id===opt.value && s.obstacle_id===APP.jugeAssignation?.poste);
+    const isSaisi = APP._ptvSaisedIds?.has(opt.value);
+    opt.text = (opt.value === sel.value ? '→ ' : isPending ? '⏳ ' : isSaisi ? '✓ ' : '') + base;
+  });
+  loadPTVPart(sel.value);
+}
+
+function onPORSelChange(sel) {
+  Array.from(sel.options).forEach(opt => {
+    if (!opt.value) return;
+    const base = opt.text.replace(/^[✓⏳→] /, '');
+    const poste = APP.jugeAssignation?.poste;
+    const isPending = (APP._pendingScores||[]).some(s => s.type==='por' && s.engagement_id===opt.value && s.controle===poste);
+    const isSaisi = APP._porSaisedIds?.has(opt.value);
+    opt.text = (opt.value === sel.value ? '→ ' : isPending ? '⏳ ' : isSaisi ? '✓ ' : '') + base;
+  });
+  showPOREntry(sel.value);
+}
+
 function renderJugePTV() {
   const allParts = APP.cache.participants.filter(p => p.statut === 'partant');
   const obstacleId = APP.jugeAssignation?.poste || null;
@@ -6937,9 +6981,14 @@ function renderJugePTV() {
       </div>
       ${multiPoste ? `<button class="btn-outline btn-small" onclick="pageJugeEntry()">← Postes</button>` : ''}
     </div>
-    <select id="ptv-sel" onchange="loadPTVPart(this.value)" style="margin-bottom:12px;">
+    <select id="ptv-sel" onchange="onPTVSelChange(this)" style="margin-bottom:12px;">
       <option value="">— Sélectionner un participant —</option>
-      ${parts.map(p=>`<option value="${p.id}">Doss. ${p.dossard||'—'} — ${esc(p.prenom)} ${esc(p.nom)} (${p.categorie_obj?.label||p.categorie})</option>`).join('')}
+      ${parts.map(p=>{
+        const pending = (APP._pendingScores||[]).some(s => s.type==='ptv' && s.engagement_id===p.id && s.obstacle_id===obstacleId);
+        const saisi = APP._ptvSaisedIds?.has(p.id);
+        const prefix = pending ? '⏳ ' : saisi ? '✓ ' : '';
+        return `<option value="${p.id}">${prefix}Doss. ${p.dossard||'—'} — ${esc(p.prenom)} ${esc(p.nom)} (${p.categorie_obj?.label||p.categorie})</option>`;
+      }).join('')}
     </select>
     <div id="ptv-participant-banner" style="display:none;background:var(--accent-bg2);border:1px solid rgba(180,137,60,.3);border-radius:var(--radius);padding:10px 14px;margin-bottom:12px;font-size:15px;font-weight:600;color:var(--accent);"></div>
     <div id="ptv-content" style="display:none;">
@@ -6957,12 +7006,21 @@ async function loadPTVPart(id) {
   APP.jugeCtx.participantId = id;
   if (banner) { banner.style.display='block'; banner.textContent=`${esc(p.prenom)} ${esc(p.nom)} · Doss. ${p.dossard||'—'} · ${esc(p.cheval_nom)}`; }
   resetPTVGrille();
+  const directInp2 = document.getElementById('ptv-direct-score');
+  if (directInp2) { directInp2.value = ''; }
+  APP._ptv_direct_score = null;
   div.style.display = 'block';
   const obstacleId = APP.jugeAssignation?.poste;
   if (obstacleId) {
     const { data: existing } = await sb.from('scores_ptv').select('points,grille_data').eq('engagement_id', id).eq('obstacle_id', obstacleId).maybeSingle();
     if (existing) {
       APP._ptv_grille = { score: existing.points, grille: existing.grille_data };
+      // Pré-remplir score direct si disponible
+      const directInp = document.getElementById('ptv-direct-score');
+      if (directInp && existing.points !== null && existing.points !== undefined) {
+        directInp.value = existing.points;
+        APP._ptv_direct_score = existing.points;
+      }
       // Pré-remplir la grille si grille_data disponible
       if (existing.grille_data) {
         const g = existing.grille_data;
@@ -7011,6 +7069,32 @@ async function loadPTVPart(id) {
 function renderPTVGrille(obstacle) {
   const g = obstacle.groupe || 1;
   const isAmateur = !!(APP.cache.participants.find(p => p.statut==='partant' && p.categorie_obj?.label?.toLowerCase().includes('amateur')));
+  const isOrga = APP.jugeProfile?.id === 'orga';
+
+  // Mode saisie directe (orga uniquement)
+  const maxPts = g === 5 ? 10 : (g === 6 ? 13 : (g <= 4 ? 13 : 10));
+  const saisieDirecte = isOrga ? `
+    <div id="ptv-saisie-directe" style="background:var(--accent-bg);border:1px solid rgba(180,137,60,.3);border-radius:var(--radius);padding:12px 14px;margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="font-size:12px;font-weight:700;color:var(--accent);">⚡ Saisie rapide (score direct)</span>
+        <button class="btn-outline btn-small" onclick="togglePTVMode()" id="ptv-mode-toggle">Utiliser la grille →</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button onclick="adjPTVDirect(-1)" style="background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);padding:10px 16px;font-size:18px;color:var(--text2);">−</button>
+        <input type="number" id="ptv-direct-score" min="-10" max="${maxPts}" step="1" value=""
+          oninput="onPTVDirectInput(this.value)"
+          style="font-family:'DM Mono',monospace;font-size:32px;font-weight:700;text-align:center;flex:1;color:var(--accent);background:var(--bg2);border:2px solid var(--accent);border-radius:var(--radius);padding:8px;">
+        <button onclick="adjPTVDirect(1)" style="background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);padding:10px 16px;font-size:18px;color:var(--text2);">+</button>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+        ${[-10,-1,0,1,2,3,4,5,6,7,8,9,10].filter(v => v <= maxPts).map(v =>
+          `<button onclick="setPTVDirect(${v})" style="flex:1;min-width:36px;padding:6px 4px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);font-size:13px;font-weight:${v===0?'400':'600'};color:${v<0?'var(--red)':v>=7?'var(--accent)':'var(--text)'};">${v}</button>`
+        ).join('')}
+      </div>
+      <button class="btn-primary full-width mt12" onclick="savePTVDirect()" style="margin-top:10px;">✓ Valider ce score</button>
+    </div>
+    <div id="ptv-grille-full" style="display:none;">
+  ` : `<div id="ptv-grille-full">`;
 
   const contratValues = g === 5
     ? [['0','0 faute → 10 pts'],['1','1 faute → 7 pts'],['2','2 fautes → 4 pts'],['3','3 fautes / NR → -10 pts']]
@@ -7156,6 +7240,7 @@ function renderPTVGrille(obstacle) {
     </div>`;
 
   return `
+    ${saisieDirecte}
     <div class="card mb12"><div class="card-body">
       ${contratSection}
       ${allureSection}
@@ -7167,8 +7252,92 @@ function renderPTVGrille(obstacle) {
         <span class="mono" style="font-size:32px;" id="ptv-score-display">—</span>
       </div>
       <button class="btn-primary full-width" id="btn-save-ptv" onclick="savePTVGrille()" disabled>✓ Enregistrer</button>
-    </div></div>`;
+    </div></div>${isOrga ? '</div>' : ''}`;
 }
+function togglePTVMode() {
+  const directEl = document.getElementById('ptv-saisie-directe');
+  const grilleEl = document.getElementById('ptv-grille-full');
+  const btn = document.getElementById('ptv-mode-toggle');
+  if (!directEl || !grilleEl) return;
+  const showingGrille = grilleEl.style.display !== 'none';
+  if (showingGrille) {
+    grilleEl.style.display = 'none';
+    directEl.style.display = 'block';
+    if (btn) btn.textContent = 'Utiliser la grille →';
+  } else {
+    grilleEl.style.display = 'block';
+    directEl.style.display = 'none';
+    if (btn) btn.textContent = '← Saisie rapide';
+  }
+}
+
+function onPTVDirectInput(val) {
+  APP._ptv_direct_score = val === '' ? null : parseInt(val);
+}
+
+function adjPTVDirect(delta) {
+  const inp = document.getElementById('ptv-direct-score');
+  if (!inp) return;
+  const cur = inp.value === '' ? 0 : parseInt(inp.value) || 0;
+  const newVal = cur + delta;
+  inp.value = newVal;
+  APP._ptv_direct_score = newVal;
+}
+
+function setPTVDirect(val) {
+  const inp = document.getElementById('ptv-direct-score');
+  if (inp) inp.value = val;
+  APP._ptv_direct_score = val;
+  // Flash visuel
+  inp.style.borderColor = 'var(--accent)';
+  inp.style.background = 'var(--accent-bg)';
+  setTimeout(() => { if(inp) { inp.style.borderColor = 'var(--accent)'; inp.style.background = 'var(--bg2)'; } }, 200);
+}
+
+async function savePTVDirect() {
+  const score = APP._ptv_direct_score;
+  if (score === null || score === undefined || score === '') {
+    showToast('Saisir un score', 'error'); return;
+  }
+  const engId = APP.jugeCtx?.participantId;
+  if (!engId) { showToast('Sélectionner un participant', 'error'); return; }
+  const obstacleId = APP.jugeAssignation?.poste;
+  if (!obstacleId) { showToast('Obstacle non défini', 'error'); return; }
+
+  const ok = await queueScore({
+    type: 'ptv',
+    engagement_id: engId,
+    obstacle_id: obstacleId,
+    score: parseInt(score),
+    grille_data: { direct: true, score: parseInt(score) }
+  });
+  if (!ok) return;
+
+  // Passer au suivant
+  showToast(`Score ${score} pts enregistré ✓`, 'success');
+  APP._ptvSaisedIds?.add(engId);
+  const sel = document.getElementById('ptv-sel');
+  if (sel) {
+    // Marquer comme saisi
+    const opt = Array.from(sel.options).find(o => o.value === engId);
+    if (opt) opt.text = '✓ ' + opt.text.replace(/^✓ /, '');
+    // Passer au suivant non saisi
+    const opts = Array.from(sel.options).filter(o => o.value && !o.text.startsWith('✓'));
+    if (opts.length) {
+      sel.value = opts[0].value;
+      await loadPTVPart(opts[0].value);
+    } else {
+      sel.value = '';
+      document.getElementById('ptv-content').style.display = 'none';
+      document.getElementById('ptv-participant-banner').style.display = 'none';
+    }
+  }
+  // Reset input
+  const inp = document.getElementById('ptv-direct-score');
+  if (inp) inp.value = '';
+  APP._ptv_direct_score = null;
+}
+
 function updatePTVScore() {
   const obstacle = APP.cache.obstacles.find(o => o.id === APP.jugeAssignation?.poste);
   if (!obstacle) return;
@@ -7379,12 +7548,14 @@ async function renderJugePOR() {
 
   // Charger les scores existants pour ce poste
   let scoresSaisis = new Set();
+  APP._pendingScores = await dbGetAllPending();
   if (APP.isOnline && APP.currentConcoursId) {
     const { data: existingScores } = await sb.from('scores_por')
       .select('engagement_id')
       .eq('controle', poste)
       .in('engagement_id', parts.map(p => p.id));
     (existingScores||[]).forEach(s => scoresSaisis.add(s.engagement_id));
+    APP._porSaisedIds = scoresSaisis;
     // Charger tous les horaires POR en cache une seule fois
     if (!APP.cache.horairesPOR) {
       const { data: hor } = await sb.from('horaires_por')
@@ -7403,9 +7574,14 @@ async function renderJugePOR() {
       </div>
       ${multiPoste ? `<button class="btn-outline btn-small" onclick="pageJugeEntry()">← Postes</button>` : ''}
     </div>
-    <select id="por-sel" style="margin-bottom:16px;" onchange="showPOREntry(this.value)">
+    <select id="por-sel" style="margin-bottom:16px;" onchange="onPORSelChange(this)">
       <option value="">— Sélectionner —</option>
-      ${entries.map(e=>`<option value="${e.id}">${scoresSaisis.has(e.id)?'✓ ':''} ${e.label}</option>`).join('')}
+      ${entries.map(e=>{
+        const pending = (APP._pendingScores||[]).some(s => s.type==='por' && s.engagement_id===e.id && s.controle===poste);
+        const saisi = scoresSaisis.has(e.id);
+        const prefix = pending ? '⏳ ' : saisi ? '✓ ' : '';
+        return `<option value="${e.id}">${prefix}${e.label}</option>`;
+      }).join('')}
     </select>
     <div id="por-entry" style="display:none;">
       <div class="por-control"><div class="por-control-label">Passage — ${poste}</div>
@@ -7604,6 +7780,9 @@ async function savePOREntry(engId) {
       if (!await queueScore({ type: 'por', engagement_id: membreId, controle: poste, heure_theorique: null, heure_reelle: reelVal, hp: isDepart ? 0 : APP._pen.hp, au: isDepart ? 0 : APP._pen.au })) return;
     }
   }
+  // Mettre à jour les symboles
+  APP._porSaisedIds = APP._porSaisedIds || new Set();
+  for (const membreId of membresIds) APP._porSaisedIds.add(membreId);
   // Passer au participant suivant
   const sel = document.getElementById('por-sel');
   if (sel) {
@@ -7646,7 +7825,12 @@ function renderJugeMA() {
     </div>
     <select id="ma-sel" style="margin-bottom:16px;" onchange="loadMAPart(this.value)">
       <option value="">— Sélectionner un participant —</option>
-      ${parts.map(p=>`<option value="${p.id}">Doss. ${p.dossard||'—'} — ${esc(p.prenom)} ${esc(p.nom)} (${p.categorie_obj?.label||p.categorie})</option>`).join('')}
+      ${parts.map(p=>{
+        const pending = (APP._pendingScores||[]).some(s => s.type==='ptv' && s.engagement_id===p.id && s.obstacle_id===obstacleId);
+        const saisi = APP._ptvSaisedIds?.has(p.id);
+        const prefix = pending ? '⏳ ' : saisi ? '✓ ' : '';
+        return `<option value="${p.id}">${prefix}Doss. ${p.dossard||'—'} — ${esc(p.prenom)} ${esc(p.nom)} (${p.categorie_obj?.label||p.categorie})</option>`;
+      }).join('')}
     </select>
     <div id="ma-content" style="display:none;">
       ${modeTemps ? `
