@@ -605,6 +605,8 @@ a{color:var(--accent);text-decoration:none}
           <select id="eng-cat-global" style="flex:1;" onchange="updateAllRowsCat()"><option value="">— Choisir —</option></select>
           <label style="font-size:12px;color:var(--text3);white-space:nowrap;">Équipe :</label>
           <input type="text" id="eng-equipe-global" placeholder="Optionnel" style="width:120px;font-size:12px;">
+          <label style="font-size:12px;color:var(--text3);white-space:nowrap;">Club :</label>
+          <input type="text" id="eng-club-global" placeholder="Votre club" style="width:140px;font-size:12px;">
         </div>
 
         <!-- Tableau des cavaliers -->
@@ -1018,7 +1020,7 @@ const APP = {
 /* ================================================================
    SERVICE WORKER — Cache assets + MAJ automatique
    ================================================================ */
-const APP_VERSION = '1.0.161'; // Incrémenté à chaque push
+const APP_VERSION = '1.0.164'; // Incrémenté à chaque push
 
 // ================================================================
 // SÉCURITÉ — Échapper les données utilisateur (prévention XSS)
@@ -8707,6 +8709,7 @@ async function engagerTout() {
   const concoursId = APP._engageConcoursId;
   if (!concoursId) return;
   const equipeNomGlobal = document.getElementById('eng-equipe-global').value.trim();
+  const clubGlobal = document.getElementById('eng-club-global')?.value.trim() || '';
   const rows = Array.from(document.querySelectorAll('#engage-rows tr'));
   if (!rows.length) { showToast('Ajoutez au moins un cavalier', 'error'); return; }
 
@@ -8726,10 +8729,13 @@ async function engagerTout() {
       // Cavalier
       let cavId = row.dataset.cavalierId;
       if (!cavId) {
-        let { data: cav } = await sb.from('cavaliers').select('id').eq('licence', licence||`${prenom}_${nom}`).maybeSingle();
+        let { data: cav } = await sb.from('cavaliers').select('id,ecurie').eq('licence', licence||`${prenom}_${nom}`).maybeSingle();
         if (!cav) {
-          const { data } = await sb.from('cavaliers').insert({ licence: licence||null, prenom, nom }).select().single();
+          const { data } = await sb.from('cavaliers').insert({ licence: licence||null, prenom, nom, ecurie: clubGlobal||null }).select().single();
           cav = data;
+        } else {
+          // Enrichir ecurie si manquante et club fourni
+          if (!cav.ecurie && clubGlobal) await sb.rpc('update_cavalier_ecurie', { p_cavalier_id: cav.id, p_ecurie: clubGlobal });
         }
         cavId = cav.id;
       }
@@ -8997,8 +9003,11 @@ async function runImport() {
         const { data: cavFull } = await sb.from('cavaliers').select('ecurie,prenom,nom').eq('id', cav.id).single();
         const upd = {};
         if (updateExisting) { upd.prenom = prenom; upd.nom = nom; if (ecurie) upd.ecurie = ecurie; }
-        else if (!cavFull?.ecurie && ecurie) upd.ecurie = ecurie; // enrichissement seulement
-        if (Object.keys(upd).length) await sb.from('cavaliers').update(upd).eq('id', cav.id);
+        if (!cavFull?.ecurie && ecurie && !updateExisting) {
+          await sb.rpc('update_cavalier_ecurie', { p_cavalier_id: cav.id, p_ecurie: ecurie });
+        } else if (updateExisting && Object.keys(upd).length) {
+          await sb.from('cavaliers').update(upd).eq('id', cav.id);
+        }
       }
 
       // Cheval
@@ -10643,6 +10652,7 @@ async function engPageEngagerTout() {
   if (!confirm("Confirmer l'engagement de tous les cavaliers listés ?")) return;
 
   const errors = [], successes = [], equipeCache = {};
+  const clubNom = document.getElementById('eng-club-nom')?.value.trim() || '';
 
   for (const bloc of equipeBlocs) {
     const equipeId = bloc.id.replace('eng-equipe-', '');
@@ -10676,12 +10686,15 @@ async function engPageEngagerTout() {
       try {
         let cavId = searchInput.dataset.cavalierId;
         if (!cavId) {
-          if (licence) { const { data: ex } = await sb.from('cavaliers').select('id').eq('licence', licence).maybeSingle(); if (ex) cavId = ex.id; }
+          if (licence) { const { data: ex } = await sb.from('cavaliers').select('id,ecurie').eq('licence', licence).maybeSingle(); if (ex) { cavId = ex.id; if (!ex.ecurie && clubNom) await sb.rpc('update_cavalier_ecurie', { p_cavalier_id: cavId, p_ecurie: clubNom }); } }
           if (!cavId) {
-            const { data, error } = await sb.from('cavaliers').insert({ prenom, nom, licence }).select().single();
+            const { data, error } = await sb.from('cavaliers').insert({ prenom, nom, licence, ecurie: clubNom||null }).select().single();
             if (error) { errors.push(`${label} — Erreur cavalier: ${error.message}`); continue; }
             cavId = data.id;
           }
+        } else if (clubNom) {
+          // Enrichir ecurie si manquante via RPC
+          await sb.rpc('update_cavalier_ecurie', { p_cavalier_id: cavId, p_ecurie: clubNom });
         }
         let chevId = chevalSearchInput?.dataset.chevalId;
         if (!chevId) {
