@@ -1020,7 +1020,7 @@ const APP = {
 /* ================================================================
    SERVICE WORKER — Cache assets + MAJ automatique
    ================================================================ */
-const APP_VERSION = '1.0.164'; // Incrémenté à chaque push
+const APP_VERSION = '1.0.166'; // Incrémenté à chaque push
 
 // ================================================================
 // SÉCURITÉ — Échapper les données utilisateur (prévention XSS)
@@ -1242,7 +1242,12 @@ async function loadOfflineCache() {
       // Les engagements stockés sont bruts (format Supabase avec cavalier.nom etc.)
       // On les reconstruit en participants exploitables + on trie par dossard
       const built = buildParticipantsFromEngagements(parts);
-      APP.cache.participants = built.sort((a,b) => (a.dossard||9999)-(b.dossard||9999));
+      APP.cache.participants = built.sort((a,b) => {
+        const da = a.dossard ?? 99999, db = b.dossard ?? 99999;
+        if (da !== db) return da - db;
+        // Même dossard ou pas de dossard → ordre d'insertion (created_at)
+        return (a.created_at||'') < (b.created_at||'') ? -1 : 1;
+      });
     }
     await updatePendingBadge();
     return !!(parts && cats);
@@ -3312,7 +3317,7 @@ async function loadEngagements() {
   }
 
   let q = sb.from('engagements').select(`
-    id, dossard, statut, type_participation, elim_por, elim_ma, elim_ptv, hors_classement, categorie_speciale_id,
+    id, dossard, statut, type_participation, elim_por, elim_ma, elim_ptv, hors_classement, categorie_speciale_id, created_at,
     cavalier:cavaliers(id, licence, prenom, nom, ecurie),
     cheval:chevaux(id, sire, nom),
     categorie:categories!categorie_id(id, label, official, pts_por, special, mode_ma, max_ptv, participation_type),
@@ -3323,7 +3328,7 @@ async function loadEngagements() {
     scores_ptv(obstacle_id, points, temps_reel)
   `);
   if (APP.currentConcoursId) q = q.eq('concours_id', APP.currentConcoursId);
-  const { data, error } = await q.order('dossard');
+  const { data, error } = await q.order('dossard', { ascending: true, nullsFirst: false }).order('created_at', { ascending: true });
   if (error) { console.error('loadEngagements:', error); showToast('Erreur chargement données — vérifiez votre connexion', 'error'); APP.cache.participants = []; hideLoading(); return; }
   APP.cache.participants = (data || []).map(e => ({
     id: e.id,
@@ -8713,6 +8718,8 @@ async function engagerTout() {
   const rows = Array.from(document.querySelectorAll('#engage-rows tr'));
   if (!rows.length) { showToast('Ajoutez au moins un cavalier', 'error'); return; }
 
+
+
   const errors = [], successes = [];
 
   for (const row of rows) {
@@ -9041,16 +9048,14 @@ async function runImport() {
         equipeId = await getOrCreateEquipe(APP.currentConcoursId, catId, equipeNom, isChallenge);
       }
 
-      // Dossard — dans l'ordre du fichier
+      // Dossard — respecter l'ordre du fichier
       let dossard = null;
       const useAutoDossard = document.getElementById('import-skip-dossard').checked;
       if (!useAutoDossard && dossardRaw) {
         dossard = parseInt(dossardRaw) || null;
-      } else {
-        // Auto : incrément séquentiel dans l'ordre du fichier
-        maxDossard++;
-        dossard = maxDossard;
       }
+      // Si auto (pas de dossard dans le fichier) : laisser null, l'ordre sera
+      // garanti par created_at (inserts séquentiels avec await)
 
       // Vérifier si déjà inscrit
       const { data: existing } = await sb.from('engagements').select('id').eq('concours_id', APP.currentConcoursId).eq('cavalier_id', cav.id).maybeSingle();
@@ -10653,6 +10658,8 @@ async function engPageEngagerTout() {
 
   const errors = [], successes = [], equipeCache = {};
   const clubNom = document.getElementById('eng-club-nom')?.value.trim() || '';
+
+
 
   for (const bloc of equipeBlocs) {
     const equipeId = bloc.id.replace('eng-equipe-', '');
