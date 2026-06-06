@@ -1020,7 +1020,7 @@ const APP = {
 /* ================================================================
    SERVICE WORKER — Cache assets + MAJ automatique
    ================================================================ */
-const APP_VERSION = '1.0.166'; // Incrémenté à chaque push
+const APP_VERSION = '1.0.214'; // Incrémenté à chaque push
 
 // ================================================================
 // SÉCURITÉ — Échapper les données utilisateur (prévention XSS)
@@ -1870,6 +1870,14 @@ async function resolveRole() {
     // Lire le premier concours assigné depuis orga_concours
     const { data: oc } = await sb.from('orga_concours').select('concours_id').eq('orga_id', orgaData.id).limit(1);
     APP.currentConcoursId = oc?.[0]?.concours_id || orgaData.concours_id || null;
+    // Détecter si ce concours est une finale de challenge (await pour que la nav soit correcte)
+    if (APP.currentConcoursId) {
+      const { data: ch } = await sb.from('challenges')
+        .select('id, nom, finale_id, challenge_concours(concours_id, ordre)')
+        .eq('finale_id', APP.currentConcoursId).maybeSingle();
+      APP.cache.challengeFinale = ch || null;
+      APP.isFinale = !!ch;
+    }
     await initApp();
     return;
   }
@@ -2211,6 +2219,7 @@ function getNavItems() {
     { id:'orga-params', icon:'⚙️', label:'Config' },
     { id:'orga-horaires', icon:'🕐', label:'Horaires' },
     { id:'orga-juges', icon:'👤', label:'Juges' },
+    ...(APP.isFinale ? [{ id:'orga-finale', icon:'🏆', label:'Finale' }] : []),
   ];
   if (APP.role === 'juge') return [
     { id:'juge-entry', icon:'✏️', label:'Saisie' },
@@ -2274,6 +2283,7 @@ function navigateTo(id) {
     'orga-params': pageOrgaParams,
     'orga-horaires': pageOrgaHoraires,
     'orga-juges': pageOrgaJuges,
+    'orga-finale': pageOrgaFinale,
     'juge-entry': pageJugeEntry,
     'juge-sync': pageJugeSync,
     'juge-recap': pageJugeRecap,
@@ -3829,8 +3839,10 @@ function renderPartTable() {
     <tbody>
       ${sortedWithGroups.map(item => {
         if (item.type === 'equipe_header') {
+          const equipeId = item.membres[0]?.equipe_id;
           return `<tr><td colspan="9" style="background:var(--bg3);padding:4px 12px;font-size:11px;font-weight:700;color:var(--text3);">
             ⚑ ${item.equipe} <span style="font-weight:400;">(${item.membres.length} membre${item.membres.length>1?'s':''})</span>
+            ${equipeId ? `<button onclick="event.stopPropagation();renameEquipe('${equipeId}','${item.equipe.replace(/'/g,"\\'")}')" style="margin-left:8px;background:var(--accent-bg);border:1px solid rgba(180,137,60,.3);border-radius:4px;color:var(--accent);cursor:pointer;font-size:11px;padding:2px 7px;">✎ Renommer</button>` : ''}
           </td></tr>`;
         }
         const p = item.p;
@@ -3856,6 +3868,59 @@ function renderPartTable() {
 /* ----------------------------------------------------------------
    EXPORT LISTE PARTANTS — PDF
    ---------------------------------------------------------------- */
+async function renameEquipe(equipeId, nomActuel) {
+  // Demander le PIN admin d'abord
+  APP._pinEditCtx = { field: '_rename_equipe_cb', equipeId, nomActuel, resolve: null };
+  const pinOk = await new Promise(resolve => {
+    APP._pinEditCtx.resolve = resolve;
+    document.getElementById('admin-pin-input').value = '';
+    document.getElementById('admin-pin-error').style.display = 'none';
+    openModal('modal-admin-pin');
+    setTimeout(() => document.getElementById('admin-pin-input')?.focus(), 200);
+  });
+  if (!pinOk) return;
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.style.zIndex = '600';
+  modal.innerHTML = `<div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Renommer l'équipe</div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Nouveau nom</label>
+        <input type="text" id="rename-equipe-input" value="${nomActuel.replace(/"/g,'&quot;')}" style="font-size:16px;">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-primary" onclick="saveRenameEquipe('${equipeId}',this.closest('.modal-overlay'))">Renommer</button>
+      <button class="btn-secondary" onclick="this.closest('.modal-overlay').remove()">Annuler</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+  requestAnimationFrame(() => modal.classList.add('open'));
+  setTimeout(() => {
+    const inp = document.getElementById('rename-equipe-input');
+    if (inp) { inp.focus(); inp.select(); }
+  }, 200);
+}
+
+async function saveRenameEquipe(equipeId, modalEl) {
+  const nouveauNom = document.getElementById('rename-equipe-input')?.value.trim();
+  if (!nouveauNom) { showToast('Nom vide', 'error'); return; }
+  showLoading();
+  const { error } = await sb.from('equipes').update({ nom: nouveauNom }).eq('id', equipeId);
+  if (error) { showToast(error.message, 'error'); hideLoading(); return; }
+  // Mettre à jour le cache local
+  APP.cache.participants.forEach(p => {
+    if (p.equipe_id === equipeId) p.equipe = nouveauNom;
+  });
+  modalEl.remove();
+  showToast('Équipe renommée ✓', 'success');
+  hideLoading();
+  pageOrgaParticipants();
+}
+
 async function exportPartantsPDF() {
   const concours = APP.cache.concours.find(c => c.id === APP.currentConcoursId);
   const parts = APP.cache.participants.filter(p => p.statut === 'partant');
@@ -4865,7 +4930,277 @@ function exitOrgaSaisies() {
 // ================================================================
 function pdfDrawHeader() {} // legacy stub — now uses HTML print
 
+async function exportFinalePDF() {
+  showLoading();
+  const ch = APP.cache.challengeFinale;
+  const concours = APP.cache.concours?.find(c => c.id === APP.currentConcoursId);
+  const tab = APP._finaleActiveTab || 'prequal';
+  const tabLabels = { prequal: 'Pré-qualifiés', qual: 'Qualifiés engagés', res: 'Résultats finale' };
+  const tabLabel = tabLabels[tab];
+  const dateStr = concours?.date ? new Date(concours.date).toLocaleDateString('fr-FR') : '';
+  const lieu = concours?.lieu || '';
+
+  // Récupérer les données depuis APP._finaleSubTabs context
+  // On relit depuis APP._finalePageData si dispo, sinon depuis le DOM
+  const ch2 = APP.cache.challengeFinale;
+  if (!ch2) { hideLoading(); return; }
+
+  // Recharger les données complètes pour le PDF
+  const finaleId = APP.currentConcoursId;
+  const qualifIds = (ch2.challenge_concours||[]).sort((a,b)=>a.ordre-b.ordre).map(x=>x.concours_id).filter(id=>id!==finaleId);
+  const { data: concsData } = await sb.from('concours').select('id,nom').in('id', qualifIds);
+  const concNoms = {};
+  (concsData||[]).forEach(c => concNoms[c.id] = c.nom);
+  const shortNom = id => { const n=concNoms[id]||id; return n.split(' ').slice(0,2).join(' '); };
+
+  const { data: cpRows } = await sb.from('challenge_participations')
+    .select('*, categorie:categories!categorie_id(id, label, official, participation_type), cavalier:cavaliers!cavalier_id(id, prenom, nom, ecurie, licence)')
+    .eq('challenge_id', ch2.id);
+  const cpMap = {}, cpEquipeMap = {};
+  (cpRows||[]).forEach(cp => {
+    if (cp.cavalier_id) cpMap[cp.cavalier_id] = cp;
+    if (cp.equipe_nom) cpEquipeMap[cp.equipe_nom] = cp;
+  });
+
+  const { data: qualifEngs } = await sb.from('engagements').select(`
+    id, cavalier_id, statut, categorie_id, concours_id, equipe_id,
+    cavalier:cavaliers(id, prenom, nom, licence, ecurie),
+    categorie:categories!categorie_id(id, label, official, participation_type, pts_por, special, mode_ma, max_ptv),
+    equipe:equipes(id, nom),
+    scores_por(controle, heure_reelle, penalites_hors_piste, penalites_autres, penalites_manuelles),
+    scores_ma(mode, balises_data, chrono_data),
+    scores_ptv(obstacle_id, points, temps_reel)
+  `).in('concours_id', qualifIds).eq('statut', 'partant');
+
+  const { data: allPorConfigs } = await sb.from('por_configs')
+    .select('*, por_config_troncons(*), por_config_categories(categorie_id)')
+    .in('concours_id', qualifIds);
+
+  // Scores par cavalier
+  const cavData = {};
+  (qualifEngs||[]).forEach(e => {
+    const cavId = e.cavalier_id;
+    if (!cavId) return;
+    const porCfgs = (allPorConfigs||[]).filter(c=>c.concours_id===e.concours_id);
+    const total = (calcPORScoreAvecTemps(e.scores_por,e.categorie,porCfgs)||0)+(calcMAScore(e.scores_ma)||0)+(calcPTVScore(e.scores_ptv,null,e.categorie)||0);
+    if (!cavData[cavId]) cavData[cavId] = { cav:e.cavalier, participations:[], equipeNom:{} };
+    if (!cavData[cavId].participations.find(p=>p.concoursId===e.concours_id))
+      cavData[cavId].participations.push({ concoursId:e.concours_id, score:total });
+    const isClubEq = e.categorie?.official===true&&(e.categorie?.participation_type==='equ'||e.categorie?.participation_type==='duo');
+    if (isClubEq && e.equipe?.nom) cavData[cavId].equipeNom[e.concours_id] = e.equipe.nom;
+  });
+
+  // Scores équipes avec dédoublonnage
+  const equipeScores = {};
+  const equipeMembersSeen2 = {};
+  (qualifEngs||[]).forEach(e => {
+    const isClubEq = e.categorie?.official===true&&(e.categorie?.participation_type==='equ'||e.categorie?.participation_type==='duo');
+    if (!isClubEq||!e.equipe?.nom||!e.cavalier_id) return;
+    const nom = e.equipe.nom;
+    const cid = e.concours_id;
+    const key = `${e.cavalier_id}|${cid}`;
+    if (!equipeMembersSeen2[nom]) equipeMembersSeen2[nom] = new Set();
+    if (equipeMembersSeen2[nom].has(key)) return;
+    equipeMembersSeen2[nom].add(key);
+    if (!equipeScores[nom]) equipeScores[nom] = {};
+    const porCfgs = (allPorConfigs||[]).filter(c=>c.concours_id===cid);
+    const total = (calcPORScoreAvecTemps(e.scores_por,e.categorie,porCfgs)||0)+(calcMAScore(e.scores_ma)||0)+(calcPTVScore(e.scores_ptv,null,e.categorie)||0);
+    if (!equipeScores[nom][cid]) equipeScores[nom][cid] = [];
+    equipeScores[nom][cid].push(total);
+  });
+  const equipeScoresByConc = {};
+  Object.entries(equipeScores).forEach(([nom,byConcours]) => {
+    equipeScoresByConc[nom] = {};
+    Object.entries(byConcours).forEach(([cid,scores]) => {
+      const s = scores.sort((a,b)=>b-a);
+      const n = Math.min(3,s.length);
+      equipeScoresByConc[nom][cid] = n ? Math.round(s.slice(0,n).reduce((a,b)=>a+b,0)/n) : 0;
+    });
+  });
+
+  const finalistesMap = {};
+  APP.cache.participants.filter(p=>p.statut==='partant').forEach(p=>{ finalistesMap[p.cavalier_id]=p; });
+  const finaleScoresByCav = {};
+  APP.cache.participants.filter(p=>p.statut==='partant').forEach(p=>{
+    finaleScoresByCav[p.cavalier_id]=(p.scores.por||0)+(p.scores.ma||0)+(p.scores.ptv||0);
+  });
+  const equipeFinaleScores = {};
+  APP.cache.participants.filter(p=>p.statut==='partant'&&p.equipe).forEach(p=>{
+    if (!equipeFinaleScores[p.equipe]) equipeFinaleScores[p.equipe]=[];
+    equipeFinaleScores[p.equipe].push((p.scores.por||0)+(p.scores.ma||0)+(p.scores.ptv||0));
+  });
+  Object.keys(equipeFinaleScores).forEach(nom=>{
+    const s=equipeFinaleScores[nom].sort((a,b)=>b-a),n=Math.min(3,s.length);
+    equipeFinaleScores[nom]=n?Math.round(s.slice(0,n).reduce((a,b)=>a+b,0)/n):0;
+  });
+
+  // Grouper par catégorie (depuis challenge_participations)
+  const bycat = {};
+  const addToBycat = (catLabel, item) => { if (!bycat[catLabel]) bycat[catLabel]=[]; bycat[catLabel].push(item); };
+
+  // Individus
+  Object.entries(cavData).forEach(([cavId,cav]) => {
+    if (cav.participations.length < 2) return;
+    const cp = cpMap[cavId]; if (!cp) return;
+    const catLabel = cp.categorie?.label||'—';
+    const best2 = [...cav.participations].sort((a,b)=>b.score-a.score).slice(0,2).reduce((a,b)=>a+b.score,0);
+    const finalePart = finalistesMap[cavId];
+    addToBycat(catLabel, { type:'indiv', cav:cav.cav, participations:cav.participations, best2, cp,
+      finScore: finalePart ? (finaleScoresByCav[cavId]||0) : null,
+      scoreFinale: finalePart ? Math.round((best2+(finaleScoresByCav[cavId]||0))/3*10)/10 : null,
+      isQual: !!finalePart });
+  });
+
+  // Équipes
+  Object.entries(equipeScoresByConc).forEach(([nom,byConc]) => {
+    const participations = Object.entries(byConc).map(([cid,score])=>({concoursId:cid,score}));
+    if (participations.length < 2) return;
+    const cp = cpEquipeMap[nom]; if (!cp) return;
+    const catLabel = cp.categorie?.label||'—';
+    const best2 = [...participations].sort((a,b)=>b.score-a.score).slice(0,2).reduce((a,b)=>a+b.score,0);
+    const finScore = equipeFinaleScores[nom];
+    addToBycat(catLabel, { type:'equipe', nom, participations, best2, cp,
+      finScore: finScore!==null ? finScore : null,
+      scoreFinale: finScore!==null ? Math.round((best2+finScore)/3*10)/10 : null,
+      isQual: finScore!==null });
+  });
+
+  let pagesHtml = '';
+  const entries = sortCats(Object.entries(bycat));
+
+  for (const [catLabelStr, items] of entries) {
+    // Filtrer selon l'onglet
+    let filtered = items;
+    if (tab === 'qual') filtered = items.filter(i=>i.isQual);
+    if (tab === 'res') filtered = items.filter(i=>i.isQual);
+    if (!filtered.length) continue;
+
+    // Trier
+    if (tab === 'res') filtered.sort((a,b)=>(b.scoreFinale||0)-(a.scoreFinale||0));
+    else filtered.sort((a,b)=>b.best2-a.best2);
+
+    // Rang ex æquo pour résultats
+    if (tab === 'res') {
+      filtered.forEach((item,i,arr)=>{ item.rang = (i>0&&item.scoreFinale===arr[i-1].scoreFinale)?'Ex æq.':(i+1); });
+    }
+
+    const cp = entries[0]?.[1]?.[0]?.cp;
+    const isOfficial = items[0]?.cp?.categorie?.official===true;
+    const badgeClass = isOfficial ? 'official' : 'challenge';
+    const badgeLabel = isOfficial ? 'OFFICIEL' : 'CHALLENGE';
+
+    // Colonnes scores qualifs
+    const qualifCols = qualifIds.map(cid=>`<th style="width:50px;text-align:center;">${shortNom(cid)}</th>`).join('');
+    const qualifColsFin = tab==='res' ? `<th style="width:55px;text-align:center;">Qualifs</th><th style="width:50px;text-align:center;">Finale</th><th style="width:55px;text-align:center;">Score /3</th>` : qualifCols;
+
+    let rowsHtml = '';
+    filtered.forEach((item,idx) => {
+      const best2set = new Set([...item.participations].sort((a,b)=>b.score-a.score).slice(0,2).map(p=>p.concoursId));
+
+      if (tab === 'res') {
+        const rang = item.rang==='Ex æq.' ? '<span style="font-size:9px;color:#e6a817;">Ex æq.</span>' : (item.rang<=3 ? ['🥇','🥈','🥉'][item.rang-1] : item.rang+'.');
+        const nom = item.type==='equipe' ? `⚑ ${item.nom}` : `${item.cav?.prenom} ${item.cav?.nom}`;
+        const club = item.type==='equipe' ? '' : (item.cav?.ecurie||'—');
+        const bg = item.rang<=3 ? 'background:#fef9ef;' : '';
+        rowsHtml += `<tr style="${bg}">
+          <td class="rank" style="font-size:${item.rang<=3?'14':'11'}px;">${rang}</td>
+          <td><strong>${nom}</strong>${item.type==='indiv'?`<div style="font-size:8px;color:#888;">${club}</div>`:''}</td>
+          <td class="total" style="text-align:center;">${item.best2}</td>
+          <td class="total" style="text-align:center;">${item.finScore??'—'}</td>
+          <td class="total" style="font-size:13px;">${item.scoreFinale??'—'}</td>
+        </tr>`;
+      } else {
+        const nom = item.type==='equipe' ? `⚑ ${item.nom}` : `${item.cav?.prenom} ${item.cav?.nom}`;
+        const club = item.type==='equipe' ? '' : (item.cav?.ecurie||'—');
+        const isQualBadge = item.isQual ? `<span style="font-size:8px;background:#fef9ef;color:#a07820;padding:1px 4px;border-radius:2px;font-weight:700;margin-left:4px;">✓ Qualifié</span>` : '';
+        const scoreCols = qualifIds.map(cid => {
+          const p = item.participations.find(x=>x.concoursId===cid);
+          if (!p) return `<td style="text-align:center;color:#bbb;">—</td>`;
+          const isBest = best2set.has(cid);
+          return `<td style="text-align:center;font-weight:${isBest?'700':'400'};color:${isBest?'#a07820':'#555'};">${isBest?'★ ':''}${p.score}</td>`;
+        }).join('');
+        rowsHtml += `<tr>
+          <td><strong>${nom}</strong>${isQualBadge}${item.type==='indiv'?`<div style="font-size:8px;color:#888;">${club}</div>`:''}</td>
+          ${scoreCols}
+        </tr>`;
+      }
+    });
+
+    pagesHtml += `<div class="page">
+      <header>
+        <div class="header-left">
+          <img src="${LOGO_B64}" style="height:40px;width:40px;border-radius:4px;flex-shrink:0;" alt="logo">
+          <span class="demeter-title">DÉMÉTER</span>
+          <span class="concours-nom">🏆 ${ch2.nom}</span>
+          <span class="concours-info">${tabLabel}${dateStr?' — '+dateStr:''}${lieu?' · '+lieu:''}</span>
+        </div>
+        <div class="header-right">
+          <span class="cat-name">${catLabelStr}</span>
+          <span class="badge ${badgeClass}">${badgeLabel}</span>
+        </div>
+      </header>
+      <table>
+        <thead><tr>
+          ${tab==='res'?'<th style="width:40px">Cl.</th>':''}
+          <th>${tab==='res'?'Participant':'Participant'}</th>
+          ${qualifColsFin}
+        </tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+      <footer>DÉMÉTER — Challenge ${ch2.nom} — ${tabLabel} — Généré le ${new Date().toLocaleDateString('fr-FR')} — ${filtered.length} participant${filtered.length>1?'s':''}</footer>
+    </div>`;
+  }
+
+  if (!pagesHtml) { hideLoading(); showToast('Aucun contenu à exporter', 'error'); return; }
+
+  const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+  <title>${tabLabel} — ${ch2.nom}</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family: system-ui, sans-serif; font-size: 11px; color: #111; background: white; }
+    .page { page-break-after: always; padding: 0; }
+    .page:last-child { page-break-after: avoid; }
+    header { background: #0d0f0d; color: white; padding: 10px 16px; display:flex; justify-content:space-between; align-items:center; }
+    .demeter-title { font-size: 18px; font-weight: 900; color: #b4893c; margin-right: 12px; }
+    .concours-nom { font-size: 14px; font-weight: 700; color: white; }
+    .concours-info { display:block; font-size: 9px; color: #aaa; margin-top: 2px; }
+    .header-left { display:flex; align-items:baseline; flex-wrap:wrap; gap:4px; }
+    .header-right { text-align:right; }
+    .cat-name { display:block; font-size: 14px; font-weight: 700; color: white; }
+    .badge { display:inline-block; padding: 2px 8px; border-radius: 4px; font-size: 9px; font-weight: 700; margin-top: 4px; }
+    .badge.official { background: #4a7836; color: white; }
+    .badge.challenge { background: #b4893c; color: white; }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: #1e281e; color: #b4893c; text-align: left; padding: 5px 6px; font-size: 10px; font-weight: 700; }
+    td { padding: 4px 6px; border-bottom: 1px solid #eee; vertical-align: middle; }
+    tr:nth-child(even) td { background: #f7f7f7; }
+    td.rank { font-weight: 900; color: #b4893c; text-align: center; font-size: 13px; }
+    td.total { font-weight: 700; font-size: 13px; text-align: center; color: #1e4020; }
+    footer { text-align: center; color: #999; font-size: 9px; padding: 6px; margin-top: 4px; border-top: 1px solid #eee; }
+    @media print {
+      header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      tr:nth-child(even) td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      @page { margin: 8mm; size: A4 portrait; }
+    }
+  </style>
+  </head><body>${pagesHtml}</body></html>`;
+
+  hideLoading();
+  const win = window.open('', '_blank');
+  if (!win) { showToast('Popup bloqué — autorisez les popups', 'error'); return; }
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 500);
+  showToast('PDF prêt à imprimer ✓', 'success');
+}
+
 async function exportResultatsPDF() {
+  // Si on est dans l'onglet finale, exporter le contenu finale
+  if (APP._resultActiveTab === 'finale') {
+    return exportFinalePDF();
+  }
   showLoading();
   await loadEngagements();
   const concours = APP.cache.concours.find(c => c.id === APP.currentConcoursId);
@@ -4889,7 +5224,7 @@ async function exportResultatsPDF() {
 
   let pagesHtml = '';
 
-  for (const [catId, { cat, parts: catParts }] of Object.entries(byCat)) {
+  for (const [catId, { cat, parts: catParts }] of sortCats(Object.entries(byCat))) {
     const isOfficial = cat?.official === true;
     const isEquipeOfficielle = isOfficial && (cat?.participation_type === 'equ' || cat?.participation_type === 'duo');
     // Tri individus avec tiebreak FFCT
@@ -5137,7 +5472,7 @@ async function exportResultatsExcel(modalEl) {
 
     let currentRow = 1; // 0-based index dans rows
 
-    for (const [catId, { cat, parts: catParts }] of Object.entries(byCat)) {
+    for (const [catId, { cat, parts: catParts }] of sortCats(Object.entries(byCat))) {
       // Ligne séparateur catégorie
       const catLabel = `${cat?.label || catId}  (${catParts.length} partant${catParts.length>1?'s':''}) — ${cat?.official?'OFFICIEL':'CHALLENGE'}`;
       rows.push([catLabel, '', '', '', '', '', '', '', '', '', '', '']);
@@ -5315,11 +5650,23 @@ async function pageOrgaResultats() {
   showPageLoading('Chargement des résultats...');
   if (APP._cacheStale) { await loadEngagements(); APP._cacheStale = false; }
   else await loadEngagements();
-  // porConfigs déjà chargé dans loadEngagements, mais forcer si absent
   if (!APP.cache.porConfigs?.length && APP.currentConcoursId) {
     const { data } = await sb.from('por_configs').select('*, por_config_categories(categorie_id)').eq('concours_id', APP.currentConcoursId);
     APP.cache.porConfigs = data || [];
   }
+
+  APP._resultActiveTab = 'global'; // reset à chaque chargement de la page résultats
+  const isFinale = APP.isFinale || false;
+  // Recharger la détection si pas encore faite
+  if (!APP.cache.challengeFinale && APP.currentConcoursId) {
+    const { data: ch } = await sb.from('challenges')
+      .select('id, nom, finale_id, challenge_concours(concours_id, ordre)')
+      .eq('finale_id', APP.currentConcoursId).maybeSingle();
+    APP.cache.challengeFinale = ch || null;
+    APP.isFinale = !!ch;
+  }
+  const isFinaleFinal = APP.isFinale || false;
+
   setPageContent(`<div class="page active">
     <div class="page-header">
       <div><div class="page-title">Résultats</div></div>
@@ -5333,6 +5680,7 @@ async function pageOrgaResultats() {
       <div class="tab-btn" onclick="switchResultTab('por',this)">POR</div>
       <div class="tab-btn" onclick="switchResultTab('ma',this)">MA</div>
       <div class="tab-btn" onclick="switchResultTab('ptv',this)">PTV</div>
+      ${isFinaleFinal ? `<div class="tab-btn" style="color:var(--accent);font-weight:700;" onclick="switchResultTab('finale',this)">🏆 FINALE</div>` : ''}
     </div>
     <div id="results-content">${renderResultsByCategory('global')}</div>
   </div>`);
@@ -5340,7 +5688,14 @@ async function pageOrgaResultats() {
 function switchResultTab(type, el) {
   document.querySelectorAll('.tabs .tab-btn').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
-  document.getElementById('results-content').innerHTML = renderResultsByCategory(type);
+  APP._resultActiveTab = type;
+  if (type === 'finale') {
+    APP._finaleActiveTab = APP._finaleActiveTab || 'prequal';
+    document.getElementById('results-content').innerHTML = '<div style="padding:16px;color:var(--text3);">Chargement...</div>';
+    renderFinaleTab().then(html => { document.getElementById('results-content').innerHTML = html; });
+  } else {
+    document.getElementById('results-content').innerHTML = renderResultsByCategory(type);
+  }
 }
 function getScoreIndiv(p, epreuve) {
   if (epreuve === 'por' && p.elim_por) return 0;
@@ -5350,6 +5705,859 @@ function getScoreIndiv(p, epreuve) {
   if (special === 'por' && (epreuve === 'ma' || epreuve === 'ptv')) return 0;
   if (special === 'ptv' && (epreuve === 'por' || epreuve === 'ma')) return 0;
   return p.scores[epreuve] ?? 0;
+}
+
+async function pageOrgaFinale() {
+  showPageLoading('Chargement de la finale...');
+  await loadEngagements();
+  setPageContent(`<div class="page active">
+    <div class="page-header">
+      <div>
+        <div class="page-title">🏆 Finale</div>
+        <div class="page-subtitle" style="color:var(--accent);">${APP.cache.challengeFinale?.nom||''}</div>
+      </div>
+      <button class="btn-outline btn-small" onclick="pageOrgaFinale()">⟳</button>
+    </div>
+    <div class="tabs">
+      <div class="tab-btn active" onclick="switchFinalePageTab('prequal',this)">Pré-qualifiés</div>
+      <div class="tab-btn" onclick="switchFinalePageTab('qual',this)">Qualifiés</div>
+      <div class="tab-btn" onclick="switchFinalePageTab('resultats',this)">Résultats</div>
+    </div>
+    <div id="finale-page-content"><div style="padding:16px;color:var(--text3);">Chargement...</div></div>
+  </div>`);
+  // buildFinaleData est appelé par renderFinaleTab maintenant
+  // on laisse switchResultTab gérer l'affichage
+}
+
+async function buildFinaleData() {
+  const ch = APP.cache.challengeFinale;
+  if (!ch) return;
+  const finaleId = APP.currentConcoursId;
+  const qualifIds = (ch.challenge_concours||[])
+    .sort((a,b) => a.ordre - b.ordre)
+    .map(x => x.concours_id)
+    .filter(id => id !== finaleId);
+
+  // Noms des concours
+  const concNoms = {};
+  if (APP.cache.concours) APP.cache.concours.forEach(c => concNoms[c.id] = c.nom);
+  if (!Object.keys(concNoms).length) {
+    const { data: concs } = await sb.from('concours').select('id,nom').in('id', [...qualifIds, finaleId]);
+    (concs||[]).forEach(c => concNoms[c.id] = c.nom);
+  }
+
+  // Charger engagements qualifs
+  const { data: qualifEngs } = await sb.from('engagements').select(`
+    id, cavalier_id, statut, categorie_id, concours_id,
+    cavalier:cavaliers(id, prenom, nom, licence, ecurie),
+    categorie:categories!categorie_id(id, label, official, pts_por, special, mode_ma, max_ptv, participation_type),
+    equipe:equipes(id, nom),
+    scores_por(controle, heure_reelle, penalites_hors_piste, penalites_autres, penalites_manuelles),
+    scores_ma(mode, balises_data, chrono_data),
+    scores_ptv(obstacle_id, points, temps_reel)
+  `).in('concours_id', qualifIds).eq('statut', 'partant');
+
+  const { data: allPorConfigs } = await sb.from('por_configs')
+    .select('*, por_config_troncons(*), por_config_categories(categorie_id)')
+    .in('concours_id', qualifIds);
+
+  const finalistesIds = new Set(APP.cache.participants.filter(p => p.statut === 'partant').map(p => p.cavalier_id));
+  const finaleScores = {};
+  APP.cache.participants.filter(p => p.statut === 'partant').forEach(p => {
+    finaleScores[p.cavalier_id] = (p.scores.por||0) + (p.scores.ma||0) + (p.scores.ptv||0);
+  });
+
+  // Score par cavalier par concours
+  const cavData = {};
+  (qualifEngs||[]).forEach(e => {
+    const cavId = e.cavalier_id;
+    if (!cavId) return;
+    const porCfgs = (allPorConfigs||[]).filter(c => c.concours_id === e.concours_id);
+    const cat = e.categorie;
+    const porScore = calcPORScoreAvecTemps(e.scores_por, cat, porCfgs) || 0;
+    const maScore = calcMAScore(e.scores_ma) || 0;
+    const ptvScore = calcPTVScore(e.scores_ptv, null, cat) || 0;
+    const total = porScore + maScore + ptvScore;
+    if (!cavData[cavId]) cavData[cavId] = { cav: e.cavalier, participations: [], cats: {}, equipes: {} };
+    if (!cavData[cavId].participations.find(p => p.concoursId === e.concours_id)) {
+      cavData[cavId].participations.push({ concoursId: e.concours_id, score: total });
+    }
+    cavData[cavId].cats[e.concours_id] = cat?.label || '—';
+    if (e.equipe?.nom) cavData[cavId].equipes[e.concours_id] = e.equipe.nom;
+  });
+
+  // Classifier
+  const prequalifies = [], qualifies = [];
+  Object.values(cavData).forEach(cav => {
+    if (cav.participations.length < 2) return;
+    const sorted2 = cav.participations.map(p => p.score).sort((a,b) => b-a);
+    const best2 = sorted2.slice(0,2).reduce((a,b) => a+b, 0);
+    const isFinaliste = finalistesIds.has(cav.cav?.id);
+    if (isFinaliste) {
+      const finScore = finaleScores[cav.cav?.id] || 0;
+      const scoreFinale = Math.round((best2 + finScore) / 3 * 10) / 10;
+      const catFinalePart = APP.cache.participants.find(p => p.cavalier_id === cav.cav?.id);
+      const catFinale = catFinalePart?.categorie_obj?.label || '—';
+      const catChanged = Object.values(cav.cats).some(c => c !== catFinale);
+      qualifies.push({ ...cav, best2, finScore, scoreFinale, catFinale, catChanged, nb: cav.participations.length });
+    } else {
+      prequalifies.push({ ...cav, best2, nb: cav.participations.length });
+    }
+  });
+
+  qualifies.sort((a,b) => b.scoreFinale - a.scoreFinale);
+
+  // Ex æquo
+  qualifies.forEach((q, i) => {
+    if (i === 0 || q.scoreFinale !== qualifies[i-1].scoreFinale) q.rang = i+1;
+    else q.rang = 'Ex æq.';
+  });
+
+  // Grouper par catégorie
+  const groupByCat = (list) => {
+    const map = {};
+    list.forEach(item => {
+      const cat = item.catFinale || Object.values(item.cats)[0] || '—';
+      if (!map[cat]) map[cat] = [];
+      map[cat].push(item);
+    });
+    return map;
+  };
+
+  // Détecter équipes similaires (même cavaliers, noms différents)
+  const equipeWarnings = detectEquipeSimilaires(qualifEngs||[], qualifIds);
+
+  APP._finalePageData = { prequalifies, qualifies, qualifIds, concNoms, equipeWarnings, groupByCat };
+}
+
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  const dp = Array.from({length: m+1}, (_,i) => Array.from({length: n+1}, (_,j) => i===0?j:j===0?i:0));
+  for (let i=1;i<=m;i++) for (let j=1;j<=n;j++)
+    dp[i][j] = a[i-1]===b[j-1] ? dp[i-1][j-1] : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+  return dp[m][n];
+}
+
+function detectEquipeSimilaires(engs, qualifIds) {
+  // Grouper les équipes par concours : { equipeNom → Set(cavalierIds) }
+  const equipesByConcours = {};
+  engs.forEach(e => {
+    if (!e.equipe?.nom || !e.cavalier_id) return;
+    const cid = e.concours_id;
+    if (!equipesByConcours[cid]) equipesByConcours[cid] = {};
+    if (!equipesByConcours[cid][e.equipe.nom]) equipesByConcours[cid][e.equipe.nom] = new Set();
+    equipesByConcours[cid][e.equipe.nom].add(e.cavalier_id);
+  });
+  const warnings = [];
+  // Comparer toutes les paires de concours
+  for (let i=0; i<qualifIds.length; i++) {
+    for (let j=i+1; j<qualifIds.length; j++) {
+      const eq1 = equipesByConcours[qualifIds[i]] || {};
+      const eq2 = equipesByConcours[qualifIds[j]] || {};
+      Object.entries(eq1).forEach(([nom1, cavs1]) => {
+        Object.entries(eq2).forEach(([nom2, cavs2]) => {
+          if (nom1 === nom2) return; // même nom, pas un avertissement
+          // Intersection des cavaliers
+          const inter = [...cavs1].filter(id => cavs2.has(id)).length;
+          const union = new Set([...cavs1, ...cavs2]).size;
+          const similarity = inter / union;
+          // Nom similaire (Levenshtein) OU beaucoup de membres communs
+          const levSim = 1 - levenshtein(nom1.toLowerCase(), nom2.toLowerCase()) / Math.max(nom1.length, nom2.length);
+          if ((similarity >= 0.5 || levSim >= 0.7) && nom1 !== nom2) {
+            warnings.push({ nom1, nom2, similarity: Math.round(similarity*100), levSim: Math.round(levSim*100) });
+          }
+        });
+      });
+    }
+  }
+  return [...new Map(warnings.map(w => [w.nom1+'|'+w.nom2, w])).values()];
+}
+
+function switchFinalePageTab(tab, el) {
+  if (!el) return;
+  const tabs = el.closest('.tabs');
+  if (tabs) tabs.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  const d = APP._finalePageData;
+  if (!d) return;
+  const { prequalifies, qualifies, qualifIds, concNoms, equipeWarnings, groupByCat } = d;
+  const cont = document.getElementById('finale-page-content');
+  if (!cont) return;
+
+  if (tab === 'prequal') {
+    const grouped = groupByCat(prequalifies);
+    let html = equipeWarnings.length ? `<div style="background:rgba(212,90,90,.08);border:1px solid rgba(212,90,90,.3);border-radius:var(--radius);padding:10px 12px;margin-bottom:14px;">
+      <div style="font-weight:700;color:var(--red);margin-bottom:6px;">⚠️ Équipes similaires détectées</div>
+      ${equipeWarnings.map(w => `<div style="font-size:12px;padding:2px 0;">"${esc(w.nom1)}" ↔ "${esc(w.nom2)}" — ${w.similarity}% de membres communs${w.levSim>=70?' · noms proches':''}</div>`).join('')}
+    </div>` : '';
+    Object.entries(grouped).sort().forEach(([cat, list]) => {
+      html += `<div class="section-label">${esc(cat)} <span style="font-size:11px;font-weight:400;">(${list.length})</span></div>
+      <div class="scrollable-x"><table class="results-table" style="min-width:500px;">
+        <thead><tr><th>Cavalier</th><th>Licence</th><th>Club</th><th>Participations</th><th>Scores qualif</th></tr></thead>
+        <tbody>${list.map(cav => `<tr>
+          <td><strong>${esc(cav.cav?.prenom)} ${esc(cav.cav?.nom)}</strong></td>
+          <td class="mono">${cav.cav?.licence||'—'}</td>
+          <td>${cav.cav?.ecurie||'—'}</td>
+          <td style="text-align:center;">${cav.nb} / ${qualifIds.length}</td>
+          <td class="mono">${cav.participations.sort((a,b)=>a.concoursId.localeCompare(b.concoursId)).map(p=>`<span title="${concNoms[p.concoursId]||p.concoursId}">${p.score}</span>`).join(' · ')}</td>
+        </tr>`).join('')}</tbody>
+      </table></div>`;
+    });
+    cont.innerHTML = html || '<div style="color:var(--text3);padding:16px;">Aucun pré-qualifié.</div>';
+
+  } else if (tab === 'qual') {
+    const grouped = groupByCat(qualifies);
+    let html = equipeWarnings.length ? `<div style="background:rgba(212,90,90,.08);border:1px solid rgba(212,90,90,.3);border-radius:var(--radius);padding:10px 12px;margin-bottom:14px;">
+      <div style="font-weight:700;color:var(--red);margin-bottom:6px;">⚠️ Équipes similaires détectées</div>
+      ${equipeWarnings.map(w => `<div style="font-size:12px;padding:2px 0;">"${esc(w.nom1)}" ↔ "${esc(w.nom2)}" — ${w.similarity}% de membres communs</div>`).join('')}
+    </div>` : '';
+    Object.entries(grouped).sort().forEach(([cat, list]) => {
+      html += `<div class="section-label">${esc(cat)} <span style="font-size:11px;font-weight:400;">(${list.length})</span></div>
+      <div class="scrollable-x"><table class="results-table" style="min-width:600px;">
+        <thead><tr><th>Cavalier</th><th>Club</th><th>2 meilleurs qualifs</th><th>Score finale</th><th>Score /3</th></tr></thead>
+        <tbody>${list.map(q => `<tr>
+          <td><strong>${esc(q.cav?.prenom)} ${esc(q.cav?.nom)}</strong>${q.catChanged?' <span class="status-badge pending" style="font-size:9px;">⚠ cat.</span>':''}</td>
+          <td>${q.cav?.ecurie||'—'}</td>
+          <td class="mono">${q.best2}</td>
+          <td class="mono">${q.finScore}</td>
+          <td class="score-cell" style="color:var(--accent);">${q.scoreFinale}</td>
+        </tr>`).join('')}</tbody>
+      </table></div>`;
+    });
+    cont.innerHTML = html || '<div style="color:var(--text3);padding:16px;">Aucun qualifié engagé.</div>';
+
+  } else { // resultats
+    const grouped = groupByCat(qualifies);
+    let html = '';
+    Object.entries(grouped).sort().forEach(([cat, list]) => {
+      html += `<div class="section-label">${esc(cat)} <span style="font-size:11px;font-weight:400;">(${list.length})</span></div>
+      <div class="scrollable-x"><table class="results-table" style="min-width:600px;">
+        <thead><tr><th style="width:50px;">Cl.</th><th>Cavalier</th><th>Club</th><th style="text-align:right;">2 meilleurs qualifs</th><th style="text-align:right;">Finale</th><th style="text-align:right;">Score final /3</th></tr></thead>
+        <tbody>${list.sort((a,b) => b.scoreFinale - a.scoreFinale).map((q,i,arr) => {
+          const isExAequo = i>0 && q.scoreFinale === arr[i-1].scoreFinale;
+          const rang = isExAequo ? '<span style="font-size:10px;color:var(--orange);">Ex æq.</span>' : (q.rang + '.');
+          const isMedal = [1,2,3].includes(q.rang);
+          return `<tr${isMedal?' style="background:var(--accent-bg);"':''}>
+            <td class="score-cell" style="color:var(--accent);font-size:${isMedal?'16':'13'}px;">${rang}</td>
+            <td><strong>${esc(q.cav?.prenom)} ${esc(q.cav?.nom)}</strong>${q.catChanged?' <span class="status-badge pending" style="font-size:9px;">⚠ cat.</span>':''}</td>
+            <td>${q.cav?.ecurie||'—'}</td>
+            <td class="mono" style="text-align:right;">${q.best2}</td>
+            <td class="mono" style="text-align:right;">${q.finScore}</td>
+            <td class="score-cell" style="font-size:18px;color:var(--accent);font-weight:700;">${q.scoreFinale}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div>`;
+    });
+    cont.innerHTML = html || '<div style="color:var(--text3);padding:16px;">Aucun résultat disponible.</div>';
+  }
+}
+
+/* ================================================================
+   FINALE CHALLENGE (legacy dans onglet Résultats — gardé pour compat)
+   ================================================================ */
+async function renderFinaleTab() {
+  const ch = APP.cache.challengeFinale;
+  if (!ch) return '<div class="alert-banner warn"><div>⚠️</div><div>Challenge non trouvé.</div></div>';
+
+  const finaleId = APP.currentConcoursId;
+  const allConcoursIds = (ch.challenge_concours||[]).sort((a,b)=>a.ordre-b.ordre).map(x=>x.concours_id);
+  const qualifIds = allConcoursIds.filter(id=>id!==finaleId);
+  if (!qualifIds.length) return '<div class="alert-banner warn"><div>⚠️</div><div>Aucun concours de qualification.</div></div>';
+
+  // Noms des concours
+  const { data: concsData } = await sb.from('concours').select('id,nom').in('id', allConcoursIds);
+  const concNoms = {};
+  (concsData||[]).forEach(c => concNoms[c.id] = c.nom);
+  const shortNom = id => { const n=concNoms[id]||id; return n.split(' ').slice(0,2).join(' '); };
+  const { data: qualifEngs } = await sb.from('engagements').select(`
+    id, cavalier_id, statut, categorie_id, concours_id, equipe_id,
+    cavalier:cavaliers(id, prenom, nom, licence, ecurie),
+    categorie:categories!categorie_id(id, label, official, participation_type, pts_por, special, mode_ma, max_ptv),
+    equipe:equipes(id, nom),
+    scores_por(controle, heure_reelle, penalites_hors_piste, penalites_autres, penalites_manuelles),
+    scores_ma(mode, balises_data, chrono_data),
+    scores_ptv(obstacle_id, points, temps_reel)
+  `).in('concours_id', qualifIds).eq('statut', 'partant');
+
+  const { data: allPorConfigs } = await sb.from('por_configs')
+    .select('*, por_config_troncons(*), por_config_categories(categorie_id)')
+    .in('concours_id', qualifIds);
+
+  // Charger challenge_participations existantes
+  const { data: cpRows } = await sb.from('challenge_participations')
+    .select('*, categorie:categories!categorie_id(id, label, official, participation_type)')
+    .eq('challenge_id', ch.id);
+  const cpMap = {}; // cavalier_id → cp row
+  const cpEquipeMap = {}; // equipe_nom → cp row
+  (cpRows||[]).forEach(cp => {
+    if (cp.cavalier_id) cpMap[cp.cavalier_id] = cp;
+    if (cp.equipe_nom) cpEquipeMap[cp.equipe_nom] = cp;
+  });
+
+  // Partants de la finale
+  const finalistesMap = {};
+  APP.cache.participants.filter(p=>p.statut==='partant').forEach(p=>{ finalistesMap[p.cavalier_id]=p; });
+
+  // Calculer score par cavalier par concours
+  const cavData = {};
+  (qualifEngs||[]).forEach(e => {
+    const cavId = e.cavalier_id;
+    if (!cavId) return;
+    const porCfgs = (allPorConfigs||[]).filter(c=>c.concours_id===e.concours_id);
+    const cat = e.categorie;
+    const total = (calcPORScoreAvecTemps(e.scores_por,cat,porCfgs)||0)+(calcMAScore(e.scores_ma)||0)+(calcPTVScore(e.scores_ptv,null,cat)||0);
+    if (!cavData[cavId]) cavData[cavId] = { cav:e.cavalier, participations:[], cats:{}, equipeNom:{}, isClubEquipe:{} };
+    if (!cavData[cavId].participations.find(p=>p.concoursId===e.concours_id))
+      cavData[cavId].participations.push({ concoursId:e.concours_id, score:total });
+    cavData[cavId].cats[e.concours_id] = cat?.label||'—';
+    const isClubEq = cat?.official===true&&(cat?.participation_type==='equ'||cat?.participation_type==='duo');
+    if (isClubEq && e.equipe?.nom) cavData[cavId].equipeNom[e.concours_id] = e.equipe.nom;
+    cavData[cavId].isClubEquipe[e.concours_id] = isClubEq;
+  });
+
+  // Auto-créer les challenge_participations manquantes
+  const toCreate = [];
+  const allCats = APP.cache.categories || [];
+
+  // Individus / challenges
+  for (const [cavId, cav] of Object.entries(cavData)) {
+    if (cpMap[cavId]) continue; // déjà dans la table
+    const isClubEqCounts = {true:0,false:0};
+    Object.values(cav.isClubEquipe).forEach(v=>{ isClubEqCounts[v]=(isClubEqCounts[v]||0)+1; });
+    const isClubEq = (isClubEqCounts.true||0) >= (isClubEqCounts.false||0);
+    if (isClubEq) continue; // sera traité comme équipe
+    // Catégorie la plus fréquente
+    const catCounts = {};
+    Object.entries(cav.cats).forEach(([cid,label])=>{ catCounts[label]=(catCounts[label]||0)+1; });
+    const catLabel = Object.entries(catCounts).sort((a,b)=>b[1]-a[1])[0]?.[0]||'—';
+    const cat = allCats.find(c=>c.label===catLabel);
+    if (!cat) continue;
+    toCreate.push({ challenge_id:ch.id, cavalier_id:cavId, categorie_id:cat.id, type:'individuel' });
+  }
+
+  // Équipes club (regroupées par nom)
+  const equipeNoms = {};
+  (qualifEngs||[]).forEach(e => {
+    const isClubEq = e.categorie?.official===true&&(e.categorie?.participation_type==='equ'||e.categorie?.participation_type==='duo');
+    if (!isClubEq||!e.equipe?.nom) return;
+    const nom = e.equipe.nom;
+    if (!equipeNoms[nom]) equipeNoms[nom] = { catCounts:{}, catObjs:{} };
+    const label = e.categorie?.label||'—';
+    equipeNoms[nom].catCounts[label] = (equipeNoms[nom].catCounts[label]||0)+1;
+    equipeNoms[nom].catObjs[label] = e.categorie;
+  });
+  for (const [nom, data] of Object.entries(equipeNoms)) {
+    if (cpEquipeMap[nom]) continue;
+    const catLabel = Object.entries(data.catCounts).sort((a,b)=>b[1]-a[1])[0]?.[0]||'—';
+    const cat = allCats.find(c=>c.label===catLabel);
+    if (!cat) continue;
+    toCreate.push({ challenge_id:ch.id, equipe_nom:nom, categorie_id:cat.id, type:'equipe' });
+  }
+
+  if (toCreate.length) {
+    const indivRows = toCreate.filter(r=>r.cavalier_id);
+    const equipeRows = toCreate.filter(r=>r.equipe_nom);
+    if (indivRows.length) await sb.from('challenge_participations').upsert(indivRows, { onConflict: 'challenge_id,cavalier_id', ignoreDuplicates: true });
+    if (equipeRows.length) await sb.from('challenge_participations').upsert(equipeRows, { onConflict: 'challenge_id,equipe_nom', ignoreDuplicates: true });
+  }
+
+  // Toujours recharger cpMap pour avoir les id corrects
+  {
+    const { data: cpRowsFinal } = await sb.from('challenge_participations')
+      .select('*, categorie:categories!categorie_id(id, label, official, participation_type)')
+      .eq('challenge_id', ch.id);
+    (cpRowsFinal||[]).forEach(cp => {
+      if (cp.cavalier_id) cpMap[cp.cavalier_id] = cp;
+      if (cp.equipe_nom) cpEquipeMap[cp.equipe_nom] = cp;
+    });
+  }
+
+
+  const catChangesWarning = [];
+  // Individus
+  Object.entries(cavData).forEach(([cavId, cav]) => {
+    if (cav.participations.length < 2) return;
+    const uniqueCats = [...new Set(Object.values(cav.cats))];
+    if (uniqueCats.length > 1) {
+      const nom = `${cav.cav?.prenom||''} ${cav.cav?.nom||''}`.trim();
+      const detail = qualifIds.map(cid => cav.cats[cid] ? `${shortNom(cid)}: ${cav.cats[cid]}` : null).filter(Boolean).join(', ');
+      catChangesWarning.push({ nom, detail, cpId: undefined, catLabel: cpMap[cavId]?.categorie?.label||"—" });
+    }
+  });
+  // Équipes — calculé depuis qualifEngs directement
+  const equipeCatsAllConc = {};
+  (qualifEngs||[]).forEach(e => {
+    if (!e.equipe?.nom) return;
+    const nom = e.equipe.nom;
+    if (!equipeCatsAllConc[nom]) equipeCatsAllConc[nom] = {};
+    equipeCatsAllConc[nom][e.concours_id] = e.categorie?.label||'—';
+  });
+  Object.entries(equipeCatsAllConc).forEach(([nom, byConcours]) => {
+    const uniqueCats = [...new Set(Object.values(byConcours))];
+    if (uniqueCats.length > 1) {
+      const detail = qualifIds.map(cid => byConcours[cid] ? `${shortNom(cid)}: ${byConcours[cid]}` : null).filter(Boolean).join(', ');
+      catChangesWarning.push({ nom: `⚑ ${nom}`, detail, cpId: undefined, catLabel: cpEquipeMap[nom]?.categorie?.label||"—" });
+    }
+  });
+
+  // Détecter équipes similaires — inclure aussi les équipes de la finale
+  const equipesByConcours = {};
+  // Qualifs
+  (qualifEngs||[]).forEach(e => {
+    const isClubEq = e.categorie?.official===true&&(e.categorie?.participation_type==='equ'||e.categorie?.participation_type==='duo');
+    if (!isClubEq||!e.equipe?.nom||!e.cavalier_id) return;
+    if (!equipesByConcours[e.concours_id]) equipesByConcours[e.concours_id]={};
+    if (!equipesByConcours[e.concours_id][e.equipe.nom]) equipesByConcours[e.concours_id][e.equipe.nom]=new Set();
+    equipesByConcours[e.concours_id][e.equipe.nom].add(e.cavalier_id);
+  });
+  // Finale — récupérer les équipes depuis APP.cache.participants
+  APP.cache.participants.filter(p=>p.statut==='partant'&&p.equipe&&p.categorie_obj?.official===true&&(p.categorie_obj?.participation_type==='equ'||p.categorie_obj?.participation_type==='duo')).forEach(p=>{
+    if (!equipesByConcours[finaleId]) equipesByConcours[finaleId]={};
+    if (!equipesByConcours[finaleId][p.equipe]) equipesByConcours[finaleId][p.equipe]=new Set();
+    equipesByConcours[finaleId][p.equipe].add(p.cavalier_id);
+  });
+
+  const allConcoursForComp = [...qualifIds, finaleId];
+  const equipeWarnings=[],warnKeys=new Set();
+  for (let i=0;i<allConcoursForComp.length;i++) for (let j=i+1;j<allConcoursForComp.length;j++) {
+    const eq1=equipesByConcours[allConcoursForComp[i]]||{},eq2=equipesByConcours[allConcoursForComp[j]]||{};
+    Object.entries(eq1).forEach(([n1,c1])=>Object.entries(eq2).forEach(([n2,c2])=>{
+      if(n1===n2) return;
+      const inter=[...c1].filter(id=>c2.has(id)).length,union=new Set([...c1,...c2]).size;
+      const sim=inter/union,lev=1-levenshtein(n1.toLowerCase(),n2.toLowerCase())/Math.max(n1.length,n2.length,1);
+      const key=[n1,n2].sort().join('|');
+      const isFinaleInvolved = allConcoursForComp[i]===finaleId||allConcoursForComp[j]===finaleId;
+      if((sim>=0.5||lev>=0.7)&&!warnKeys.has(key)){
+        warnKeys.add(key);
+        equipeWarnings.push({nom1:n1,nom2:n2,sim:Math.round(sim*100),lev:Math.round(lev*100),finaleInvolved:isFinaleInvolved});
+      }
+    }));
+  }
+
+  // Classifier les partants finaux
+  const finaleScoresByCav = {};
+  APP.cache.participants.filter(p=>p.statut==='partant').forEach(p=>{
+    finaleScoresByCav[p.cavalier_id] = (p.scores.por||0)+(p.scores.ma||0)+(p.scores.ptv||0);
+  });
+
+  // Individus (type='individuel') + mixtes
+  const prequalifiesIndiv = [], qualifiesIndiv = [];
+  const mixtesWarning = []; // cavaliers ayant participé aux deux types
+  Object.entries(cavData).forEach(([cavId, cav]) => {
+    if (cav.participations.length < 2) return;
+    const cp = cpMap[cavId];
+    if (!cp) return;
+    const catLabel = cp.categorie?.label||'—';
+    const best2 = cav.participations.map(p=>p.score).sort((a,b)=>b-a).slice(0,2).reduce((a,b)=>a+b,0);
+    const hasClub = Object.values(cav.isClubEquipe).some(v=>v);
+    const hasIndiv = Object.values(cav.isClubEquipe).some(v=>!v);
+    const isMixte = hasClub && hasIndiv;
+    if (isMixte) mixtesWarning.push({ cav:cav.cav, cp, catLabel }); // toujours signaler
+    if (cp.type === 'equipe') return; // géré dans équipes
+    const entry = { ...cav, cavId, best2, nb:cav.participations.length, catLabel, cp, isMixte };
+    prequalifiesIndiv.push(entry);
+    const finalePart = finalistesMap[cavId];
+    if (finalePart) {
+      const finScore = finaleScoresByCav[cavId]||0;
+      const scoreFinale = Math.round((best2+finScore)/3*10)/10;
+      const catChanged = Object.values(cav.cats).some(c=>c!==catLabel);
+      qualifiesIndiv.push({ ...entry, finScore, scoreFinale, catChanged });
+    }
+  });
+
+  // Scores équipes - dédoublonner les cavaliers par concours
+  const equipeScores = {};
+  const equipeMembers = {};
+  const equipeMembersSeen = {}; // equipeNom → Set(cavId+concoursId) pour éviter les doublons
+  (qualifEngs||[]).forEach(e => {
+    const isClubEq = e.categorie?.official===true&&(e.categorie?.participation_type==='equ'||e.categorie?.participation_type==='duo');
+    if (!isClubEq||!e.equipe?.nom||!e.cavalier_id) return;
+    const nom = e.equipe.nom;
+    const cid = e.concours_id;
+    const key = `${e.cavalier_id}|${cid}`;
+    if (!equipeMembersSeen[nom]) equipeMembersSeen[nom] = new Set();
+    if (equipeMembersSeen[nom].has(key)) return; // doublon — ignorer
+    equipeMembersSeen[nom].add(key);
+    if (!equipeScores[nom]) equipeScores[nom] = {};
+    if (!equipeMembers[nom]) equipeMembers[nom] = new Set();
+    equipeMembers[nom].add(e.cavalier_id);
+    const porCfgs = (allPorConfigs||[]).filter(c=>c.concours_id===cid);
+    const cat = e.categorie;
+    const memberScore = (calcPORScoreAvecTemps(e.scores_por,cat,porCfgs)||0)+(calcMAScore(e.scores_ma)||0)+(calcPTVScore(e.scores_ptv,null,cat)||0);
+    if (!equipeScores[nom][cid]) equipeScores[nom][cid] = [];
+    equipeScores[nom][cid].push(memberScore);
+  });
+  // Moyenne 3 meilleurs par concours
+  const equipeScoresByConc = {}; // equipeNom → { concoursId → scoreEquipe }
+  Object.entries(equipeScores).forEach(([nom, byConcours]) => {
+    equipeScoresByConc[nom] = {};
+    Object.entries(byConcours).forEach(([cid, scores]) => {
+      const sorted = scores.sort((a,b)=>b-a);
+      const n = Math.min(3, sorted.length);
+      equipeScoresByConc[nom][cid] = n ? Math.round(sorted.slice(0,n).reduce((a,b)=>a+b,0)/n) : 0;
+    });
+  });
+
+  // Score équipe finale (même calcul sur les partants finales)
+  const equipeFinaleScores = {}; // equipeNom → score finale
+  APP.cache.participants.filter(p=>p.statut==='partant').forEach(p => {
+    if (!p.equipe) return;
+    const nom = p.equipe;
+    if (!equipeFinaleScores[nom]) equipeFinaleScores[nom] = [];
+    equipeFinaleScores[nom].push((p.scores.por||0)+(p.scores.ma||0)+(p.scores.ptv||0));
+  });
+  Object.keys(equipeFinaleScores).forEach(nom => {
+    const scores = equipeFinaleScores[nom].sort((a,b)=>b-a);
+    const n = Math.min(3, scores.length);
+    equipeFinaleScores[nom] = n ? Math.round(scores.slice(0,n).reduce((a,b)=>a+b,0)/n) : 0;
+  });
+
+  const prequalifiesEquipe = [], qualifiesEquipe = [];
+  Object.entries(equipeScoresByConc).forEach(([nom, byConc]) => {
+    const participations = Object.entries(byConc).map(([cid,score])=>({concoursId:cid,score}));
+    if (participations.length < 2) return;
+    const cp = cpEquipeMap[nom];
+    if (!cp) return;
+    const catLabel = cp.categorie?.label||'—';
+    const best2 = participations.map(p=>p.score).sort((a,b)=>b-a).slice(0,2).reduce((a,b)=>a+b,0);
+    const membres = equipeMembers[nom]||new Set();
+    const entry = { nom, participations, best2, nb:participations.length, catLabel, cp, membres:[...membres] };
+    prequalifiesEquipe.push(entry);
+    const finScore = Object.prototype.hasOwnProperty.call(equipeFinaleScores, nom) ? equipeFinaleScores[nom] : null;
+    if (finScore !== null) {
+      const scoreFinale = Math.round((best2+finScore)/3*10)/10;
+      qualifiesEquipe.push({ ...entry, finScore, scoreFinale });
+    }
+  });
+
+  // Grouper par catégorie
+  const groupByCat = (list, key) => {
+    const map = {};
+    list.forEach(item=>{ const c=item[key]||'—'; if(!map[c])map[c]=[]; map[c].push(item); });
+    return sortCats(Object.entries(map));
+  };
+
+  const catLabel = (cat, count) => `<div style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text2);padding:8px 0 6px;border-bottom:2px solid var(--accent);margin-bottom:12px;">${esc(cat)}${count!==undefined?` <span style="font-size:12px;font-weight:400;color:var(--text3);text-transform:none;">${count} cavalier${count>1?'s':''}</span>`:''}</div>`;
+
+  const warningHtml = equipeWarnings.length ? `<div style="background:rgba(212,90,90,.1);border-left:3px solid var(--red);border-radius:var(--radius);padding:10px 14px;margin-bottom:16px;"><div style="font-weight:700;color:var(--red);margin-bottom:6px;font-size:13px;">⚠️ Équipes similaires détectées</div>${equipeWarnings.map(w=>`<div style="font-size:12px;padding:3px 0;color:var(--text2);">${w.finaleInvolved?'<span style="color:var(--red);font-weight:700;">[FINALE] </span>':''}"${esc(w.nom1)}" ↔ "${esc(w.nom2)}" — ${w.sim}% membres communs${w.lev>=70?' · noms proches':''}</div>`).join('')}</div>` : '';
+
+
+  const btnEdit = (cp, label, nom='') => `<button onclick="editChallengeParticipation('${cp.id}','${esc(label)}','${esc(nom)}')" style="background:none;border:1px solid var(--border2);border-radius:4px;color:var(--text3);cursor:pointer;font-size:10px;padding:1px 6px;flex-shrink:0;">✎</button>`;
+
+  // Avertissement changements de catégorie
+
+  APP._cpEditData = catChangesWarning;
+  const catChangesHtml = catChangesWarning.length ? `<div style="background:rgba(212,90,90,.08);border-left:3px solid var(--red);border-radius:var(--radius);padding:10px 14px;margin-bottom:16px;">
+    <div style="font-weight:700;color:var(--red);margin-bottom:6px;font-size:13px;">⚠️ Changements de catégorie détectés</div>
+    ${catChangesWarning.map((w,i)=>`<div style="font-size:12px;padding:3px 0;color:var(--text2);display:flex;align-items:center;gap:8px;">
+      <span style="flex:1;">• <strong>${esc(w.nom)}</strong> — ${esc(w.detail)}</span>
+
+    </div>`).join('')}
+  </div>` : '';
+
+  const mixtesHtml = mixtesWarning.length ? `<div style="background:rgba(255,165,0,.1);border-left:3px solid var(--orange);border-radius:var(--radius);padding:10px 14px;margin-bottom:16px;">
+    <div style="font-weight:700;color:var(--orange);margin-bottom:6px;font-size:13px;">⚠️ Cavaliers ayant participé aux deux types (club équipe + challenge)</div>
+    ${mixtesWarning.map(m=>`<div style="font-size:12px;padding:2px 0;color:var(--text2);">• <strong>${esc(m.cav?.prenom)} ${esc(m.cav?.nom)}</strong> — classé en <em>${m.cp?.type==='equipe'?'équipe':'challenge'}</em> ${btnEdit(m.cp,m.catLabel,(m.cav?.prenom||'')+' '+(m.cav?.nom||''))}</div>`).join('')}
+  </div>` : '';
+
+  const renderScoresCols = (participations) => {
+    const sorted = [...participations].sort((a,b)=>b.score-a.score);
+    const best2set = new Set(sorted.slice(0,2).map(p=>p.concoursId));
+    return qualifIds.map(cid=>{
+      const p=participations.find(x=>x.concoursId===cid);
+      if(!p) return `<td style="text-align:center;color:var(--text3);">—</td>`;
+      const isBest=best2set.has(cid);
+      return `<td style="text-align:center;font-family:'DM Mono',monospace;font-size:13px;${isBest?'font-weight:700;color:var(--accent);':'color:var(--text3);'}">${isBest?'★ ':''}${p.score}</td>`;
+    }).join('');
+  };
+
+  // === PRÉ-QUALIFIÉS ===
+  const renderPrequal = () => {
+    let html = warningHtml + catChangesHtml + mixtesHtml;
+
+    // Équipes
+    if (prequalifiesEquipe.length) {
+      groupByCat(prequalifiesEquipe,'catLabel').forEach(([cat,list])=>{
+        html += catLabel(cat, list.length);
+        html += `<table class="results-table" style="width:100%;margin-bottom:12px;">
+          <thead><tr><th>Équipe</th>${qualifIds.map(cid=>`<th style="text-align:center;">${shortNom(cid)}</th>`).join('')}</tr></thead>
+          <tbody>`;
+        list.sort((a,b)=>b.best2-a.best2).forEach(eq=>{
+          const isQual = Object.prototype.hasOwnProperty.call(equipeFinaleScores, eq.nom);
+          html += `<tr${isQual?' style="background:var(--accent-bg);"':''}>
+            <td><strong>⚑ ${esc(eq.nom)}</strong>${isQual?' <span style="font-size:9px;background:var(--accent-bg);color:var(--accent);padding:1px 5px;border-radius:3px;border:1px solid rgba(180,137,60,.3);">✓ Qualifié</span>':''}${btnEdit(eq.cp,eq.catLabel,'⚑ '+eq.nom)}</td>
+            ${renderScoresCols(eq.participations)}
+          </tr>`;
+        });
+        html += `</tbody></table>`;
+      });
+    }
+
+    // Individus
+    if (prequalifiesIndiv.length) {
+      groupByCat(prequalifiesIndiv,'catLabel').forEach(([cat,list])=>{
+        html += catLabel(cat, list.length);
+        html += `<table class="results-table" style="width:100%;margin-bottom:12px;">
+          <thead><tr><th>Cavalier</th><th>Club</th>${qualifIds.map(cid=>`<th style="text-align:center;">${shortNom(cid)}</th>`).join('')}</tr></thead>
+          <tbody>`;
+        list.sort((a,b)=>b.best2-a.best2).forEach(cav=>{
+          const isQual = !!finalistesMap[cav.cavId];
+          html += `<tr${isQual?' style="background:var(--accent-bg);"':''}>
+            <td><strong>${esc(cav.cav?.prenom)} ${esc(cav.cav?.nom)}</strong>${isQual?' <span style="font-size:9px;background:var(--accent-bg);color:var(--accent);padding:1px 5px;border-radius:3px;border:1px solid rgba(180,137,60,.3);">✓ Qualifié</span>':''}${cav.isMixte?' <span style="font-size:9px;color:var(--orange);">mixte</span>':''}${btnEdit(cav.cp,cav.catLabel,(cav.cav?.prenom||'')+' '+(cav.cav?.nom||''))}<div style="font-size:10px;color:var(--text3);">${cav.cav?.licence||''}</div></td>
+            <td style="font-size:12px;">${cav.cav?.ecurie||'—'}</td>
+            ${renderScoresCols(cav.participations)}
+          </tr>`;
+        });
+        html += `</tbody></table>`;
+      });
+    }
+    return html || '<div style="color:var(--text3);padding:20px;text-align:center;">Aucun pré-qualifié.</div>';
+  };
+
+  // === QUALIFIÉS ===
+  const renderQualif = () => {
+    let html = warningHtml + catChangesHtml + mixtesHtml;
+    // Équipes
+    if (qualifiesEquipe.length) {
+      groupByCat(qualifiesEquipe,'catLabel').forEach(([cat,list])=>{
+        html += catLabel(cat, list.length);
+        list.sort((a,b)=>b.scoreFinale-a.scoreFinale).forEach(eq=>{
+          html += `<div style="background:var(--bg3);border-radius:var(--radius);padding:10px 14px;margin-bottom:8px;border-left:3px solid var(--accent);">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-weight:700;font-size:14px;color:var(--accent);">⚑ ${esc(eq.nom)}</span>${btnEdit(eq.cp,eq.catLabel,'⚑ '+eq.nom)}
+              <div style="text-align:right;"><div style="font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:var(--accent);">${eq.scoreFinale}</div><div style="font-size:10px;color:var(--text3);">${eq.best2} + ${eq.finScore}</div></div>
+            </div>
+          </div>`;
+        });
+      });
+    }
+    // Individus
+    if (qualifiesIndiv.length) {
+      groupByCat(qualifiesIndiv,'catLabel').forEach(([cat,list])=>{
+        html += catLabel(cat, list.length);
+        html += `<table class="results-table" style="width:100%;margin-bottom:12px;">
+          <thead><tr><th>Cavalier</th><th>Club</th><th style="text-align:right;">2 meilleurs qualifs</th><th style="text-align:right;">Finale</th><th style="text-align:right;">Score /3</th></tr></thead>
+          <tbody>${list.sort((a,b)=>b.scoreFinale-a.scoreFinale).map(q=>`<tr>
+            <td><strong>${esc(q.cav?.prenom)} ${esc(q.cav?.nom)}</strong>${q.catChanged?' <span style="color:var(--orange);font-size:10px;">⚠cat.</span>':''}${btnEdit(q.cp,q.catLabel,(q.cav?.prenom||'')+' '+(q.cav?.nom||''))}</td>
+            <td style="font-size:12px;">${q.cav?.ecurie||'—'}</td>
+            <td class="mono" style="text-align:right;">${q.best2}</td>
+            <td class="mono" style="text-align:right;">${q.finScore}</td>
+            <td class="score-cell" style="color:var(--accent);font-size:15px;">${q.scoreFinale}</td>
+          </tr>`).join('')}</tbody>
+        </table>`;
+      });
+    }
+    return html || '<div style="color:var(--text3);padding:20px;text-align:center;">Aucun qualifié.</div>';
+  };
+
+  // === RÉSULTATS ===
+  const renderResultats = () => {
+    let html = catChangesHtml;
+    // Équipes
+    const allEquipes = [...qualifiesEquipe].sort((a,b)=>b.scoreFinale-a.scoreFinale);
+    if (allEquipes.length) {
+      groupByCat(allEquipes,'catLabel').forEach(([cat,list])=>{
+        const sorted = [...list].sort((a,b)=>b.scoreFinale-a.scoreFinale);
+        sorted.forEach((q,i,arr)=>{ q.rang=(i>0&&q.scoreFinale===arr[i-1].scoreFinale)?'Ex æq.':(i+1); });
+        html += catLabel(cat, sorted.length);
+        html += sorted.map(q=>{
+          const isMedal=typeof q.rang==='number'&&q.rang<=3;
+          const medal=['🥇','🥈','🥉'][q.rang-1]||'';
+          const rang=q.rang==='Ex æq.'?'<span style="font-size:10px;color:var(--orange);">Ex æq.</span>':isMedal?medal:`${q.rang}.`;
+          return `<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;margin-bottom:6px;background:${isMedal?'var(--accent-bg)':'var(--bg3)'};border-radius:var(--radius);border-left:3px solid ${isMedal?'var(--accent)':'var(--border2)'};">
+            <div style="font-size:${isMedal?22:16}px;min-width:36px;text-align:center;">${rang}</div>
+            <div style="flex:1;"><div style="font-weight:700;font-size:14px;">⚑ ${esc(q.nom)}</div></div>
+            <div style="text-align:right;"><div style="font-family:'DM Mono',monospace;font-size:${isMedal?22:16}px;font-weight:700;color:var(--accent);">${q.scoreFinale}</div><div style="font-size:10px;color:var(--text3);">${q.best2} + ${q.finScore}</div></div>
+          </div>`;
+        }).join('');
+      });
+    }
+    // Individus
+    const allIndivs = [...qualifiesIndiv].sort((a,b)=>b.scoreFinale-a.scoreFinale);
+    if (allIndivs.length) {
+      groupByCat(allIndivs,'catLabel').forEach(([cat,list])=>{
+        const sorted=[...list].sort((a,b)=>b.scoreFinale-a.scoreFinale);
+        sorted.forEach((q,i,arr)=>{ q.rang=(i>0&&q.scoreFinale===arr[i-1].scoreFinale)?'Ex æq.':(i+1); });
+        html += catLabel(cat, sorted.length);
+        html += sorted.map(q=>{
+          const isMedal=typeof q.rang==='number'&&q.rang<=3;
+          const medal=['🥇','🥈','🥉'][q.rang-1]||'';
+          const rang=q.rang==='Ex æq.'?'<span style="font-size:10px;color:var(--orange);">Ex æq.</span>':isMedal?medal:`${q.rang}.`;
+          return `<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;margin-bottom:6px;background:${isMedal?'var(--accent-bg)':'var(--bg3)'};border-radius:var(--radius);border-left:3px solid ${isMedal?'var(--accent)':'var(--border2)'};">
+            <div style="font-size:${isMedal?22:16}px;min-width:36px;text-align:center;">${rang}</div>
+            <div style="flex:1;"><div style="font-weight:700;font-size:14px;color:${isMedal?'var(--accent)':'var(--text)'};">${esc(q.cav?.prenom)} ${esc(q.cav?.nom)}${q.catChanged?' <span style="color:var(--orange);font-size:10px;">⚠cat.</span>':''}</div><div style="font-size:11px;color:var(--text3);">${q.cav?.ecurie||'—'}</div></div>
+            <div style="text-align:right;"><div style="font-family:'DM Mono',monospace;font-size:${isMedal?22:16}px;font-weight:700;color:var(--accent);">${q.scoreFinale}</div><div style="font-size:10px;color:var(--text3);">${q.best2} + ${q.finScore}</div></div>
+          </div>`;
+        }).join('');
+      });
+    }
+    return html || '<div style="color:var(--text3);padding:20px;text-align:center;">Aucun résultat.</div>';
+  };
+
+  APP._finaleSubTabs = { prequal:renderPrequal(), qual:renderQualif(), res:renderResultats() };
+
+  const totalPrequal = prequalifiesIndiv.length + prequalifiesEquipe.length;
+  const totalQual = qualifiesIndiv.length + qualifiesEquipe.length;
+
+  return `<div>
+    <div style="background:var(--accent-bg);border:1px solid rgba(180,137,60,.3);border-radius:var(--radius);padding:12px 16px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;color:var(--accent);letter-spacing:.06em;">🏆 ${esc(ch.nom)}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Qualifications : ${qualifIds.map(id=>concNoms[id]||id).join(' · ')}</div>
+      </div>
+      <button class="btn-outline btn-small" onclick="gererParticipationsChallenge('${ch.id}')">⚙ Gérer catégories</button>
+    </div>
+    <div class="tabs" style="margin-bottom:16px;">
+      <div class="tab-btn active" onclick="switchFinaleSubTab('prequal',this)">Pré-qualifiés <span style="font-size:11px;opacity:.7;">(${totalPrequal})</span></div>
+      <div class="tab-btn" onclick="switchFinaleSubTab('qual',this)">Qualifiés <span style="font-size:11px;opacity:.7;">(${totalQual})</span></div>
+      <div class="tab-btn" onclick="switchFinaleSubTab('res',this)">Résultats finale</div>
+    </div>
+    <div id="finale-subtab-content">${renderPrequal()}</div>
+  </div>`;
+}
+
+function editCPByIndex(i) {
+  const w = APP._cpEditData?.[i];
+  if (!w) return;
+  editChallengeParticipation(w.cpId, w.catLabel, w.nom);
+}
+
+async function editChallengeParticipation(cpId, currentCatLabel, participantNom='') {
+  // PIN admin d'abord
+  const pinOk = await new Promise(resolve => {
+    APP._pinEditCtx = { field: '_cp_edit_cb', resolve };
+    document.getElementById('admin-pin-input').value = '';
+    document.getElementById('admin-pin-error').style.display = 'none';
+    openModal('modal-admin-pin');
+    setTimeout(() => document.getElementById('admin-pin-input')?.focus(), 200);
+  });
+  if (!pinOk) return;
+
+  const cats = APP.cache.categories || [];
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.style.zIndex = '600';
+  modal.innerHTML = `<div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Changer la catégorie</div>
+    <div class="modal-body">
+      ${participantNom ? `<div style="background:var(--bg3);border-radius:var(--radius);padding:8px 12px;margin-bottom:12px;font-weight:700;font-size:14px;">${esc(participantNom)}</div>` : ''}
+      <div class="form-group">
+        <label class="form-label">Catégorie actuelle : <strong>${esc(currentCatLabel)}</strong></label>
+        <select id="cp-cat-select" style="font-size:15px;margin-top:8px;">
+          ${sortCats(cats.map(c=>[c.label,c])).map(([label,c])=>`<option value="${c.id}"${c.label===currentCatLabel?' selected':''}>${esc(c.label)}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-primary" onclick="saveChallengeParticipation('${cpId}',this.closest('.modal-overlay'))">Enregistrer</button>
+      <button class="btn-secondary" onclick="this.closest('.modal-overlay').remove()">Annuler</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+  requestAnimationFrame(() => modal.classList.add('open'));
+}
+
+async function saveChallengeParticipation(cpId, overlay) {
+  const catId = document.getElementById('cp-cat-select').value;
+  const { error } = await sb.from('challenge_participations').update({ categorie_id: catId }).eq('id', cpId);
+  overlay.remove();
+  if (error) { showToast(error.message, 'error'); return; }
+  showToast('Catégorie mise à jour ✓', 'success');
+  // Recharger l'onglet finale
+  document.getElementById('results-content').innerHTML = '<div style="padding:16px;color:var(--text3);">Rechargement...</div>';
+  renderFinaleTab().then(html => { document.getElementById('results-content').innerHTML = html; });
+}
+
+async function gererParticipationsChallenge(challengeId) {
+  const pinOk = await new Promise(resolve => {
+    APP._pinEditCtx = { field: '_cp_edit_cb', resolve };
+    document.getElementById('admin-pin-input').value = '';
+    document.getElementById('admin-pin-error').style.display = 'none';
+    openModal('modal-admin-pin');
+    setTimeout(() => document.getElementById('admin-pin-input')?.focus(), 200);
+  });
+  if (!pinOk) return;
+
+  const { data: cps } = await sb.from('challenge_participations')
+    .select('*, categorie:categories!categorie_id(id, label), cavalier:cavaliers!cavalier_id(id, prenom, nom, ecurie)')
+    .eq('challenge_id', challengeId)
+    .order('type').order('equipe_nom');
+
+  const cats = sortCats((APP.cache.categories||[]).map(c=>[c.label,c]));
+
+  const renderRows = (filter='') => {
+    const fl = filter.toLowerCase();
+    return (cps||[]).filter(cp => {
+      const name = cp.type==='equipe' ? (cp.equipe_nom||'') : `${cp.cavalier?.prenom||''} ${cp.cavalier?.nom||''}`;
+      return !fl || name.toLowerCase().includes(fl) || (cp.categorie?.label||'').toLowerCase().includes(fl);
+    }).map(cp => {
+      const name = cp.type==='equipe'
+        ? `<strong>⚑ ${esc(cp.equipe_nom||'')}</strong>`
+        : `<strong>${esc(cp.cavalier?.prenom||'')} ${esc(cp.cavalier?.nom||'')}</strong><div style="font-size:10px;color:var(--text3);">${cp.cavalier?.ecurie||''}</div>`;
+      const badge = cp.type==='equipe'
+        ? `<span style="font-size:10px;background:rgba(180,137,60,.15);color:var(--accent);padding:1px 5px;border-radius:3px;margin-left:4px;">équipe</span>`
+        : `<span style="font-size:10px;background:var(--bg3);color:var(--text3);padding:1px 5px;border-radius:3px;margin-left:4px;">individuel</span>`;
+      return `<tr>
+        <td style="font-size:13px;">${name}${badge}</td>
+        <td><select class="cp-cat-sel" data-id="${cp.id}" style="font-size:13px;width:100%;">
+          ${cats.map(([label,c])=>`<option value="${c.id}"${c.id===cp.categorie_id?' selected':''}>${esc(c.label)}</option>`).join('')}
+        </select></td>
+      </tr>`;
+    }).join('') || `<tr><td colspan="2" style="color:var(--text3);text-align:center;padding:20px;">Aucun résultat</td></tr>`;
+  };
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.style.zIndex = '600';
+  modal.innerHTML = `<div class="modal" style="max-width:620px;">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Gérer les catégories du challenge</div>
+    <div class="modal-body">
+      <input type="text" id="cp-search" placeholder="🔍 Rechercher un cavalier ou une équipe..." oninput="filterCPRows(this.value)"
+        style="width:100%;margin-bottom:12px;font-size:14px;padding:9px 12px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text);">
+      <div style="max-height:55vh;overflow-y:auto;">
+        <table class="results-table" style="width:100%;">
+          <thead><tr><th>Participant</th><th style="width:200px;">Catégorie</th></tr></thead>
+          <tbody id="cp-rows">${renderRows()}</tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-primary" onclick="saveAllChallengeParticipations(this.closest('.modal-overlay'))">✓ Enregistrer tout</button>
+      <button class="btn-secondary" onclick="this.closest('.modal-overlay').remove()">Fermer</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+  requestAnimationFrame(() => modal.classList.add('open'));
+  // Stocker renderRows pour le filtre
+  modal._renderRows = renderRows;
+  setTimeout(() => document.getElementById('cp-search')?.focus(), 250);
+}
+
+function filterCPRows(val) {
+  const modal = document.querySelector('.modal-overlay[style*="600"]');
+  if (!modal?._renderRows) return;
+  document.getElementById('cp-rows').innerHTML = modal._renderRows(val);
+}
+
+async function saveAllChallengeParticipations(overlay) {
+  const sels = overlay.querySelectorAll('.cp-cat-sel');
+  const updates = [...sels].map(sel => sb.from('challenge_participations').update({ categorie_id: sel.value }).eq('id', sel.dataset.id));
+  await Promise.all(updates);
+  overlay.remove();
+  showToast('Catégories mises à jour ✓', 'success');
+  document.getElementById('results-content').innerHTML = '<div style="padding:16px;color:var(--text3);">Rechargement...</div>';
+  renderFinaleTab().then(html => { document.getElementById('results-content').innerHTML = html; });
+}
+function switchFinaleSubTab(tab, el) {
+  document.querySelectorAll('#finale-subtab-content').forEach(() => {});
+  const tabs = el.closest('.tabs');
+  if (tabs) tabs.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  APP._finaleActiveTab = tab; // mémoriser l'onglet actif
+  const content = APP._finaleSubTabs?.[tab] || '';
+  document.getElementById('finale-subtab-content').innerHTML = content;
 }
 
 function renderResultsByCategory(type) {
@@ -5368,7 +6576,16 @@ function renderResultsByCategory(type) {
     if (p.categorie_speciale_id && (!catMinDossard[p.categorie_speciale_id] || d < catMinDossard[p.categorie_speciale_id])) catMinDossard[p.categorie_speciale_id] = d;
   });
   
-  const cats = [...catIds].sort((a,b) => (catMinDossard[a]||9999)-(catMinDossard[b]||9999));
+  const cats = [...catIds].sort((a, b) => {
+    const catA = APP.cache.categories?.find(c => c.id === a);
+    const catB = APP.cache.categories?.find(c => c.id === b);
+    const offA = catA?.official === true ? 0 : 1;
+    const offB = catB?.official === true ? 0 : 1;
+    if (offA !== offB) return offA - offB; // officiels d'abord
+    const oA = catOrder(catA?.label), oB = catOrder(catB?.label);
+    if (oA !== oB) return oA - oB;
+    return (catA?.label||'').localeCompare(catB?.label||'', 'fr');
+  });
   const porConfigs = APP.cache.porConfigs || [];
   const catsAvecPOR = new Set(porConfigs.flatMap(c => (c.por_config_categories||[]).map(x => x.categorie_id)));
 
@@ -5565,6 +6782,40 @@ function sortWithTiebreak(parts) {
 // Tiebreak équipes FFCT :
 // Score équipe = moyenne 3 meilleurs (2 si duo)
 // Tiebreak : POR+PTV, puis POR
+// Ordre officiel des catégories TREC
+function catOrder(label) {
+  if (!label) return 99;
+  const l = label.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+  if (l.includes('poussin')) return 1;
+  if (l.includes('junior') && l.includes('debutant')) return 2;
+  if (l.includes('junior') && l.includes('confirme')) return 3;
+  if (l.includes('junior')) return 2;
+  if (l.includes('senior') && l.includes('debutant')) return 4;
+  if (l.includes('senior') && l.includes('confirme')) return 5;
+  if (l.includes('senior') && (l.includes('pro') || l.includes('elite'))) return 6;
+  if (l.includes('senior')) return 4;
+  return 99;
+}
+
+function sortCats(entries) {
+  // entries = [[catId, data], ...] ou [[catLabel, data], ...]
+  const getLabel = (key) => {
+    const cat = APP.cache.categories?.find(c => c.id === key || c.label === key);
+    return cat?.label || key;
+  };
+  const isOfficial = (key) => {
+    const cat = APP.cache.categories?.find(c => c.id === key || c.label === key);
+    return cat?.official === true;
+  };
+  return entries.sort(([a],[b]) => {
+    const offA = isOfficial(a) ? 0 : 1, offB = isOfficial(b) ? 0 : 1;
+    if (offA !== offB) return offA - offB;
+    const oa = catOrder(getLabel(a)), ob = catOrder(getLabel(b));
+    if (oa !== ob) return oa - ob;
+    return getLabel(a).localeCompare(getLabel(b), 'fr');
+  });
+}
+
 function sortWithTiebreakEquipes(equipes) {
   // Calcul score brut (non arrondi) pour tiebreak précis
   const scoreBrut = (eq, ...epreuves) => {
@@ -5602,6 +6853,24 @@ function buildTable(sorted, type, sortable=true, isMembreEquipe=false) {
   const classedParts = sorted.filter(p => p.statut !== 'np' && p.statut !== 'non_partant');
   const npParts = sorted.filter(p => p.statut === 'np' || p.statut === 'non_partant');
 
+  // Calculer les rangs avec ex æquo
+  const ranks = [];
+  let rankCounter = 0;
+  classedParts.forEach((p, i) => {
+    const score = getScore(p, 'global');
+    const isOut = p.hors_classement || p.statut === 'elim';
+    if (isOut) { ranks.push('—'); return; }
+    if (i === 0 || score !== getScore(classedParts[i-1], 'global')) rankCounter = i + 1;
+    const prevOut = classedParts.slice(0, i).filter(x => x.hors_classement || x.statut === 'elim').length;
+    const realRank = i + 1 - prevOut;
+    // Vérifier ex æquo avec précédent non-out
+    const prevNonOut = classedParts.slice(0, i).filter(x => !x.hors_classement && x.statut !== 'elim');
+    const isExAequo = prevNonOut.length > 0 && getScore(p, 'global') === getScore(prevNonOut[prevNonOut.length-1], 'global')
+      && getScore(p, 'tiebreak1') === getScore(prevNonOut[prevNonOut.length-1], 'tiebreak1')
+      && getScore(p, 'tiebreak2') === getScore(prevNonOut[prevNonOut.length-1], 'tiebreak2');
+    ranks.push(isExAequo ? `<span style="font-size:9px;color:var(--orange);">Ex æq.</span>` : String(realRank) + '.');
+  });
+
   const renderRow = (p, i, isNP=false) => {
       const por = getScoreIndiv(p,'por');
       const ma = getScoreIndiv(p,'ma');
@@ -5609,7 +6878,7 @@ function buildTable(sorted, type, sortable=true, isMembreEquipe=false) {
       const total = getScore(p,'global');
       const rank = isNP
         ? `<span style="font-size:10px;background:#eee;color:#888;padding:1px 5px;border-radius:3px;margin-right:4px;">NP</span>`
-        : (!isMembreEquipe ? `<span style="font-size:10px;color:var(--text3);margin-right:4px;">${i+1}.</span>` : '');
+        : (!isMembreEquipe ? (ranks[i] || '') : '');
       const elimBadges = [
         p.elim_por ? '<span class="status-badge np" style="font-size:9px;padding:1px 4px;">ELIM POR</span>' : '',
         p.elim_ma ? '<span class="status-badge np" style="font-size:9px;padding:1px 4px;">ELIM MA</span>' : '',
@@ -6038,7 +7307,7 @@ async function savePTVParcours(pid) {
   await sb.from('ptv_config_obstacles').delete().eq('concours_id', APP.currentConcoursId).eq('parcours_ref', pid);
 
   if (rows.length) {
-    const { error } = await sb.from('ptv_config_obstacles').insert(rows);
+    const { error } = await sb.from('ptv_config_obstacles').upsert(rows, { onConflict: 'concours_id,parcours_ref,obstacle_id' });
     if (error) { showToast(error.message, 'error'); return; }
   }
 
@@ -7327,12 +8596,14 @@ async function savePTVDirect() {
   if (sel) {
     // Marquer comme saisi
     const opt = Array.from(sel.options).find(o => o.value === engId);
-    if (opt) opt.text = '✓ ' + opt.text.replace(/^✓ /, '');
-    // Passer au suivant non saisi
-    const opts = Array.from(sel.options).filter(o => o.value && !o.text.startsWith('✓'));
-    if (opts.length) {
-      sel.value = opts[0].value;
-      await loadPTVPart(opts[0].value);
+    if (opt) opt.text = '✓ ' + opt.text.replace(/^[✓⏳→] /, '');
+    // Passer au participant suivant en position (pas au premier non saisi)
+    const opts = Array.from(sel.options);
+    const curIdx = opts.findIndex(o => o.value === engId);
+    const nextOpt = curIdx >= 0 && curIdx < opts.length - 1 ? opts[curIdx + 1] : null;
+    if (nextOpt?.value) {
+      sel.value = nextOpt.value;
+      await loadPTVPart(nextOpt.value);
     } else {
       sel.value = '';
       document.getElementById('ptv-content').style.display = 'none';
@@ -7551,6 +8822,16 @@ async function renderJugePOR() {
   });
 
   // Stocker les entries pour savePOREntry
+  // Trier par horaire de départ si disponible, sinon par dossard
+  const horairesPOR = APP.cache.horairesPOR || [];
+  entries.sort((a, b) => {
+    const ha = horairesPOR.find(h => a.membresIds?.includes(h.engagement_id) || h.engagement_id === a.id);
+    const hb = horairesPOR.find(h => b.membresIds?.includes(h.engagement_id) || h.engagement_id === b.id);
+    if (ha?.heure_depart && hb?.heure_depart) return ha.heure_depart.localeCompare(hb.heure_depart);
+    const pa = APP.cache.participants.find(p => p.id === a.id);
+    const pb = APP.cache.participants.find(p => p.id === b.id);
+    return (pa?.dossard||9999) - (pb?.dossard||9999);
+  });
   APP._porEntries = entries;
 
   // Charger les scores existants pour ce poste
@@ -7790,21 +9071,21 @@ async function savePOREntry(engId) {
   // Mettre à jour les symboles
   APP._porSaisedIds = APP._porSaisedIds || new Set();
   for (const membreId of membresIds) APP._porSaisedIds.add(membreId);
-  // Passer au participant suivant
+  // Aller au SUIVANT en position stricte (jamais en arrière)
   const sel = document.getElementById('por-sel');
   if (sel) {
     const opts = Array.from(sel.options);
-    const idx = opts.findIndex(o => o.value === engId);
-    if (idx >= 0 && idx < opts.length - 1) {
-      const nextOpt = opts[idx+1];
-      sel.value = nextOpt.value;
-      showPOREntry(nextOpt.value);
-      showToast('\u2713 Enregistr\u00e9 \u2014 Suivant : ' + nextOpt.text.split(' (')[0], 'success');
+    const curIdx = opts.findIndex(o => o.value === engId);
+    const nextIdx = curIdx + 1;
+    if (nextIdx < opts.length && opts[nextIdx].value) {
+      sel.value = opts[nextIdx].value;
+      onPORSelChange(sel);
+      showToast('✓ Enregistré — Suivant', 'success');
     } else {
       sel.value = '';
       document.getElementById('por-entry').style.display = 'none';
-      showToast('Passage enregistr\u00e9 \u2713 \u2014 Fin de liste', 'success');
-    }
+      showToast('Passage enregistré ✓ — Fin de liste', 'success');
+}
   }
 }
 
@@ -9555,6 +10836,15 @@ async function verifyAdminPin() {
 
   // Callback pénalité manuelle POR
   if (field === '_pena_manuelle_por_cb') {
+    if (APP._pinEditCtx.resolve) APP._pinEditCtx.resolve(true);
+    return;
+  }
+  // Callback renommer équipe
+  if (field === '_rename_equipe_cb') {
+    if (APP._pinEditCtx.resolve) APP._pinEditCtx.resolve(true);
+    return;
+  }
+  if (field === '_cp_edit_cb') {
     if (APP._pinEditCtx.resolve) APP._pinEditCtx.resolve(true);
     return;
   }
